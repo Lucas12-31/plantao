@@ -1,5 +1,5 @@
 import { db } from "./firebase-config.js";
-import { collection, addDoc, onSnapshot, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const form = document.getElementById('form-parceiro');
 const lista = document.getElementById('lista-parceiros');
@@ -43,7 +43,13 @@ onSnapshot(collection(db, "parceiros"), (snapshot) => {
                 <td class="fw-bold">${dados.nome}</td>
                 <td><span class="badge bg-primary fs-6">${dados.leads_comprados}</span></td>
                 <td>
-                    <button onclick="deletar('${id}')" class="btn btn-outline-danger btn-sm">🗑️ Excluir</button>
+                    <button onclick="editar('${id}', '${dados.leads_comprados}')" class="btn btn-outline-warning btn-sm me-2">
+                        ✏️ Editar
+                    </button>
+                    
+                    <button onclick="deletar('${id}')" class="btn btn-outline-danger btn-sm">
+                        🗑️ Excluir
+                    </button>
                 </td>
             </tr>
         `;
@@ -52,7 +58,34 @@ onSnapshot(collection(db, "parceiros"), (snapshot) => {
     lista.innerHTML = html;
 });
 
-// 3. EXCLUIR
+// 3. FUNÇÃO EDITAR (NOVA)
+window.editar = async (id, valorAtual) => {
+    // Abre uma caixinha simples no navegador pedindo o novo valor
+    let novoValor = prompt(`Alterar quantidade de leads para este parceiro:`, valorAtual);
+    
+    // Se o usuário clicou em Cancelar ou deixou em branco, não faz nada
+    if (novoValor === null || novoValor.trim() === "") return;
+
+    // Converte para número
+    novoValor = parseInt(novoValor);
+
+    if (isNaN(novoValor)) {
+        return alert("Por favor, digite um número válido!");
+    }
+
+    try {
+        // Atualiza apenas o campo 'leads_comprados' no Firebase
+        await updateDoc(doc(db, "parceiros", id), {
+            leads_comprados: novoValor
+        });
+        // Não precisa de alert, a tabela atualiza sozinha (magic do onSnapshot)
+    } catch (error) {
+        console.error("Erro ao editar:", error);
+        alert("Erro ao atualizar o valor.");
+    }
+};
+
+// 4. FUNÇÃO EXCLUIR
 window.deletar = async (id) => {
     if(confirm("Tem certeza que deseja excluir este parceiro?")) {
         await deleteDoc(doc(db, "parceiros", id));
