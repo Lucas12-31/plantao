@@ -1,100 +1,135 @@
 import { db } from "./firebase-config.js";
-import { collection, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const grid = document.getElementById('calendario-grid');
 
-// Função Principal
 window.montarEscala = async () => {
-    grid.innerHTML = '<div class="text-center w-100 mt-5">Carregando corretores e gerando escala...</div>';
+    grid.innerHTML = '<div class="text-center w-100 mt-5">Carregando corretores e leads...</div>';
     
-    // 1. Pegar Corretores Elegíveis (Com saldo > 0)
-    const snapshot = await getDocs(collection(db, "corretores"));
+    // 1. Buscar TUDO que precisamos (Corretores e Leads)
+    const [corretoresSnap, leadsSnap] = await Promise.all([
+        getDocs(collection(db, "corretores")),
+        getDocs(collection(db, "leads"))
+    ]);
+
+    // Processa Corretores
     let poolCorretores = [];
-    
-    snapshot.forEach(d => {
+    corretoresSnap.forEach(d => {
         let dados = d.data();
-        // Só entra na escala se tiver ganhado algum lead (PME ou PF)
-        if ((dados.saldo_pme > 0 || dados.saldo_pf > 0)) {
+        // Entra na escala se tiver saldo > 0 em PME ou PF
+        if (dados.saldo_pme > 0 || dados.saldo_pf > 0) {
             poolCorretores.push({ id: d.id, ...dados });
         }
     });
 
+    // Processa Leads (Cria um array simples para filtrarmos depois)
+    let todosLeads = [];
+    leadsSnap.forEach(d => {
+        todosLeads.push(d.data());
+    });
+
     if (poolCorretores.length < 3) {
-        return alert("Você precisa de pelo menos 3 corretores com leads para gerar um rodízio.");
+        return alert("Necessário pelo menos 3 corretores com saldo para gerar escala.");
     }
 
-    // 2. Gerar Dias Úteis do Mês Atual
+    // 2. Gerar Dias e Rodízio
     let diasUteis = getDiasUteisMes();
-    
-    // 3. Algoritmo de Rodízio
-    let escalaFinal = {}; // Ex: { "10/02": [corretorA, corretorB, corretorC] }
-    let ultimoPlantao = []; // Quem trabalhou ontem
+    let escalaFinal = gerarLogicaRodizio(diasUteis, poolCorretores);
 
-    diasUteis.forEach(dia => {
-        let escaladosHoje = [];
+    // 3. Renderizar com a Contagem de Leads
+    renderizarCalendario(diasUteis, escalaFinal, todosLeads);
+};
+
+// --- LÓGICA DE RODÍZIO (Igual anterior) ---
+function gerarLogicaRodizio(dias, corretores) {
+    let escala = {};
+    let ultimoPlantao = [];
+
+    dias.forEach(objDia => { // objDia = { dataFormatada: "DD/MM", dataISO: "YYYY-MM-DD" }
+        let escalados = [];
         let tentativas = 0;
-
-        while (escaladosHoje.length < 3 && tentativas < 100) {
-            // Sorteia alguém
-            let candidato = poolCorretores[Math.floor(Math.random() * poolCorretores.length)];
+        
+        while (escalados.length < 3 && tentativas < 100) {
+            let cand = corretores[Math.floor(Math.random() * corretores.length)];
+            let jaEsta = escalados.some(c => c.id === cand.id);
+            let trabalhouOntem = ultimoPlantao.some(c => c.id === cand.id);
             
-            // Regras: 
-            // 1. Não pode estar escalado hoje já.
-            // 2. Não pode ter trabalhado ontem (ultimoPlantao).
-            let jaEstaHoje = escaladosHoje.some(c => c.id === candidato.id);
-            let trabalhouOntem = ultimoPlantao.some(c => c.id === candidato.id);
+            if (corretores.length < 6) trabalhouOntem = false;
 
-            // Se o time for pequeno (menos de 6), relaxamos a regra de "trabalhou ontem"
-            if (poolCorretores.length < 6) trabalhouOntem = false;
-
-            if (!jaEstaHoje && !trabalhouOntem) {
-                escaladosHoje.push(candidato);
+            if (!jaEsta && !trabalhouOntem) {
+                escalados.push(cand);
             }
             tentativas++;
         }
-        
-        escalaFinal[dia] = escaladosHoje;
-        ultimoPlantao = escaladosHoje; // Atualiza para o próximo dia
+        escala[objDia.dataISO] = escalados;
+        ultimoPlantao = escalados;
     });
+    return escala;
+}
 
-    renderizarCalendario(diasUteis, escalaFinal);
-};
-
-// Gera dias de Seg a Sex do mês atual
 function getDiasUteisMes() {
     let date = new Date();
     let month = date.getMonth();
     let year = date.getFullYear();
-    let days = [];
+    let days = []; // Array de objetos { dataISO, dataFormatada }
     
     date.setDate(1);
     
     while (date.getMonth() === month) {
         let diaSemana = date.getDay();
-        if (diaSemana !== 0 && diaSemana !== 6) { // 0=Dom, 6=Sab
-            days.push(new Date(date).toLocaleDateString('pt-BR'));
+        if (diaSemana !== 0 && diaSemana !== 6) {
+            // Cria formato YYYY-MM-DD para comparar com o banco de dados
+            let iso = date.toISOString().split('T')[0]; 
+            // Cria formato DD/MM para exibir na tela
+            let display = date.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
+            
+            days.push({ dataISO: iso, dataFormatada: display });
         }
         date.setDate(date.getDate() + 1);
     }
     return days;
 }
 
-function renderizarCalendario(dias, escala) {
+// --- RENDERIZAÇÃO COM CÁLCULO DE LEADS ---
+function renderizarCalendario(dias, escala, leads) {
     grid.innerHTML = '';
     
     dias.forEach(dia => {
-        let corretoresDoDia = escala[dia] || [];
+        let isoDate = dia.dataISO; // "2026-02-10"
+        let displayDate = dia.dataFormatada; // "10/02"
+        let corretoresDoDia = escala[isoDate] || [];
         
         let htmlCorretores = corretoresDoDia.map(c => {
-            // Gera Checkboxes PME
-            let checksPME = gerarCheckboxes(c.id, 'pme', c.saldo_pme, c.leads_entregues_pme || 0);
             
+            // FILTRAR LEADS DESTE CORRETOR NESTE DIA
+            let leadsHojePME = leads.filter(l => l.corretor_id === c.id && l.data_entrega === isoDate && l.tipo === 'pme').length;
+            let leadsHojePF = leads.filter(l => l.corretor_id === c.id && l.data_entrega === isoDate && l.tipo === 'pf').length;
+
+            // CÁLCULOS
+            let totalPME = c.saldo_pme || 0; // Meta total do mês
+            let faltamPME = totalPME - leadsHojePME; // O que resta entregar? (Pode ser negativo se entregou a mais)
+
+            let totalPF = c.saldo_pf || 0;
+            let faltamPF = totalPF - leadsHojePF;
+
+            // Estilização se "estourou" a meta ou se ainda falta
+            let corPME = faltamPME < 0 ? 'text-success' : 'text-dark';
+            let corPF = faltamPF < 0 ? 'text-success' : 'text-dark';
+
             return `
-                <div class="corretor-card text-start">
-                    <strong>${c.nome.split(' ')[0]}</strong>
-                    <div class="mt-1">
-                        <small class="badge bg-warning text-dark">PME (${c.saldo_pme})</small>
-                        <div class="d-flex gap-1 mt-1 flex-wrap">${checksPME}</div>
+                <div class="corretor-card text-start border-start border-4 border-warning bg-white shadow-sm mb-2 p-2 rounded">
+                    <div class="fw-bold text-uppercase border-bottom pb-1 mb-1">${c.nome.split(' ')[0]}</div>
+                    
+                    <div style="font-size: 0.75rem; line-height: 1.2;">
+                        <span class="badge bg-warning text-dark mb-1">PME</span> 
+                        <span class="fw-bold">Dist: ${leadsHojePME}</span>
+                        <span class="text-muted ms-1">| Faltam: <b class="${corPME}">${faltamPME}</b></span>
+                    </div>
+
+                    <div style="font-size: 0.75rem; line-height: 1.2;" class="mt-1">
+                        <span class="badge bg-info text-white mb-1" style="min-width: 36px">PF</span> 
+                        <span class="fw-bold">Dist: ${leadsHojePF}</span>
+                        <span class="text-muted ms-1">| Faltam: <b class="${corPF}">${faltamPF}</b></span>
                     </div>
                 </div>
             `;
@@ -102,60 +137,13 @@ function renderizarCalendario(dias, escala) {
 
         grid.innerHTML += `
             <div class="col">
-                <div class="calendar-day p-2">
-                    <div class="text-end text-muted mb-2">${dia.slice(0,5)}</div> ${htmlCorretores}
+                <div class="calendar-day p-2 h-100 border bg-light">
+                    <div class="text-end fw-bold text-secondary mb-2">${displayDate}</div>
+                    ${htmlCorretores}
                 </div>
             </div>
         `;
     });
-
-    ativarCliques();
 }
 
-// Gera o HTML das caixinhas [ ] [x]
-function gerarCheckboxes(idCorretor, tipo, total, entregues) {
-    let html = '';
-    for (let i = 1; i <= total; i++) {
-        let isChecked = i <= entregues ? "checked" : "";
-        let icon = i <= entregues ? "✅" : "⬜";
-        
-        // Cada checkbox é um span clicável
-        html += `<span class="check-lead" 
-                    data-id="${idCorretor}" 
-                    data-tipo="${tipo}" 
-                    data-idx="${i}" 
-                    title="Marcar lead entregue">${icon}</span>`;
-    }
-    return html;
-}
-
-// Lógica de clicar no checkbox e salvar
-function ativarCliques() {
-    document.querySelectorAll('.check-lead').forEach(el => {
-        el.addEventListener('click', async (e) => {
-            let id = e.target.dataset.id;
-            let tipo = e.target.dataset.tipo; // 'pme' ou 'pf'
-            let idx = parseInt(e.target.dataset.idx); // qual quadradinho é (1, 2, 3...)
-            
-            // Só confirma se clicar, por exemplo, no quadrado vazio
-            if(confirm(`Confirmar entrega do Lead ${idx} para este corretor?`)) {
-                const docRef = doc(db, "corretores", id);
-                
-                // Atualiza contagem no banco
-                let campo = tipo === 'pme' ? 'leads_entregues_pme' : 'leads_entregues_pf';
-                
-                // Truque: salvamos o índice clicado como o novo total de entregues
-                // Ex: se clicou no 3º quadrado, significa que entregou 3.
-                await updateDoc(docRef, {
-                    [campo]: idx
-                });
-
-                // Atualiza visualmente (recarrega a tela é mais seguro pra sincronizar)
-                window.montarEscala(); 
-            }
-        });
-    });
-}
-
-// Carrega automaticamente ao abrir
 window.montarEscala();
