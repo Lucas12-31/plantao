@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Distribuição Equipe Limão</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">Plantão Equipe Limão</a>
+            <a href="index.html" class="btn btn-outline-light btn-sm">Voltar</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card shadow">
+                    <div class="card-header bg-warning text-dark">
+                        <strong>⚙️ Configuração do Dia</strong>
+                    </div>
+                    <div class="card-body">
+                        <label>Leads PME Disponíveis Hoje:</label>
+                        <input type="number" id="leads-pme-total" class="form-control mb-3" value="10">
+
+                        <label>Leads PF Disponíveis Hoje:</label>
+                        <input type="number" id="leads-pf-total" class="form-control mb-3" value="20">
+
+                        <hr>
+                        <button onclick="calcularDistribuicao()" class="btn btn-primary w-100">
+                            🎲 Rodar Distribuição
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <h3>Resultado da Distribuição</h3>
+                <div id="alert-sobras" class="alert alert-info d-none"></div>
+                
+                <table class="table table-bordered table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Corretor</th>
+                            <th>Status</th>
+                            <th>Meta (R$)</th>
+                            <th>Leads PME</th>
+                            <th>Leads PF</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela-resultado">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app-distribuicao.js"></script>
+    <script>
+        window.calcularDistribuicao = () => window.executarLogica();
+    </script>
+</body>
+</html>
