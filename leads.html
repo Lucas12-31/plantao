@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Cadastro de Leads</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">🍋 Sistema Limão</a>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="cadastro.html">👥 Cadastro</a></li>
+                    <li class="nav-item"><a class="nav-link" href="producao.html">💰 Produção</a></li>
+                    <li class="nav-item"><a class="nav-link" href="distribuicao.html">🎲 Distribuição</a></li>
+                    <li class="nav-item"><a class="nav-link" href="plantao.html">📅 Plantão</a></li>
+                    <li class="nav-item"><a class="nav-link active btn btn-danger text-white fw-bold ms-2" href="leads.html">🔥 Leads</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-md-5">
+                <div class="card shadow">
+                    <div class="card-header bg-danger text-white">
+                        <strong>Novo Lead</strong>
+                    </div>
+                    <div class="card-body">
+                        <form id="form-lead">
+                            
+                            <div class="mb-3">
+                                <label>Nome (Empresa ou Cliente)</label>
+                                <input type="text" id="nome-lead" class="form-control" required>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-6 mb-3">
+                                    <label>Fonte do Lead</label>
+                                    <select id="fonte-lead" class="form-select" required>
+                                        <option value="">Selecione...</option>
+                                        <option value="Just Sell">Just Sell</option>
+                                        <option value="MKT">MKT</option>
+                                        <option value="I-Leads">I-Leads</option>
+                                        <option value="Segleads">Segleads</option>
+                                        <option value="Box Leads">Box Leads</option>
+                                        <option value="ZS Alerta">ZS Alerta</option>
+                                        <option value="Tijucano Alerta">Tijucano Alerta</option>
+                                        <option value="Outros">Outros</option>
+                                    </select>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label>Tipo</label>
+                                    <select id="tipo-lead" class="form-select" required>
+                                        <option value="pme">PME</option>
+                                        <option value="pf">PF</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-6 mb-3">
+                                    <label>Data Chegada</label>
+                                    <input type="date" id="data-chegada" class="form-control" required>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label>Data Entrega</label>
+                                    <input type="date" id="data-entrega" class="form-control" required>
+                                    <small class="text-muted" style="font-size: 0.7em">Define o dia no Plantão</small>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label>Vincular ao Corretor</label>
+                                <select id="select-corretor" class="form-select" required>
+                                    <option value="">Carregando corretores...</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" class="btn btn-danger w-100">Cadastrar Lead</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-7">
+                <h4>Últimos Leads Cadastrados</h4>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Data Ent.</th>
+                                <th>Corretor</th>
+                                <th>Tipo</th>
+                                <th>Cliente</th>
+                                <th>Fonte</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-leads">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app-leads.js"></script>
+</body>
+</html>
