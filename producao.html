@@ -10,42 +10,27 @@
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
-    <div class="container">
-        <a class="navbar-brand" href="index.html">🍋 Sistema Limão</a>
-        
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto">
-                
-                <li class="nav-item">
-                    <a class="nav-link" href="index.html">Início</a>
-                </li>
-
-                <li class="nav-item">
-                    <a class="nav-link" href="cadastro.html">👥 Cadastro (RH)</a>
-                </li>
-
-                <li class="nav-item">
-                    <a class="nav-link" href="producao.html">💰 Produção (Gestor)</a>
-                </li>
-
-                <li class="nav-item">
-                    <a class="nav-link btn btn-warning text-dark fw-bold ms-2" href="distribuicao.html">🎲 Distribuir Leads</a>
-                </li>
-
-            </ul>
+        <div class="container">
+            <a class="navbar-brand" href="index.html">🍋 Sistema Limão</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="index.html">Início</a></li>
+                    <li class="nav-item"><a class="nav-link" href="cadastro.html">👥 Cadastro (RH)</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="producao.html">💰 Produção (Gestor)</a></li>
+                    <li class="nav-item"><a class="nav-link btn btn-warning text-dark fw-bold ms-2" href="distribuicao.html">🎲 Distribuir Leads</a></li>
+                </ul>
+            </div>
         </div>
-    </div>
-</nav>
+    </nav>
 
     <div class="container-fluid">
         <div class="row">
             <div class="col-md-4 bg-light p-4 border-end">
                 <h4>🚀 Lançar Produção</h4>
-                <p class="text-muted">Selecione o corretor e atualize os números do mês.</p>
+                <p class="text-muted">Selecione o corretor e atualize os valores (R$). O cálculo de pontos é automático.</p>
                 
                 <form id="form-producao">
                     <div class="mb-3">
@@ -55,24 +40,19 @@
                         </select>
                     </div>
 
-                    <div class="card p-3 mb-3">
-                        <h6>Valores Acumulados (Mês)</h6>
+                    <div class="card p-3 mb-3 shadow-sm">
+                        <h6>Valores no Mês (R$)</h6>
                         
-                        <div class="mb-2">
-                            <label>Total em PME (R$)</label>
-                            <input type="number" id="valor-pme" class="form-control" step="0.01">
+                        <div class="mb-3">
+                            <label class="text-primary fw-bold">Produção PME (R$)</label>
+                            <input type="number" id="valor-pme" class="form-control" step="0.01" placeholder="0,00">
+                            <small class="text-muted">Cada R$ 1,00 vale 2 pontos.</small>
                         </div>
                         
                         <div class="mb-2">
-                            <label>Total em PF (R$)</label>
-                            <input type="number" id="valor-pf" class="form-control" step="0.01">
-                        </div>
-
-                        <div class="form-check form-switch mt-2">
-                            <input class="form-check-input" type="checkbox" id="check-pme-ativo">
-                            <label class="form-check-label fw-bold" for="check-pme-ativo">
-                                Possui PME Ativo? (Peso 2)
-                            </label>
+                            <label class="text-info fw-bold">Produção PF (R$)</label>
+                            <input type="number" id="valor-pf" class="form-control" step="0.01" placeholder="0,00">
+                            <small class="text-muted">Cada R$ 1,00 vale 1 ponto.</small>
                         </div>
                     </div>
 
@@ -85,8 +65,8 @@
 
             <div class="col-md-8 p-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h3>🏆 Ranking de Vendas</h3>
-                    <span class="badge bg-success">Atualizado em tempo real</span>
+                    <h3>🏆 Ranking de Pontuação</h3>
+                    <span class="badge bg-success">PME x2 | PF x1</span>
                 </div>
 
                 <div class="table-responsive">
@@ -95,10 +75,9 @@
                             <tr>
                                 <th>#</th>
                                 <th class="text-start">Corretor</th>
-                                <th>Status PME</th>
-                                <th>Total PME</th>
-                                <th>Total PF</th>
-                                <th class="bg-primary text-white">TOTAL GERAL</th>
+                                <th>PME (R$)</th>
+                                <th>PF (R$)</th>
+                                <th class="bg-primary text-white">TOTAL (PONTOS)</th>
                             </tr>
                         </thead>
                         <tbody id="tabela-ranking">
@@ -111,7 +90,6 @@
 
     <script type="module" src="app-producao.js"></script>
     <script>
-        // Função Global para o botão Zerar
         window.zerarProducao = () => window.resetarValores();
     </script>
 </body>
