@@ -1,10 +1,9 @@
 import { db } from "./firebase-config.js";
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// Função principal chamada pelo botão
 window.executarLogica = async () => {
     
-    // 1. Pegar dados da tela
+    // 1. Pegar inputs da tela (Quantos leads temos para dar?)
     let totalPME = parseInt(document.getElementById('leads-pme-total').value) || 0;
     let totalPF = parseInt(document.getElementById('leads-pf-total').value) || 0;
     
@@ -13,123 +12,145 @@ window.executarLogica = async () => {
     let corretores = [];
     
     querySnapshot.forEach((doc) => {
-        corretores.push({ id: doc.id, ...doc.data() });
+        let dados = doc.data();
+        
+        // --- CORREÇÃO AQUI ---
+        // Somamos PME + PF para saber a produção total do mês
+        let prodPME = parseFloat(dados.producao_pme) || 0;
+        let prodPF = parseFloat(dados.producao_pf) || 0;
+        let totalGeral = prodPME + prodPF;
+
+        corretores.push({ 
+            id: doc.id, 
+            ...dados,
+            totalGeral: totalGeral // Criamos esse campo calculado
+        });
     });
 
-    // 3. FILTRAR ELEGÍVEIS (Meta R$ 3.000)
-    // Quem não bateu a meta, nem entra na conta.
-    let elegiveis = corretores.filter(c => c.producao >= 3000);
+    // 3. FILTRAR ELEGÍVEIS (Quem bateu a meta de R$ 3.000 no total?)
+    // Agora usamos o totalGeral, não mais "producao"
+    let elegiveis = corretores.filter(c => c.totalGeral >= 3000);
     
-    // Lista final para exibir
-    let distribuicao = [];
-    
-    // --- LÓGICA DE DISTRIBUIÇÃO PME ---
-    
-    // Primeiro: Calcular direitos por Progressão (PF > 5k, 7k...)
-    // Regra: A cada 2k acima de 3k = 1 PME
+    // Se ninguém bateu a meta, avisa e para.
+    if (elegiveis.length === 0) {
+        alert("Nenhum corretor atingiu a meta mínima de R$ 3.000 ainda.");
+        renderizarTabela([], corretores); // Mostra todos como inaptos
+        return;
+    }
+
+    // Inicializa contadores temporários para distribuição
     elegiveis.forEach(c => {
-        let leadsPME = 0;
-        let leadsPF = 0;
-        let motivo = "";
-
-        // Cálculo do Bônus PME por Produção
-        let excedente = c.producao - 3000;
-        let bonusPME = 0;
-        if (excedente >= 2000) {
-            bonusPME = Math.floor(excedente / 2000); // Ex: 5000-3000 = 2000 / 2000 = 1
-        }
-
-        // Prioridade PME Ativo (Peso 2 na disputa)
-        // Aqui vamos simplificar: Se tem PME Ativo, garante +1 na distribuição ou prioridade
-        // Para este código, vamos somar o bônus ao estoque.
-        
-        // Vamos descontar do total disponível os bônus obrigatórios primeiro?
-        // Ou vamos distribuir proporcionalmente?
-        // Vou adotar a distribuição direta conforme sua regra de progressão.
-        
-        if (totalPME >= bonusPME) {
-            leadsPME += bonusPME;
-            totalPME -= bonusPME;
-            if(bonusPME > 0) motivo += `Ganhou ${bonusPME} PME por meta batida. `;
-        }
-        
-        // Se o cara tem PME Ativo, ele entra no rateio do que sobrou com Peso 2
-        // Vamos marcar ele para a segunda rodada de distribuição
-        c.temp_leadsPME = leadsPME; 
-        c.temp_motivo = motivo;
+        c.temp_leadsPME = 0;
+        c.temp_leadsPF = 0;
+        c.temp_motivo = "";
     });
 
-    // Segunda Rodada PME: Rateio do que sobrou para quem tem PME ATIVO
+    // --- FASE 1: PROGRESSÃO DE META (Bônus por mérito) ---
+    // Regra: A cada 2k acima dos 3k iniciais = ganha 1 PME
+    elegiveis.forEach(c => {
+        let excedente = c.totalGeral - 3000;
+        
+        if (excedente >= 2000) {
+            let bonusPME = Math.floor(excedente / 2000); // Ex: 4000 de excedente = 2 leads
+            
+            // Verifica se tem estoque de leads PME para pagar o bônus
+            if (totalPME >= bonusPME) {
+                c.temp_leadsPME += bonusPME;
+                totalPME -= bonusPME; // Remove do estoque
+                if(bonusPME > 0) c.temp_motivo += `🎯 Ganhou ${bonusPME} PME por supermeta. `;
+            } else if (totalPME > 0) {
+                // Se o estoque for menor que o bônus, dá o que tem
+                c.temp_leadsPME += totalPME;
+                c.temp_motivo += `⚠️ Ganhou ${totalPME} PME (estoque acabou). `;
+                totalPME = 0;
+            }
+        }
+    });
+
+    // --- FASE 2: PESO 2 (PME ATIVO) ---
+    // Distribui o RESTANTE dos leads PME para quem tem PME Ativo
     let corretoresPMEAtivo = elegiveis.filter(c => c.pme_ativo);
     
     if (corretoresPMEAtivo.length > 0 && totalPME > 0) {
-        // Distribuição simples do restante para quem tem PME ativo
-        // Aqui você pode refinar. Vou dividir igualmente o que sobrou entre eles.
-        let extraPorCabeca = Math.floor(totalPME / corretoresPMEAtivo.length);
+        let pmePorCabeca = Math.floor(totalPME / corretoresPMEAtivo.length);
         
-        corretoresPMEAtivo.forEach(c => {
-            c.temp_leadsPME += extraPorCabeca;
-            c.temp_motivo += `+${extraPorCabeca} PME por Negociação Ativa. `;
-        });
-        totalPME = totalPME - (extraPorCabeca * corretoresPMEAtivo.length);
+        // Se a divisão der zero (ex: 1 lead para 3 pessoas), sobra tudo para gestão
+        if (pmePorCabeca > 0) {
+            corretoresPMEAtivo.forEach(c => {
+                c.temp_leadsPME += pmePorCabeca;
+                c.temp_motivo += `⭐ +${pmePorCabeca} por PME Ativo. `;
+            });
+            totalPME -= (pmePorCabeca * corretoresPMEAtivo.length);
+        }
     }
 
-    // --- LÓGICA DE DISTRIBUIÇÃO PF ---
-    // Regra: "Recebe proporção disponível".
-    // Vamos dividir o total de PF igualmente entre todos os elegíveis.
-    if (elegiveis.length > 0) {
+    // --- FASE 3: DISTRIBUIÇÃO PF (Igualitária para quem bateu meta) ---
+    if (elegiveis.length > 0 && totalPF > 0) {
         let pfPorCabeca = Math.floor(totalPF / elegiveis.length);
-        elegiveis.forEach(c => {
-            c.temp_leadsPF = pfPorCabeca;
-        });
-        totalPF = totalPF - (pfPorCabeca * elegiveis.length);
+        
+        if (pfPorCabeca > 0) {
+            elegiveis.forEach(c => {
+                c.temp_leadsPF += pfPorCabeca;
+            });
+            totalPF -= (pfPorCabeca * elegiveis.length);
+        }
     }
 
-    // --- RENDERIZAR NA TELA ---
+    // Renderiza o resultado final
+    renderizarTabela(elegiveis, corretores);
+    mostrarSobras(totalPME, totalPF);
+};
+
+// Função auxiliar de desenho da tabela
+function renderizarTabela(elegiveis, todosCorretores) {
     const tbody = document.getElementById('tabela-resultado');
     tbody.innerHTML = '';
+    
+    // Lista de IDs dos elegíveis para não duplicar
+    const idsElegiveis = elegiveis.map(c => c.id);
 
-    // Mostrar ELEGÍVEIS
+    // 1. Mostrar os Aprovados (Verdes/Amarelos)
     elegiveis.forEach(c => {
-        let classeDestaque = c.pme_ativo ? "table-warning" : "";
+        let destaque = c.pme_ativo ? "table-warning" : "table-success"; // Amarelo se for PME Ativo
         let icone = c.pme_ativo ? "⭐" : "";
         
         tbody.innerHTML += `
-            <tr class="${classeDestaque}">
+            <tr class="${destaque}">
                 <td>${c.nome} ${icone}</td>
                 <td><span class="badge bg-success">Apto</span></td>
-                <td>R$ ${c.producao}</td>
-                <td><strong>${c.temp_leadsPME}</strong> <small class="text-muted d-block">${c.temp_motivo}</small></td>
-                <td><strong>${c.temp_leadsPF}</strong></td>
+                <td>R$ ${c.totalGeral.toLocaleString('pt-BR')}</td>
+                <td class="fw-bold fs-5">${c.temp_leadsPME} <br><small class="text-muted fw-normal fs-6">${c.temp_motivo}</small></td>
+                <td class="fw-bold fs-5">${c.temp_leadsPF}</td>
             </tr>
         `;
     });
 
-    // Mostrar NÃO ELEGÍVEIS (Meta < 3k)
-    let naoElegiveis = corretores.filter(c => c.producao < 3000);
-    naoElegiveis.forEach(c => {
-        tbody.innerHTML += `
-            <tr class="table-secondary text-muted">
-                <td>${c.nome}</td>
-                <td><span class="badge bg-danger">Inapto (Meta)</span></td>
-                <td>R$ ${c.producao}</td>
-                <td>0</td>
-                <td>0</td>
-            </tr>
-        `;
+    // 2. Mostrar os Reprovados (Cinza)
+    todosCorretores.forEach(c => {
+        if (!idsElegiveis.includes(c.id)) {
+            tbody.innerHTML += `
+                <tr class="table-light text-muted opacity-75">
+                    <td>${c.nome}</td>
+                    <td><span class="badge bg-danger">Inapto (< 3k)</span></td>
+                    <td>R$ ${c.totalGeral.toLocaleString('pt-BR')}</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+            `;
+        }
     });
+}
 
-    // Mostrar SOBRAS (Para a Supervisora)
+function mostrarSobras(pme, pf) {
     const divSobras = document.getElementById('alert-sobras');
-    if (totalPME > 0 || totalPF > 0) {
+    if (pme > 0 || pf > 0) {
         divSobras.classList.remove('d-none');
         divSobras.innerHTML = `
-            <strong>🚨 SOBRAS PARA GESTÃO:</strong><br>
-            Leads PME: ${totalPME} <br>
-            Leads PF: ${totalPF} <br>
-            <em>(Direcionar conforme critério de meritocracia/estratégia)</em>
+            <strong>🚨 SOBRAS (GESTÃO):</strong> 
+            Ficaram <b>${pme} Leads PME</b> e <b>${pf} Leads PF</b> sem dono. 
+            <br>A supervisora deve distribuir manualmente.
         `;
     } else {
         divSobras.classList.add('d-none');
     }
-};
+}
