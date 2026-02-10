@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Gestão de Parceiros</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow-sm">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="index.html">🍋 Sistema Limão</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto gap-2">
+                    <li class="nav-item"><a class="nav-link" href="index.html">Início</a></li>
+                    <li class="nav-item"><a class="nav-link" href="cadastro.html">👥 Cadastro</a></li>
+                    <li class="nav-item"><a class="nav-link active fw-bold text-info" href="parceiros.html">🤝 Parceiros</a></li>
+                    <li class="nav-item"><a class="nav-link" href="producao.html">💰 Produção</a></li>
+                    <li class="nav-item"><a class="nav-link btn btn-warning text-dark fw-bold px-3 py-1" href="distribuicao.html">🎲 Distribuição</a></li>
+                    <li class="nav-item"><a class="nav-link btn btn-info text-white fw-bold px-3 py-1" href="plantao.html">📅 Plantão</a></li>
+                    <li class="nav-item"><a class="nav-link btn btn-danger text-white fw-bold px-3 py-1" href="leads.html">🔥 Leads</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card shadow border-info">
+                    <div class="card-header bg-info text-white">
+                        <strong>Novo Parceiro / Compra</strong>
+                    </div>
+                    <div class="card-body">
+                        <form id="form-parceiro">
+                            <div class="mb-3">
+                                <label>Nome da Empresa (Fonte)</label>
+                                <input type="text" id="nome-parceiro" class="form-control" placeholder="Ex: Just Sell, Facebook..." required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label>Quantidade Comprada</label>
+                                <input type="number" id="qtd-leads" class="form-control" placeholder="0" required>
+                                <small class="text-muted">Total de leads adquiridos neste pacote.</small>
+                            </div>
+
+                            <button type="submit" class="btn btn-info text-white w-100 fw-bold">Salvar Parceiro</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <h4>💼 Carteira de Parceiros</h4>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Empresa</th>
+                                <th>Leads Comprados</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lista-parceiros">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app-parceiros.js"></script>
+</body>
+</html>
