@@ -2,155 +2,130 @@ import { db } from "./firebase-config.js";
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 window.executarLogica = async () => {
-    
-    // 1. Pegar inputs da tela (Quantos leads temos para dar?)
     let totalPME = parseInt(document.getElementById('leads-pme-total').value) || 0;
     let totalPF = parseInt(document.getElementById('leads-pf-total').value) || 0;
     
-    // 2. Pegar corretores do Firebase
     const querySnapshot = await getDocs(collection(db, "corretores"));
     let corretores = [];
     
     querySnapshot.forEach((doc) => {
         let dados = doc.data();
-        
-        // --- CORREÇÃO AQUI ---
-        // Somamos PME + PF para saber a produção total do mês
         let prodPME = parseFloat(dados.producao_pme) || 0;
         let prodPF = parseFloat(dados.producao_pf) || 0;
-        let totalGeral = prodPME + prodPF;
+        
+        // CÁLCULO DE PONTOS PARA A DISTRIBUIÇÃO
+        // Mantivemos a meta de 3000, mas agora olhando para o "Valor Gerado" (R$)
+        // Se preferir que a meta seja 3000 PONTOS, me avise. 
+        // Por enquanto, mantive a regra original: Meta R$ 3.000 em dinheiro.
+        let totalGeralReais = prodPME + prodPF; 
+        
+        // Define se é "PME Ativo" automaticamente (se vendeu PME, tem prioridade)
+        let isPmeAtivo = prodPME > 0;
 
         corretores.push({ 
             id: doc.id, 
             ...dados,
-            totalGeral: totalGeral // Criamos esse campo calculado
+            totalGeral: totalGeralReais,
+            isPmeAtivo: isPmeAtivo
         });
     });
 
-    // 3. FILTRAR ELEGÍVEIS (Quem bateu a meta de R$ 3.000 no total?)
-    // Agora usamos o totalGeral, não mais "producao"
+    // Filtra quem bateu a meta FINANCEIRA de R$ 3.000
     let elegiveis = corretores.filter(c => c.totalGeral >= 3000);
     
-    // Se ninguém bateu a meta, avisa e para.
     if (elegiveis.length === 0) {
-        alert("Nenhum corretor atingiu a meta mínima de R$ 3.000 ainda.");
-        renderizarTabela([], corretores); // Mostra todos como inaptos
+        alert("Ninguém atingiu a meta de R$ 3.000 (Soma PME + PF).");
+        renderizarTabela([], corretores);
         return;
     }
 
-    // Inicializa contadores temporários para distribuição
     elegiveis.forEach(c => {
         c.temp_leadsPME = 0;
         c.temp_leadsPF = 0;
         c.temp_motivo = "";
     });
 
-    // --- FASE 1: PROGRESSÃO DE META (Bônus por mérito) ---
-    // Regra: A cada 2k acima dos 3k iniciais = ganha 1 PME
+    // 1. BÔNUS POR PROGRESSÃO
     elegiveis.forEach(c => {
         let excedente = c.totalGeral - 3000;
-        
         if (excedente >= 2000) {
-            let bonusPME = Math.floor(excedente / 2000); // Ex: 4000 de excedente = 2 leads
-            
-            // Verifica se tem estoque de leads PME para pagar o bônus
+            let bonusPME = Math.floor(excedente / 2000);
             if (totalPME >= bonusPME) {
                 c.temp_leadsPME += bonusPME;
-                totalPME -= bonusPME; // Remove do estoque
-                if(bonusPME > 0) c.temp_motivo += `🎯 Ganhou ${bonusPME} PME por supermeta. `;
+                totalPME -= bonusPME;
+                if(bonusPME > 0) c.temp_motivo += `🎯 +${bonusPME} (Meta). `;
             } else if (totalPME > 0) {
-                // Se o estoque for menor que o bônus, dá o que tem
                 c.temp_leadsPME += totalPME;
-                c.temp_motivo += `⚠️ Ganhou ${totalPME} PME (estoque acabou). `;
                 totalPME = 0;
             }
         }
     });
 
-    // --- FASE 2: PESO 2 (PME ATIVO) ---
-    // Distribui o RESTANTE dos leads PME para quem tem PME Ativo
-    let corretoresPMEAtivo = elegiveis.filter(c => c.pme_ativo);
+    // 2. PESO 2 / PME ATIVO (Automático: Quem vendeu PME > 0)
+    let corretoresPME = elegiveis.filter(c => c.isPmeAtivo);
     
-    if (corretoresPMEAtivo.length > 0 && totalPME > 0) {
-        let pmePorCabeca = Math.floor(totalPME / corretoresPMEAtivo.length);
-        
-        // Se a divisão der zero (ex: 1 lead para 3 pessoas), sobra tudo para gestão
+    if (corretoresPME.length > 0 && totalPME > 0) {
+        let pmePorCabeca = Math.floor(totalPME / corretoresPME.length);
         if (pmePorCabeca > 0) {
-            corretoresPMEAtivo.forEach(c => {
+            corretoresPME.forEach(c => {
                 c.temp_leadsPME += pmePorCabeca;
-                c.temp_motivo += `⭐ +${pmePorCabeca} por PME Ativo. `;
+                c.temp_motivo += `⭐ +${pmePorCabeca} (Peso 2). `;
             });
-            totalPME -= (pmePorCabeca * corretoresPMEAtivo.length);
+            totalPME -= (pmePorCabeca * corretoresPME.length);
         }
     }
 
-    // --- FASE 3: DISTRIBUIÇÃO PF (Igualitária para quem bateu meta) ---
+    // 3. DISTRIBUIÇÃO PF
     if (elegiveis.length > 0 && totalPF > 0) {
         let pfPorCabeca = Math.floor(totalPF / elegiveis.length);
-        
         if (pfPorCabeca > 0) {
-            elegiveis.forEach(c => {
-                c.temp_leadsPF += pfPorCabeca;
-            });
+            elegiveis.forEach(c => c.temp_leadsPF += pfPorCabeca);
             totalPF -= (pfPorCabeca * elegiveis.length);
         }
     }
 
-    // Renderiza o resultado final
     renderizarTabela(elegiveis, corretores);
     mostrarSobras(totalPME, totalPF);
 };
 
-// Função auxiliar de desenho da tabela
-function renderizarTabela(elegiveis, todosCorretores) {
+function renderizarTabela(elegiveis, todos) {
     const tbody = document.getElementById('tabela-resultado');
     tbody.innerHTML = '';
-    
-    // Lista de IDs dos elegíveis para não duplicar
     const idsElegiveis = elegiveis.map(c => c.id);
 
-    // 1. Mostrar os Aprovados (Verdes/Amarelos)
     elegiveis.forEach(c => {
-        let destaque = c.pme_ativo ? "table-warning" : "table-success"; // Amarelo se for PME Ativo
-        let icone = c.pme_ativo ? "⭐" : "";
+        let destaque = c.isPmeAtivo ? "table-warning" : "table-success";
+        let icone = c.isPmeAtivo ? "⭐" : "";
         
         tbody.innerHTML += `
             <tr class="${destaque}">
                 <td>${c.nome} ${icone}</td>
                 <td><span class="badge bg-success">Apto</span></td>
                 <td>R$ ${c.totalGeral.toLocaleString('pt-BR')}</td>
-                <td class="fw-bold fs-5">${c.temp_leadsPME} <br><small class="text-muted fw-normal fs-6">${c.temp_motivo}</small></td>
-                <td class="fw-bold fs-5">${c.temp_leadsPF}</td>
-            </tr>
-        `;
+                <td class="fw-bold">${c.temp_leadsPME} <br><small class="text-muted">${c.temp_motivo}</small></td>
+                <td class="fw-bold">${c.temp_leadsPF}</td>
+            </tr>`;
     });
 
-    // 2. Mostrar os Reprovados (Cinza)
-    todosCorretores.forEach(c => {
+    todos.forEach(c => {
         if (!idsElegiveis.includes(c.id)) {
             tbody.innerHTML += `
                 <tr class="table-light text-muted opacity-75">
                     <td>${c.nome}</td>
-                    <td><span class="badge bg-danger">Inapto (< 3k)</span></td>
+                    <td><span class="badge bg-danger">Inapto</span></td>
                     <td>R$ ${c.totalGeral.toLocaleString('pt-BR')}</td>
-                    <td>-</td>
-                    <td>-</td>
-                </tr>
-            `;
+                    <td>-</td><td>-</td>
+                </tr>`;
         }
     });
 }
 
 function mostrarSobras(pme, pf) {
-    const divSobras = document.getElementById('alert-sobras');
+    const div = document.getElementById('alert-sobras');
     if (pme > 0 || pf > 0) {
-        divSobras.classList.remove('d-none');
-        divSobras.innerHTML = `
-            <strong>🚨 SOBRAS (GESTÃO):</strong> 
-            Ficaram <b>${pme} Leads PME</b> e <b>${pf} Leads PF</b> sem dono. 
-            <br>A supervisora deve distribuir manualmente.
-        `;
+        div.classList.remove('d-none');
+        div.innerHTML = `<strong>🚨 SOBRAS:</strong> PME: ${pme} | PF: ${pf}`;
     } else {
-        divSobras.classList.add('d-none');
+        div.classList.add('d-none');
     }
 }
