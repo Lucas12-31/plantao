@@ -7,52 +7,30 @@
 </head>
 <body>
 
-   <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow-sm">
-    <div class="container">
-        <a class="navbar-brand fw-bold" href="index.html">🍋 Sistema Limão</a>
-        
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto align-items-center gap-2">
-                
-                <li class="nav-item">
-                    <a class="nav-link" href="index.html">Início</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="cadastro.html">👥 Cadastro</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="producao.html">💰 Produção</a>
-                </li>
-
-                <li class="nav-item">
-                    <a class="nav-link btn btn-warning text-dark fw-bold px-3 py-1" href="distribuicao.html">
-                        🎲 Distribuição
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link btn btn-info text-white fw-bold px-3 py-1" href="plantao.html">
-                        📅 Plantão
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link btn btn-danger text-white fw-bold px-3 py-1" href="leads.html">
-                        🔥 Leads
-                    </a>
-                </li>
-
-            </ul>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow-sm">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="index.html">🍋 Sistema Limão</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto gap-2">
+                    <li class="nav-item"><a class="nav-link" href="index.html">Início</a></li>
+                    <li class="nav-item"><a class="nav-link" href="cadastro.html">👥 Cadastro</a></li>
+                    <li class="nav-item"><a class="nav-link" href="parceiros.html">🤝 Parceiros</a></li>
+                    <li class="nav-item"><a class="nav-link" href="producao.html">💰 Produção</a></li>
+                    <li class="nav-item"><a class="nav-link btn btn-warning text-dark fw-bold px-3 py-1" href="distribuicao.html">🎲 Distribuição</a></li>
+                    <li class="nav-item"><a class="nav-link btn btn-info text-white fw-bold px-3 py-1" href="plantao.html">📅 Plantão</a></li>
+                    <li class="nav-item"><a class="nav-link active btn btn-danger text-white fw-bold px-3 py-1" href="leads.html">🔥 Leads</a></li>
+                </ul>
+            </div>
         </div>
-    </div>
-</nav>
+    </nav>
 
     <div class="container">
         <div class="row">
-            <div class="col-md-5">
-                <div class="card shadow">
+            <div class="col-md-4">
+                <div class="card shadow border-danger">
                     <div class="card-header bg-danger text-white">
                         <strong>Novo Lead</strong>
                     </div>
@@ -60,25 +38,23 @@
                         <form id="form-lead">
                             
                             <div class="mb-3">
-                                <label>Nome (Empresa ou Cliente)</label>
+                                <label>Nome (Cliente/Empresa)</label>
                                 <input type="text" id="nome-lead" class="form-control" required>
                             </div>
 
+                            <div class="mb-3">
+                                <label>Telefone / WhatsApp</label>
+                                <input type="tel" id="telefone-lead" class="form-control" placeholder="(xx) xxxxx-xxxx" required>
+                            </div>
+
+                            <div class="mb-3">
+                                <label>Fonte (Parceiro)</label>
+                                <select id="fonte-lead" class="form-select" required>
+                                    <option value="">Carregando parceiros...</option>
+                                </select>
+                            </div>
+
                             <div class="row">
-                                <div class="col-6 mb-3">
-                                    <label>Fonte do Lead</label>
-                                    <select id="fonte-lead" class="form-select" required>
-                                        <option value="">Selecione...</option>
-                                        <option value="Just Sell">Just Sell</option>
-                                        <option value="MKT">MKT</option>
-                                        <option value="I-Leads">I-Leads</option>
-                                        <option value="Segleads">Segleads</option>
-                                        <option value="Box Leads">Box Leads</option>
-                                        <option value="ZS Alerta">ZS Alerta</option>
-                                        <option value="Tijucano Alerta">Tijucano Alerta</option>
-                                        <option value="Outros">Outros</option>
-                                    </select>
-                                </div>
                                 <div class="col-6 mb-3">
                                     <label>Tipo</label>
                                     <select id="tipo-lead" class="form-select" required>
@@ -86,43 +62,40 @@
                                         <option value="pf">PF</option>
                                     </select>
                                 </div>
-                            </div>
-
-                            <div class="row">
                                 <div class="col-6 mb-3">
                                     <label>Data Chegada</label>
                                     <input type="date" id="data-chegada" class="form-control" required>
                                 </div>
-                                <div class="col-6 mb-3">
-                                    <label>Data Entrega</label>
-                                    <input type="date" id="data-entrega" class="form-control" required>
-                                    <small class="text-muted" style="font-size: 0.7em">Define o dia no Plantão</small>
-                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label>Data Entrega (Plantão)</label>
+                                <input type="date" id="data-entrega" class="form-control" required>
                             </div>
 
                             <div class="mb-3">
                                 <label>Vincular ao Corretor</label>
                                 <select id="select-corretor" class="form-select" required>
-                                    <option value="">Carregando corretores...</option>
+                                    <option value="">Carregando...</option>
                                 </select>
                             </div>
 
-                            <button type="submit" class="btn btn-danger w-100">Cadastrar Lead</button>
+                            <button type="submit" class="btn btn-danger w-100 fw-bold">Salvar Lead</button>
                         </form>
                     </div>
                 </div>
             </div>
 
-            <div class="col-md-7">
+            <div class="col-md-8">
                 <h4>Últimos Leads Cadastrados</h4>
                 <div class="table-responsive">
-                    <table class="table table-striped table-hover">
+                    <table class="table table-striped table-hover align-middle">
                         <thead class="table-dark">
                             <tr>
-                                <th>Data Ent.</th>
+                                <th>Data</th>
                                 <th>Corretor</th>
                                 <th>Tipo</th>
-                                <th>Cliente</th>
+                                <th>Cliente / Telefone</th>
                                 <th>Fonte</th>
                             </tr>
                         </thead>
