@@ -8,55 +8,24 @@
 <body>
 
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow border-bottom border-secondary">
-    <div class="container">
-        <a class="navbar-brand fw-bold" href="index.html">🍋 Sistema Limão</a>
-        
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto align-items-center gap-3" style="font-size: 0.95rem;">
-                
-                <li class="nav-item">
-                    <a class="nav-link text-light" href="cadastro.html">
-                        👥 Cadastro
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-light" href="parceiros.html">
-                        🤝 Parceiros
-                    </a>
-                </li>
-                
-                <li class="nav-item">
-                    <a class="nav-link text-success fw-bold" href="producao.html">
-                        💰 Produção
-                    </a>
-                </li>
-
-                <li class="nav-item d-none d-lg-block text-secondary">|</li>
-
-                <li class="nav-item">
-                    <a class="nav-link text-warning fw-bold" href="distribuicao.html">
-                        🎲 Distribuição
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-info fw-bold" href="plantao.html">
-                        📅 Plantão
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-danger fw-bold" href="leads.html">
-                        🔥 Leads
-                    </a>
-                </li>
-
-            </ul>
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="index.html">🍋 Sistema Limão</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto align-items-center gap-3" style="font-size: 0.95rem;">
+                    <li class="nav-item"><a class="nav-link text-light" href="cadastro.html">👥 Cadastro</a></li>
+                    <li class="nav-item"><a class="nav-link text-light" href="parceiros.html">🤝 Parceiros</a></li>
+                    <li class="nav-item"><a class="nav-link text-success fw-bold" href="producao.html">💰 Produção</a></li>
+                    <li class="nav-item d-none d-lg-block text-secondary">|</li>
+                    <li class="nav-item"><a class="nav-link text-warning fw-bold" href="distribuicao.html">🎲 Distribuição</a></li>
+                    <li class="nav-item"><a class="nav-link text-info fw-bold" href="plantao.html">📅 Plantão</a></li>
+                    <li class="nav-item"><a class="nav-link text-danger fw-bold border-bottom border-danger" href="leads.html">🔥 Leads</a></li>
+                </ul>
+            </div>
         </div>
-    </div>
-</nav>
+    </nav>
 
     <div class="container">
         <div class="row">
@@ -75,7 +44,7 @@
 
                             <div class="mb-3">
                                 <label>Telefone / WhatsApp</label>
-                                <input type="tel" id="telefone-lead" class="form-control" placeholder="(xx) xxxxx-xxxx" required>
+                                <input type="tel" id="telefone-lead" class="form-control" placeholder="(xx) xxxxx-xxxx">
                             </div>
 
                             <div class="mb-3">
@@ -126,9 +95,8 @@
                                 <th>Data</th>
                                 <th>Corretor</th>
                                 <th>Tipo</th>
-                                <th>Cliente / Telefone</th>
-                                <th>Fonte</th>
-                            </tr>
+                                <th>Cliente</th>
+                                <th>Ações</th> </tr>
                         </thead>
                         <tbody id="tabela-leads">
                             </tbody>
