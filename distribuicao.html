@@ -80,8 +80,29 @@
                     </div>
                 </div>
             </div>
+            
+            <div class="col-md-8">
+                <h3>Resultado da Distribuição</h3>
+                <div id="alert-sobras" class="alert alert-info d-none"></div>
+                
+                <table class="table table-bordered table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Corretor</th>
+                            <th>Status</th>
+                            <th>Meta (R$)</th>
+                            <th>Leads PME</th>
+                            <th>Leads PF</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela-resultado">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
-            </div> <div class="card shadow mt-4">
+     </div> <div class="card shadow mt-4">
     <div class="card-header bg-secondary text-white">
         <strong>📦 Estoque de Parceiros</strong>
     </div>
@@ -104,27 +125,7 @@
     </div>
 </div>
 
-            <div class="col-md-8">
-                <h3>Resultado da Distribuição</h3>
-                <div id="alert-sobras" class="alert alert-info d-none"></div>
-                
-                <table class="table table-bordered table-hover">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>Corretor</th>
-                            <th>Status</th>
-                            <th>Meta (R$)</th>
-                            <th>Leads PME</th>
-                            <th>Leads PF</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tabela-resultado">
-                        </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
+    
     <script type="module" src="app-distribuicao.js"></script>
     <script>
         window.calcularDistribuicao = () => window.executarLogica();
