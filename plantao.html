@@ -5,84 +5,78 @@
     <title>Escala de Plantão</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        .calendar-day { min-height: 150px; border: 1px solid #dee2e6; background: #fff; }
-        .calendar-header { background: #212529; color: white; text-align: center; padding: 10px; }
-        .corretor-card { font-size: 0.85em; margin-bottom: 5px; padding: 5px; border-radius: 4px; background: #f8f9fa; border-left: 4px solid #ffc107; }
-        .check-lead { cursor: pointer; user-select: none; }
+        .table-plantao th { background-color: #212529; color: white; vertical-align: middle; text-align: center; }
+        .table-plantao td { vertical-align: middle; text-align: center; height: 100px; min-width: 140px; }
+        .cell-folga { background-color: #f8f9fa; color: #ccc; font-style: italic; }
+        .cell-plantao { background-color: #fff; border: 2px solid #ffc107; }
+        .badge-meta { font-size: 0.7em; display: block; margin-top: 2px; }
     </style>
 </head>
 <body class="bg-light">
 
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow border-bottom border-secondary">
-    <div class="container">
-        <a class="navbar-brand fw-bold" href="index.html">🍋 Sistema Limão</a>
-        
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto align-items-center gap-3" style="font-size: 0.95rem;">
-                
-                <li class="nav-item">
-                    <a class="nav-link text-light" href="cadastro.html">
-                        👥 Cadastro
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-light" href="parceiros.html">
-                        🤝 Parceiros
-                    </a>
-                </li>
-                
-                <li class="nav-item">
-                    <a class="nav-link text-success fw-bold" href="producao.html">
-                        💰 Produção
-                    </a>
-                </li>
-
-                <li class="nav-item d-none d-lg-block text-secondary">|</li>
-
-                <li class="nav-item">
-                    <a class="nav-link text-warning fw-bold" href="distribuicao.html">
-                        🎲 Distribuição
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-info fw-bold" href="plantao.html">
-                        📅 Plantão
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-danger fw-bold" href="leads.html">
-                        🔥 Leads
-                    </a>
-                </li>
-
-            </ul>
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="index.html">🍋 Sistema Limão</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto align-items-center gap-3" style="font-size: 0.95rem;">
+                    <li class="nav-item"><a class="nav-link text-light" href="cadastro.html">👥 Cadastro</a></li>
+                    <li class="nav-item"><a class="nav-link text-light" href="parceiros.html">🤝 Parceiros</a></li>
+                    <li class="nav-item"><a class="nav-link text-success fw-bold" href="producao.html">💰 Produção</a></li>
+                    <li class="nav-item d-none d-lg-block text-secondary">|</li>
+                    <li class="nav-item"><a class="nav-link text-warning fw-bold" href="distribuicao.html">🎲 Distribuição</a></li>
+                    <li class="nav-item"><a class="nav-link text-info fw-bold border-bottom border-info" href="plantao.html">📅 Plantão</a></li>
+                    <li class="nav-item"><a class="nav-link text-danger fw-bold" href="leads.html">🔥 Leads</a></li>
+                </ul>
+            </div>
         </div>
-    </div>
-</nav>
+    </nav>
 
     <div class="container-fluid px-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h3>📅 Escala de Plantão e Validação</h3>
-            <button onclick="gerarEscala()" class="btn btn-primary">🔄 Gerar Nova Escala (Automática)</button>
-        </div>
-
-        <div class="row text-center fw-bold bg-secondary text-white py-2">
-            <div class="col">Segunda</div>
-            <div class="col">Terça</div>
-            <div class="col">Quarta</div>
-            <div class="col">Quinta</div>
-            <div class="col">Sexta</div>
-        </div>
-
-        <div id="calendario-grid" class="row row-cols-5 g-2">
+        <div class="card shadow-sm mb-4">
+            <div class="card-body py-3">
+                <div class="row align-items-end">
+                    <div class="col-md-3">
+                        <label class="fw-bold text-muted small">Mês de Referência</label>
+                        <input type="month" id="filtro-mes" class="form-control">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="fw-bold text-muted small">Visualizar Semana</label>
+                        <select id="filtro-semana" class="form-select">
+                            <option value="0">1ª Semana</option>
+                            <option value="1">2ª Semana</option>
+                            <option value="2">3ª Semana</option>
+                            <option value="3">4ª Semana</option>
+                            <option value="4">5ª Semana</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <button onclick="gerarEscala()" class="btn btn-outline-primary btn-sm">
+                            🔄 Refazer Sorteio (Rodízio)
+                        </button>
+                    </div>
+                </div>
             </div>
+        </div>
+
+        <div class="table-responsive bg-white shadow rounded">
+            <table class="table table-bordered table-plantao mb-0">
+                <thead id="tabela-header">
+                    </thead>
+                <tbody id="tabela-body">
+                    </tbody>
+            </table>
+        </div>
+        
+        <div id="loading" class="text-center mt-5 d-none">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p>Carregando dados...</p>
+        </div>
     </div>
 
     <script type="module" src="app-plantao.js"></script>
-    <script>window.gerarEscala = () => window.montarEscala();</script>
+    <script>window.gerarEscala = () => window.refazerSorteio();</script>
 </body>
 </html>
