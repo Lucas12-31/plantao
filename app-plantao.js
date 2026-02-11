@@ -1,56 +1,210 @@
 import { db } from "./firebase-config.js";
 import { collection, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-const grid = document.getElementById('calendario-grid');
+const tabelaHead = document.getElementById('tabela-header');
+const tabelaBody = document.getElementById('tabela-body');
+const filtroMes = document.getElementById('filtro-mes');
+const filtroSemana = document.getElementById('filtro-semana');
+const loading = document.getElementById('loading');
 
-// Variáveis Globais para manter a memória
-let escalaFixa = null;      // Guarda o rodízio para não mudar quando atualiza o lead
-let diasUteisGlobais = [];  // Guarda os dias do mês
-let poolCorretores = [];    // Guarda os dados dos corretores
+// ESTADO GLOBAL
+let estado = {
+    corretores: [],
+    leads: [],
+    escalaFixa: {}, // { "2026-02-10": [id1, id2, id3] }
+    diasDoMes: [],  // Todos os dias úteis do mês selecionado
+    semanas: []     // Dias agrupados em arrays de 5
+};
 
-// INICIALIZAÇÃO
+// 1. INICIALIZAÇÃO
 window.iniciarPlantao = async () => {
-    grid.innerHTML = '<div class="text-center w-100 mt-5"><h4>🔄 Carregando escala e sincronizando leads...</h4></div>';
-    
-    // 1. Busca Corretores (Uma vez, para montar a base)
-    const corretoresSnap = await getDocs(collection(db, "corretores"));
-    poolCorretores = [];
-    
-    corretoresSnap.forEach(d => {
+    // Define mês atual no input se estiver vazio
+    if (!filtroMes.value) {
+        const hoje = new Date();
+        const yyyy = hoje.getFullYear();
+        const mm = String(hoje.getMonth() + 1).padStart(2, '0');
+        filtroMes.value = `${yyyy}-${mm}`;
+    }
+
+    tabelaBody.innerHTML = '';
+    loading.classList.remove('d-none');
+
+    // Busca Corretores (Uma vez)
+    const snapCorretores = await getDocs(collection(db, "corretores"));
+    estado.corretores = [];
+    snapCorretores.forEach(d => {
         let dados = d.data();
-        // Regra: Só entra na escala se tiver saldo (Meta) > 0
+        // Só entra na planilha quem tem meta definida (Saldo > 0)
         if (dados.saldo_pme > 0 || dados.saldo_pf > 0) {
-            poolCorretores.push({ id: d.id, ...dados });
+            estado.corretores.push({ id: d.id, ...dados });
         }
     });
 
-    if (poolCorretores.length < 3) {
-        return grid.innerHTML = '<div class="alert alert-warning">É necessário pelo menos 3 corretores com saldo (Meta Distribuída) para gerar a escala.</div>';
-    }
+    // Ordena corretores por nome
+    estado.corretores.sort((a, b) => a.nome.localeCompare(b.nome));
 
-    // 2. Gera os dias e a Escala (Rodízio)
-    diasUteisGlobais = getDiasUteisMes();
-    
-    // Se já tivermos uma escala na memória, não gera outra (para não mudar os nomes de lugar)
-    if (!escalaFixa) {
-        escalaFixa = gerarLogicaRodizio(diasUteisGlobais, poolCorretores);
-    }
-
-    // 3. Ativa o "Ouvido" para os Leads (Tempo Real)
-    // Toda vez que alguém adicionar/excluir um lead lá na outra tela, aqui roda de novo.
-    onSnapshot(collection(db, "leads"), (snapshot) => {
-        let todosLeads = [];
-        snapshot.forEach(doc => {
-            todosLeads.push(doc.data());
-        });
-
-        // Atualiza a tela mantendo a escala, só mudando os números
-        renderizarCalendario(diasUteisGlobais, escalaFixa, todosLeads);
+    // Escuta Leads em Tempo Real
+    onSnapshot(collection(db, "leads"), (snap) => {
+        estado.leads = [];
+        snap.forEach(d => estado.leads.push(d.data()));
+        atualizarVisualizacao(); // Redesenha se entrar lead novo
     });
 };
 
-// --- LÓGICA DE RODÍZIO (Sorteio dos dias) ---
+// 2. FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO
+function atualizarVisualizacao() {
+    loading.classList.add('d-none');
+    
+    // Recalcula dias baseados no Mês Selecionado
+    const [ano, mes] = filtroMes.value.split('-');
+    estado.diasDoMes = getDiasUteisMes(parseInt(ano), parseInt(mes) - 1);
+    
+    // Agrupa em semanas (chunks de 5 dias ou quebras de sexta-feira)
+    estado.semanas = agruparSemanas(estado.diasDoMes);
+
+    // Garante que temos uma escala para esses dias
+    if (!estado.escalaFixa[filtroMes.value]) {
+        estado.escalaFixa[filtroMes.value] = gerarLogicaRodizio(estado.diasDoMes, estado.corretores);
+    }
+    const escalaAtual = estado.escalaFixa[filtroMes.value];
+
+    // Pega a semana selecionada no filtro
+    const indiceSemana = parseInt(filtroSemana.value);
+    const diasDaSemana = estado.semanas[indiceSemana] || [];
+
+    if (diasDaSemana.length === 0) {
+        tabelaHead.innerHTML = '';
+        tabelaBody.innerHTML = '<tr><td colspan="10" class="text-center py-4">Esta semana não possui dias úteis neste mês.</td></tr>';
+        return;
+    }
+
+    // --- DESENHAR CABEÇALHO (DIAS) ---
+    let htmlHead = `<tr><th style="width: 200px;">CORRETOR</th>`;
+    diasDaSemana.forEach(dia => {
+        // dia = { iso: "2026-02-10", fmt: "10/02", diaSemana: "Terça" }
+        htmlHead += `<th>${dia.diaSemana}<br><small class="text-muted fw-normal">${dia.fmt}</small></th>`;
+    });
+    htmlHead += `</tr>`;
+    tabelaHead.innerHTML = htmlHead;
+
+    // --- DESENHAR LINHAS (CORRETORES) ---
+    let htmlBody = '';
+    
+    estado.corretores.forEach(corretor => {
+        htmlBody += `<tr>`;
+        
+        // Coluna 1: Nome e Metas Totais
+        htmlBody += `
+            <td class="text-start bg-light fw-bold px-3">
+                ${corretor.nome}
+                <div class="mt-2 small text-secondary fw-normal">
+                    Meta PME: ${corretor.saldo_pme}<br>
+                    Meta PF: ${corretor.saldo_pf}
+                </div>
+            </td>
+        `;
+
+        // Colunas: Dias da Semana
+        diasDaSemana.forEach(dia => {
+            // Verifica se o corretor está na escala deste dia
+            const escaladosHoje = escalaAtual[dia.iso] || [];
+            const estaEscalado = escaladosHoje.some(c => c.id === corretor.id);
+
+            if (!estaEscalado) {
+                htmlBody += `<td class="cell-folga"><small>-</small></td>`;
+            } else {
+                // Está trabalhando! Calcular Leads
+                const leadsPME = estado.leads.filter(l => l.corretor_id === corretor.id && l.data_entrega === dia.iso && l.tipo === 'pme').length;
+                const leadsPF = estado.leads.filter(l => l.corretor_id === corretor.id && l.data_entrega === dia.iso && l.tipo === 'pf').length;
+
+                // Faltam
+                const faltamPME = (corretor.saldo_pme || 0) - leadsPME; // Isso é saldo global, mas aqui mostramos o do dia?
+                // O cálculo "Faltam" deve ser Global ou Diário?
+                // No código anterior, comparávamos Meta Mensal - Entregues Hoje. Isso ficava confuso.
+                // Vou mostrar: Entregues Hoje / Meta Mensal
+                
+                htmlBody += `
+                    <td class="cell-plantao">
+                        <div class="d-flex flex-column gap-1">
+                            <span class="badge bg-warning text-dark text-start">
+                                PME: ${leadsPME} <span style="opacity:0.5">/ ${corretor.saldo_pme}</span>
+                            </span>
+                            <span class="badge bg-info text-white text-start">
+                                PF: ${leadsPF} <span style="opacity:0.5">/ ${corretor.saldo_pf}</span>
+                            </span>
+                        </div>
+                    </td>
+                `;
+            }
+        });
+
+        htmlBody += `</tr>`;
+    });
+    tabelaBody.innerHTML = htmlBody;
+}
+
+// 3. LISTENERS DOS FILTROS
+filtroMes.addEventListener('change', atualizarVisualizacao);
+filtroSemana.addEventListener('change', atualizarVisualizacao);
+
+window.refazerSorteio = () => {
+    if(confirm("Isso vai apagar a escala deste mês e gerar uma nova aleatória. Continuar?")) {
+        estado.escalaFixa[filtroMes.value] = null; // Zera memória deste mês
+        atualizarVisualizacao();
+    }
+};
+
+// --- HELPER: LOGICA DE DIAS E SEMANAS ---
+
+function getDiasUteisMes(ano, mesIndex) {
+    let date = new Date(ano, mesIndex, 1);
+    let days = [];
+    
+    // Nomes dos dias para o cabeçalho
+    const nomesDias = ['Dom', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sáb'];
+
+    while (date.getMonth() === mesIndex) {
+        let diaSemana = date.getDay();
+        if (diaSemana !== 0 && diaSemana !== 6) { // 0=Dom, 6=Sab
+            let iso = date.toISOString().split('T')[0]; 
+            let fmt = date.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
+            days.push({ 
+                iso: iso, 
+                fmt: fmt, 
+                diaSemana: nomesDias[diaSemana] 
+            });
+        }
+        date.setDate(date.getDate() + 1);
+    }
+    return days;
+}
+
+function agruparSemanas(diasUteis) {
+    // Agrupa os dias em blocos de 5 (Seg-Sex) ou conforme a semana real do ano
+    // Para simplificar a visualização "Planilha", vamos quebrar sempre que mudar de Sexta para Segunda
+    // OU simplesmente fatiar em grupos de 5 dias úteis, já que ignoramos fds.
+    
+    let semanas = [];
+    let semanaAtual = [];
+
+    diasUteis.forEach(dia => {
+        semanaAtual.push(dia);
+        // Se for sexta-feira ou se completou 5 dias no bloco
+        if (dia.diaSemana === 'Sexta' || semanaAtual.length === 5) {
+            semanas.push(semanaAtual);
+            semanaAtual = [];
+        }
+    });
+    
+    // Adiciona a sobra (se o mês acabar numa quarta feira, por exemplo)
+    if (semanaAtual.length > 0) semanas.push(semanaAtual);
+
+    return semanas;
+}
+
+// --- HELPER: SORTEIO DO RODÍZIO ---
 function gerarLogicaRodizio(dias, corretores) {
+    if (corretores.length === 0) return {};
     let escala = {};
     let ultimoPlantao = [];
 
@@ -58,128 +212,24 @@ function gerarLogicaRodizio(dias, corretores) {
         let escalados = [];
         let tentativas = 0;
         
+        // Tenta escalar 3 pessoas
         while (escalados.length < 3 && tentativas < 100) {
             let cand = corretores[Math.floor(Math.random() * corretores.length)];
             
-            // Regras para não repetir
-            let jaEstaHoje = escalados.some(c => c.id === cand.id);
+            let jaEsta = escalados.some(c => c.id === cand.id);
             let trabalhouOntem = ultimoPlantao.some(c => c.id === cand.id);
-            
-            // Relaxa a regra se tiver pouca gente
             if (corretores.length < 6) trabalhouOntem = false;
 
-            if (!jaEstaHoje && !trabalhouOntem) {
+            if (!jaEsta && !trabalhouOntem) {
                 escalados.push(cand);
             }
             tentativas++;
         }
-        escala[objDia.dataISO] = escalados;
+        escala[objDia.iso] = escalados;
         ultimoPlantao = escalados;
     });
     return escala;
 }
 
-// Gera dias úteis do mês atual
-function getDiasUteisMes() {
-    let date = new Date();
-    let month = date.getMonth();
-    let days = []; 
-    
-    date.setDate(1);
-    
-    while (date.getMonth() === month) {
-        let diaSemana = date.getDay();
-        if (diaSemana !== 0 && diaSemana !== 6) { // Ignora Sábado e Domingo
-            let iso = date.toISOString().split('T')[0]; 
-            let display = date.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
-            days.push({ dataISO: iso, dataFormatada: display });
-        }
-        date.setDate(date.getDate() + 1);
-    }
-    return days;
-}
-
-// --- RENDERIZAÇÃO (Desenha na tela) ---
-function renderizarCalendario(dias, escala, leads) {
-    grid.innerHTML = '';
-    
-    dias.forEach(dia => {
-        let isoDate = dia.dataISO; 
-        let displayDate = dia.dataFormatada;
-        let corretoresDoDia = escala[isoDate] || [];
-        
-        let htmlCorretores = corretoresDoDia.map(c => {
-            
-            // FILTRO CRÍTICO: Conta leads deste corretor, neste dia, deste tipo
-            let leadsHojePME = leads.filter(l => l.corretor_id === c.id && l.data_entrega === isoDate && l.tipo === 'pme').length;
-            let leadsHojePF = leads.filter(l => l.corretor_id === c.id && l.data_entrega === isoDate && l.tipo === 'pf').length;
-
-            // Busca a meta original salva no corretor (Saldo)
-            // Precisamos buscar o dado atualizado do corretor caso a meta mude? 
-            // Por enquanto usamos o snapshot inicial (c), mas para contadores, usamos os leads.
-            
-            let totalPME = c.saldo_pme || 0; 
-            let faltamPME = totalPME - leadsHojePME; 
-
-            let totalPF = c.saldo_pf || 0;
-            let faltamPF = totalPF - leadsHojePF;
-
-            // Cores: Verde se completou, Preto se falta
-            let corPME = faltamPME <= 0 ? 'text-success' : 'text-dark';
-            let corPF = faltamPF <= 0 ? 'text-success' : 'text-dark';
-            
-            // Badge visual se completou
-            let checkPME = faltamPME <= 0 ? '✅' : '';
-            let checkPF = faltamPF <= 0 ? '✅' : '';
-
-            return `
-                <div class="corretor-card text-start border-start border-4 border-warning bg-white shadow-sm mb-2 p-2 rounded position-relative">
-                    <div class="fw-bold text-uppercase border-bottom pb-1 mb-1 text-truncate">${c.nome.split(' ')[0]}</div>
-                    
-                    <div style="font-size: 0.75rem; line-height: 1.3;">
-                        <span class="badge bg-warning text-dark mb-1" style="width: 35px;">PME</span> 
-                        <span class="fw-bold">Entregues: ${leadsHojePME}</span>
-                        <div class="text-muted border-top mt-1 pt-1">
-                            Faltam: <b class="${corPME} fs-6">${faltamPME}</b> ${checkPME}
-                        </div>
-                    </div>
-
-                    <div style="font-size: 0.75rem; line-height: 1.3;" class="mt-2 pt-2 border-top">
-                        <span class="badge bg-info text-white mb-1" style="width: 35px;">PF</span> 
-                        <span class="fw-bold">Entregues: ${leadsHojePF}</span>
-                        <div class="text-muted border-top mt-1 pt-1">
-                            Faltam: <b class="${corPF} fs-6">${faltamPF}</b> ${checkPF}
-                        </div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-        // Destaca o dia de hoje
-        let hojeISO = new Date().toISOString().split('T')[0];
-        let bgDia = isoDate === hojeISO ? "bg-warning-subtle border-warning" : "bg-light";
-
-        grid.innerHTML += `
-            <div class="col">
-                <div class="calendar-day p-2 h-100 border ${bgDia}">
-                    <div class="d-flex justify-content-between mb-2">
-                        <span class="fw-bold text-secondary">${displayDate}</span>
-                        ${isoDate === hojeISO ? '<span class="badge bg-danger">HOJE</span>' : ''}
-                    </div>
-                    ${htmlCorretores}
-                </div>
-            </div>
-        `;
-    });
-}
-
-// Botão para forçar recriar escala (Rodízio)
-window.gerarEscala = () => {
-    if(confirm("ATENÇÃO: Isso vai mudar os corretores de dia! Deseja refazer o sorteio do rodízio?")) {
-        escalaFixa = null; // Limpa a memória
-        window.iniciarPlantao(); // Recomeça
-    }
-}
-
-// Inicia
+// Start
 window.iniciarPlantao();
