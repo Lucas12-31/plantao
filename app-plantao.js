@@ -6,21 +6,11 @@ const filtroMes = document.getElementById('filtro-mes');
 const filtroSemana = document.getElementById('filtro-semana');
 const loading = document.getElementById('loading');
 
-// ESTADO GLOBAL
-let estado = {
-    corretores: [],
-    leads: [],
-    escalaFixa: {}, 
-    diasDoMes: [],
-    semanas: []
-};
-
-// Variável para controlar o "Pulo Automático" para a semana atual
+let estado = { corretores: [], leads: [], escalaFixa: {}, diasDoMes: [], semanas: [] };
 let carregamentoInicial = true;
 
 // 1. INICIALIZAÇÃO
 window.iniciarPlantao = async () => {
-    // Define mês atual no input se estiver vazio
     if (!filtroMes.value) {
         const hoje = new Date();
         const yyyy = hoje.getFullYear();
@@ -31,7 +21,6 @@ window.iniciarPlantao = async () => {
     tabelaBody.innerHTML = '';
     loading.classList.remove('d-none');
 
-    // Busca Corretores
     const snapCorretores = await getDocs(collection(db, "corretores"));
     estado.corretores = [];
     snapCorretores.forEach(d => {
@@ -41,7 +30,6 @@ window.iniciarPlantao = async () => {
         }
     });
 
-    // Escuta Leads
     onSnapshot(collection(db, "leads"), (snap) => {
         estado.leads = [];
         snap.forEach(d => estado.leads.push(d.data()));
@@ -53,38 +41,21 @@ window.iniciarPlantao = async () => {
 function atualizarVisualizacao() {
     loading.classList.add('d-none');
     
-    // Configura dias e semanas
     const [ano, mes] = filtroMes.value.split('-');
     estado.diasDoMes = getDiasUteisMes(parseInt(ano), parseInt(mes) - 1);
     estado.semanas = agruparSemanas(estado.diasDoMes);
 
-    // --- LÓGICA DO "AUTO-FOCUS" NA SEMANA ATUAL (NOVO!) ---
-    // Só roda na primeira vez que a página carrega
     if (carregamentoInicial) {
-        // Pega a data de hoje no formato YYYY-MM-DD
         const hojeISO = new Date().toISOString().split('T')[0];
-
-        // Procura em qual índice de semana o dia de hoje está
-        const indexSemanaAtual = estado.semanas.findIndex(semana => 
-            semana.some(dia => dia.iso === hojeISO)
-        );
-
-        // Se encontrou hoje dentro de alguma semana, seleciona ela no filtro
-        if (indexSemanaAtual !== -1) {
-            filtroSemana.value = indexSemanaAtual;
-        }
-
-        // Desliga a flag para não ficar mudando quando o usuário trocar o mês manualmente depois
+        const indexSemanaAtual = estado.semanas.findIndex(semana => semana.some(dia => dia.iso === hojeISO));
+        if (indexSemanaAtual !== -1) filtroSemana.value = indexSemanaAtual;
         carregamentoInicial = false;
     }
 
-    // Garante escala
     if (!estado.escalaFixa[filtroMes.value]) {
         estado.escalaFixa[filtroMes.value] = gerarLogicaRodizio(estado.diasDoMes, estado.corretores);
     }
     const escalaAtual = estado.escalaFixa[filtroMes.value];
-
-    // Pega a semana selecionada (Agora já estará correta se for a primeira carga)
     const indiceSemana = parseInt(filtroSemana.value);
     const diasDaSemana = estado.semanas[indiceSemana] || [];
 
@@ -93,7 +64,6 @@ function atualizarVisualizacao() {
         return;
     }
 
-    // --- DESENHAR LINHAS (DIAS) ---
     let htmlBody = '';
     
     diasDaSemana.forEach(dia => {
@@ -102,8 +72,6 @@ function atualizarVisualizacao() {
         let textoHoje = (dia.iso === hojeISO) ? '<br><span class="badge bg-danger mt-1">HOJE</span>' : '';
 
         htmlBody += `<tr>`;
-        
-        // COLUNA 1: DATA
         htmlBody += `
             <td class="${classHoje} border-end border-3 border-dark fw-bold" style="min-width: 140px;">
                 <div class="fs-4">${dia.diaSemana}</div>
@@ -112,15 +80,28 @@ function atualizarVisualizacao() {
             </td>
         `;
 
-        // COLUNAS 2, 3, 4: VAGAS
         const escalados = escalaAtual[dia.iso] || [];
 
         for (let i = 0; i < 3; i++) {
             let corretor = escalados[i];
 
             if (corretor) {
-                const leadsPME = estado.leads.filter(l => l.corretor_id === corretor.id && l.data_entrega === dia.iso && l.tipo === 'pme').length;
-                const leadsPF = estado.leads.filter(l => l.corretor_id === corretor.id && l.data_entrega === dia.iso && l.tipo === 'pf').length;
+                // --- AQUI ESTÁ A LÓGICA DE REPOSIÇÃO ---
+                // Filtramos os leads que NÃO SÃO 'Lead Inválido'.
+                // Se o status for Inválido, ele não conta aqui.
+                const leadsPME = estado.leads.filter(l => 
+                    l.corretor_id === corretor.id && 
+                    l.data_entrega === dia.iso && 
+                    l.tipo === 'pme' && 
+                    l.status !== 'Lead Inválido' // <--- FILTRO NOVO
+                ).length;
+
+                const leadsPF = estado.leads.filter(l => 
+                    l.corretor_id === corretor.id && 
+                    l.data_entrega === dia.iso && 
+                    l.tipo === 'pf' && 
+                    l.status !== 'Lead Inválido' // <--- FILTRO NOVO
+                ).length;
 
                 htmlBody += `
                     <td>
@@ -141,13 +122,11 @@ function atualizarVisualizacao() {
                 htmlBody += `<td class="bg-light text-muted fst-italic"><small>Vaga Livre</small></td>`;
             }
         }
-
         htmlBody += `</tr>`;
     });
     tabelaBody.innerHTML = htmlBody;
 }
 
-// LISTENERS
 filtroMes.addEventListener('change', atualizarVisualizacao);
 filtroSemana.addEventListener('change', atualizarVisualizacao);
 
@@ -158,12 +137,10 @@ window.refazerSorteio = () => {
     }
 };
 
-// HELPERS
 function getDiasUteisMes(ano, mesIndex) {
     let date = new Date(ano, mesIndex, 1);
     let days = [];
     const nomesDias = ['Dom', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sáb'];
-
     while (date.getMonth() === mesIndex) {
         let diaSemana = date.getDay();
         if (diaSemana !== 0 && diaSemana !== 6) { 
@@ -194,7 +171,6 @@ function gerarLogicaRodizio(dias, corretores) {
     if (corretores.length === 0) return {};
     let escala = {};
     let ultimoPlantao = [];
-
     dias.forEach(objDia => { 
         let escalados = [];
         let tentativas = 0;
