@@ -1,7 +1,6 @@
 import { db } from "./firebase-config.js";
 import { collection, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-const tabelaHead = document.getElementById('tabela-header');
 const tabelaBody = document.getElementById('tabela-body');
 const filtroMes = document.getElementById('filtro-mes');
 const filtroSemana = document.getElementById('filtro-semana');
@@ -33,14 +32,10 @@ window.iniciarPlantao = async () => {
     estado.corretores = [];
     snapCorretores.forEach(d => {
         let dados = d.data();
-        // Só entra na escala quem tem meta
         if (dados.saldo_pme > 0 || dados.saldo_pf > 0) {
             estado.corretores.push({ id: d.id, ...dados });
         }
     });
-
-    // Ordena corretores por nome
-    estado.corretores.sort((a, b) => a.nome.localeCompare(b.nome));
 
     // Escuta Leads
     onSnapshot(collection(db, "leads"), (snap) => {
@@ -50,11 +45,11 @@ window.iniciarPlantao = async () => {
     });
 };
 
-// 2. RENDERIZAÇÃO INVERTIDA (Dias nas Linhas, Corretores nas Colunas)
+// 2. RENDERIZAÇÃO (DIAS x 3 VAGAS)
 function atualizarVisualizacao() {
     loading.classList.add('d-none');
     
-    // Recalcula dias baseados no Mês Selecionado
+    // Configura dias
     const [ano, mes] = filtroMes.value.split('-');
     estado.diasDoMes = getDiasUteisMes(parseInt(ano), parseInt(mes) - 1);
     estado.semanas = agruparSemanas(estado.diasDoMes);
@@ -65,86 +60,68 @@ function atualizarVisualizacao() {
     }
     const escalaAtual = estado.escalaFixa[filtroMes.value];
 
-    // Pega a semana selecionada
+    // Pega a semana
     const indiceSemana = parseInt(filtroSemana.value);
     const diasDaSemana = estado.semanas[indiceSemana] || [];
 
     if (diasDaSemana.length === 0) {
-        tabelaHead.innerHTML = '';
-        tabelaBody.innerHTML = '<tr><td colspan="10" class="text-center py-4">Sem dias úteis nesta semana/mês.</td></tr>';
+        tabelaBody.innerHTML = '<tr><td colspan="4" class="text-center py-4">Sem dias úteis nesta semana/mês.</td></tr>';
         return;
     }
 
-    // --- CABEÇALHO: NOMES DOS CORRETORES ---
-    let htmlHead = `<tr><th style="width: 150px; background-color: #212529; color: white;">DATA / DIA</th>`;
-    estado.corretores.forEach(c => {
-        htmlHead += `
-            <th style="min-width: 180px;">
-                ${c.nome.split(' ')[0]}
-                <div style="font-size: 0.65em; font-weight: normal; opacity: 0.8;">
-                    META: PME ${c.saldo_pme} | PF ${c.saldo_pf}
-                </div>
-            </th>
-        `;
-    });
-    htmlHead += `</tr>`;
-    tabelaHead.innerHTML = htmlHead;
-
-    // --- CORPO: DIAS DA SEMANA (LINHAS) ---
+    // --- DESENHAR LINHAS (DIAS) ---
     let htmlBody = '';
     
     diasDaSemana.forEach(dia => {
-        // dia = { iso: "2026-02-02", fmt: "02/02", diaSemana: "Segunda" }
+        // dia = { iso: "2026-02-09", fmt: "09/02", diaSemana: "Segunda" }
         
-        // Destaca se for HOJE
         let hojeISO = new Date().toISOString().split('T')[0];
-        let classHoje = (dia.iso === hojeISO) ? "bg-warning border-warning" : "bg-light";
-        let textoHoje = (dia.iso === hojeISO) ? '<br><span class="badge bg-danger">HOJE</span>' : '';
+        let classHoje = (dia.iso === hojeISO) ? "bg-warning" : "bg-white";
+        let textoHoje = (dia.iso === hojeISO) ? '<br><span class="badge bg-danger mt-1">HOJE</span>' : '';
 
         htmlBody += `<tr>`;
         
-        // Coluna 1: Data (Na lateral esquerda)
+        // COLUNA 1: DATA
         htmlBody += `
-            <td class="${classHoje} fw-bold text-center border-end border-3 border-dark" style="vertical-align: middle;">
-                <div class="fs-5">${dia.diaSemana}</div>
+            <td class="${classHoje} border-end border-3 border-dark fw-bold" style="min-width: 140px;">
+                <div class="fs-4">${dia.diaSemana}</div>
                 <div class="text-muted">${dia.fmt}</div>
                 ${textoHoje}
             </td>
         `;
 
-        // Colunas Seguintes: Cada Corretor
-        estado.corretores.forEach(corretor => {
-            // Verifica se o corretor está escalado neste dia
-            const escaladosNoDia = escalaAtual[dia.iso] || [];
-            const estaEscalado = escaladosNoDia.some(c => c.id === corretor.id);
+        // COLUNAS 2, 3, 4: OS 3 CORRETORES ESCALADOS
+        const escalados = escalaAtual[dia.iso] || [];
 
-            if (!estaEscalado) {
-                // Folga (Célula vazia/cinza)
-                htmlBody += `<td class="cell-folga bg-light text-muted" style="vertical-align: middle;"><small>-</small></td>`;
-            } else {
-                // Plantão (Célula Branca)
-                // Calcular leads deste dia específico
+        // Loop fixo de 3 vezes (para as 3 vagas)
+        for (let i = 0; i < 3; i++) {
+            let corretor = escalados[i];
+
+            if (corretor) {
+                // Se tem corretor na vaga, calcula os leads DELE naquele dia
                 const leadsPME = estado.leads.filter(l => l.corretor_id === corretor.id && l.data_entrega === dia.iso && l.tipo === 'pme').length;
                 const leadsPF = estado.leads.filter(l => l.corretor_id === corretor.id && l.data_entrega === dia.iso && l.tipo === 'pf').length;
-                
-                // Cálculo de Saldo Restante (Meta Mensal - Entregues Hoje) ??? 
-                // Obs: Se quiser mostrar o acumulado, a lógica muda. 
-                // Aqui estou mostrando: O que ele recebeu NESTE DIA.
-                
+
                 htmlBody += `
-                    <td class="cell-plantao bg-white border border-secondary" style="vertical-align: middle;">
-                        <div class="d-flex justify-content-center gap-2">
-                            <span class="badge bg-warning text-dark border border-dark p-2" title="PME Entregues Hoje">
-                                PME: ${leadsPME}
-                            </span>
-                            <span class="badge bg-info text-white border border-dark p-2" title="PF Entregues Hoje">
-                                PF: ${leadsPF}
-                            </span>
+                    <td>
+                        <div class="card-vaga">
+                            <div class="nome-corretor">${corretor.nome.split(' ')[0]}</div>
+                            <div class="d-flex gap-2">
+                                <span class="badge bg-warning text-dark border border-dark p-2" style="min-width: 60px;">
+                                    PME: ${leadsPME}
+                                </span>
+                                <span class="badge bg-info text-white border border-dark p-2" style="min-width: 60px;">
+                                    PF: ${leadsPF}
+                                </span>
+                            </div>
                         </div>
                     </td>
                 `;
+            } else {
+                // Vaga vazia (caso tenha menos de 3 corretores no total)
+                htmlBody += `<td class="bg-light text-muted fst-italic"><small>Vaga Livre</small></td>`;
             }
-        });
+        }
 
         htmlBody += `</tr>`;
     });
@@ -156,13 +133,13 @@ filtroMes.addEventListener('change', atualizarVisualizacao);
 filtroSemana.addEventListener('change', atualizarVisualizacao);
 
 window.refazerSorteio = () => {
-    if(confirm("Isso vai apagar a escala deste mês e gerar uma nova aleatória. Continuar?")) {
+    if(confirm("Refazer o sorteio apagará a escala atual deste mês. Continuar?")) {
         estado.escalaFixa[filtroMes.value] = null;
         atualizarVisualizacao();
     }
 };
 
-// HELPERS (Iguais ao anterior)
+// HELPERS
 function getDiasUteisMes(ano, mesIndex) {
     let date = new Date(ano, mesIndex, 1);
     let days = [];
@@ -202,11 +179,15 @@ function gerarLogicaRodizio(dias, corretores) {
     dias.forEach(objDia => { 
         let escalados = [];
         let tentativas = 0;
+        // Tenta achar 3 pessoas diferentes
         while (escalados.length < 3 && tentativas < 100) {
             let cand = corretores[Math.floor(Math.random() * corretores.length)];
             let jaEsta = escalados.some(c => c.id === cand.id);
             let trabalhouOntem = ultimoPlantao.some(c => c.id === cand.id);
+            
+            // Se tiver menos de 6 pessoas na equipe, permite trabalhar dias seguidos
             if (corretores.length < 6) trabalhouOntem = false;
+
             if (!jaEsta && !trabalhouOntem) escalados.push(cand);
             tentativas++;
         }
