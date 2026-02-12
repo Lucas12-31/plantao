@@ -2,116 +2,87 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Gestão de Produção</title>
+    <title>Lançamento de Produção</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        .destaque-total { font-weight: bold; color: #0d6efd; }
-    </style>
 </head>
 <body>
+
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow border-bottom border-secondary">
-    <div class="container">
-        <a class="navbar-brand fw-bold" href="index.html">🍋 Sistema Limão</a>
-        
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto align-items-center gap-3" style="font-size: 0.95rem;">
-                
-                <li class="nav-item">
-                    <a class="nav-link text-light" href="cadastro.html">
-                        👥 Cadastro
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-light" href="parceiros.html">
-                        🤝 Parceiros
-                    </a>
-                </li>
-                
-                <li class="nav-item">
-                    <a class="nav-link text-success fw-bold" href="producao.html">
-                        💰 Produção
-                    </a>
-                </li>
-
-                <li class="nav-item d-none d-lg-block text-secondary">|</li>
-
-                <li class="nav-item">
-                    <a class="nav-link text-warning fw-bold" href="distribuicao.html">
-                        🎲 Distribuição
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-info fw-bold" href="plantao.html">
-                        📅 Plantão
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-danger fw-bold" href="leads.html">
-                        🔥 Leads
-                    </a>
-                </li>
-
-            </ul>
-        </div>
-    </div>
-</nav>
-
-    <div class="container-fluid">
-        <div class="row">
-            <div class="col-md-4 bg-light p-4 border-end">
-                <h4>🚀 Lançar Produção</h4>
-                <p class="text-muted">Selecione o corretor e atualize os valores (R$). O cálculo de pontos é automático.</p>
-                
-                <form id="form-producao">
-                    <div class="mb-3">
-                        <label>Selecione o Corretor:</label>
-                        <select id="select-corretor" class="form-select" required>
-                            <option value="">Carregando...</option>
-                        </select>
-                    </div>
-
-                    <div class="card p-3 mb-3 shadow-sm">
-                        <h6>Valores no Mês (R$)</h6>
-                        
-                        <div class="mb-3">
-                            <label class="text-primary fw-bold">Produção PME (R$)</label>
-                            <input type="number" id="valor-pme" class="form-control" step="0.01" placeholder="0,00">
-                            <small class="text-muted">Cada R$ 1,00 vale 2 pontos.</small>
-                        </div>
-                        
-                        <div class="mb-2">
-                            <label class="text-info fw-bold">Produção PF (R$)</label>
-                            <input type="number" id="valor-pf" class="form-control" step="0.01" placeholder="0,00">
-                            <small class="text-muted">Cada R$ 1,00 vale 1 ponto.</small>
-                        </div>
-                    </div>
-
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary">💾 Atualizar Produção</button>
-                        <button type="button" onclick="zerarProducao()" class="btn btn-outline-danger btn-sm">🗑️ Zerar Números</button>
-                    </div>
-                </form>
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="index.html">🍋 Sistema Limão</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto align-items-center gap-3" style="font-size: 0.95rem;">
+                    <li class="nav-item"><a class="nav-link text-light" href="cadastro.html">👥 Cadastro</a></li>
+                    <li class="nav-item"><a class="nav-link text-light" href="parceiros.html">🤝 Parceiros</a></li>
+                    <li class="nav-item"><a class="nav-link text-success fw-bold border-bottom border-success" href="producao.html">💰 Produção</a></li>
+                    <li class="nav-item d-none d-lg-block text-secondary">|</li>
+                    <li class="nav-item"><a class="nav-link text-warning fw-bold" href="distribuicao.html">🎲 Distribuição</a></li>
+                    <li class="nav-item"><a class="nav-link text-info fw-bold" href="plantao.html">📅 Plantão</a></li>
+                    <li class="nav-item"><a class="nav-link text-danger fw-bold" href="leads.html">🔥 Leads</a></li>
+                </ul>
             </div>
+        </div>
+    </nav>
 
-            <div class="col-md-8 p-4">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h3>🏆 Ranking de Pontuação</h3>
-                    <span class="badge bg-success">PME x2 | PF x1</span>
+    <div class="container">
+        
+        <div class="row mb-4">
+            <div class="col-md-6 mx-auto">
+                <div class="card shadow border-success">
+                    <div class="card-header bg-success text-white fw-bold">
+                        💰 Lançar Produção (Soma na Meta)
+                    </div>
+                    <div class="card-body">
+                        <form id="form-producao">
+                            <div class="mb-3">
+                                <label>Corretor</label>
+                                <select id="select-corretor" class="form-select" required>
+                                    <option value="">Carregando...</option>
+                                </select>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-6 mb-3">
+                                    <label>Tipo</label>
+                                    <select id="tipo-prod" class="form-select">
+                                        <option value="pme">PME</option>
+                                        <option value="pf">PF</option>
+                                    </select>
+                                </div>
+                                <div class="col-6 mb-3">
+                                    <label>Valor (R$)</label>
+                                    <input type="number" id="valor-prod" class="form-control" placeholder="0.00" step="0.01" required>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-success w-100 fw-bold">➕ Adicionar à Produção</button>
+                        </form>
+                    </div>
                 </div>
+            </div>
+        </div>
 
+        <div class="card shadow mb-5">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <span>🏆 Ranking do Mês Atual (Acumulado)</span>
+                
+                <button onclick="encerrarMes()" class="btn btn-danger btn-sm border border-white">
+                    🛑 Encerrar Mês e Zerar Tudo
+                </button>
+            </div>
+            <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover table-bordered align-middle text-center">
-                        <thead class="table-dark">
+                    <table class="table table-striped mb-0 text-center align-middle">
+                        <thead>
                             <tr>
-                                <th>#</th>
-                                <th class="text-start">Corretor</th>
-                                <th>PME (R$)</th>
-                                <th>PF (R$)</th>
-                                <th class="bg-primary text-white">TOTAL (PONTOS)</th>
+                                <th class="text-start ps-4">Corretor</th>
+                                <th>Produção PME</th>
+                                <th>Produção PF</th>
+                                <th>Total (R$)</th>
+                                <th>Pontos</th>
                             </tr>
                         </thead>
                         <tbody id="tabela-ranking">
@@ -120,11 +91,14 @@
                 </div>
             </div>
         </div>
+
     </div>
 
     <script type="module" src="app-producao.js"></script>
     <script>
-        window.zerarProducao = () => window.resetarValores();
+        // Expondo a função para o botão HTML
+        import { encerrarMes } from "./app-producao.js";
+        window.encerrarMes = encerrarMes;
     </script>
 </body>
 </html>
