@@ -27,9 +27,8 @@
         </div>
     </nav>
 
-    <div class="container">
-        <div class="row">
-            <div class="col-md-4">
+    <div class="container-fluid px-4"> <div class="row">
+            <div class="col-md-3">
                 <div class="card shadow border-danger">
                     <div class="card-header bg-danger text-white">
                         <strong>Novo Lead</strong>
@@ -50,7 +49,7 @@
                             <div class="mb-3">
                                 <label>Fonte (Parceiro)</label>
                                 <select id="fonte-lead" class="form-select" required>
-                                    <option value="">Carregando parceiros...</option>
+                                    <option value="">Carregando...</option>
                                 </select>
                             </div>
 
@@ -63,7 +62,7 @@
                                     </select>
                                 </div>
                                 <div class="col-6 mb-3">
-                                    <label>Data Chegada</label>
+                                    <label>Chegada</label>
                                     <input type="date" id="data-chegada" class="form-control" required>
                                 </div>
                             </div>
@@ -74,9 +73,23 @@
                             </div>
 
                             <div class="mb-3">
-                                <label>Vincular ao Corretor</label>
+                                <label>Corretor</label>
                                 <select id="select-corretor" class="form-select" required>
                                     <option value="">Carregando...</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label>Status Inicial</label>
+                                <select id="status-lead" class="form-select bg-light">
+                                    <option value="Distribuído" selected>Distribuído</option>
+                                    <option value="1º contato">1º contato</option>
+                                    <option value="Cliente interessado">Cliente interessado</option>
+                                    <option value="Não tem Interesse">Não tem Interesse</option>
+                                    <option value="Proposta Gerada">Proposta Gerada</option>
+                                    <option value="Finalizado">Finalizado (Venda)</option>
+                                    <option value="Telefone Inexistente/Incorreto">Tel. Incorreto</option>
+                                    <option value="Lead Inválido">Lead Inválido</option>
                                 </select>
                             </div>
 
@@ -86,17 +99,22 @@
                 </div>
             </div>
 
-            <div class="col-md-8">
-                <h4>Últimos Leads Cadastrados</h4>
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover align-middle">
+            <div class="col-md-9">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h4>Últimos Leads Cadastrados</h4>
+                    <small class="text-muted">Altere o Status direto na tabela ⤵</small>
+                </div>
+                
+                <div class="table-responsive shadow rounded">
+                    <table class="table table-striped table-hover align-middle mb-0">
                         <thead class="table-dark">
                             <tr>
                                 <th>Data</th>
                                 <th>Corretor</th>
-                                <th>Tipo</th>
                                 <th>Cliente</th>
-                                <th>Ações</th> </tr>
+                                <th>Fonte</th>
+                                <th style="width: 200px;">Follow Up / Status</th> <th>Ações</th>
+                            </tr>
                         </thead>
                         <tbody id="tabela-leads">
                             </tbody>
