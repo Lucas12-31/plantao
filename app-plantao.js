@@ -15,8 +15,12 @@ let estado = {
     semanas: []
 };
 
+// Variável para controlar o "Pulo Automático" para a semana atual
+let carregamentoInicial = true;
+
 // 1. INICIALIZAÇÃO
 window.iniciarPlantao = async () => {
+    // Define mês atual no input se estiver vazio
     if (!filtroMes.value) {
         const hoje = new Date();
         const yyyy = hoje.getFullYear();
@@ -45,14 +49,34 @@ window.iniciarPlantao = async () => {
     });
 };
 
-// 2. RENDERIZAÇÃO (DIAS x 3 VAGAS)
+// 2. RENDERIZAÇÃO
 function atualizarVisualizacao() {
     loading.classList.add('d-none');
     
-    // Configura dias
+    // Configura dias e semanas
     const [ano, mes] = filtroMes.value.split('-');
     estado.diasDoMes = getDiasUteisMes(parseInt(ano), parseInt(mes) - 1);
     estado.semanas = agruparSemanas(estado.diasDoMes);
+
+    // --- LÓGICA DO "AUTO-FOCUS" NA SEMANA ATUAL (NOVO!) ---
+    // Só roda na primeira vez que a página carrega
+    if (carregamentoInicial) {
+        // Pega a data de hoje no formato YYYY-MM-DD
+        const hojeISO = new Date().toISOString().split('T')[0];
+
+        // Procura em qual índice de semana o dia de hoje está
+        const indexSemanaAtual = estado.semanas.findIndex(semana => 
+            semana.some(dia => dia.iso === hojeISO)
+        );
+
+        // Se encontrou hoje dentro de alguma semana, seleciona ela no filtro
+        if (indexSemanaAtual !== -1) {
+            filtroSemana.value = indexSemanaAtual;
+        }
+
+        // Desliga a flag para não ficar mudando quando o usuário trocar o mês manualmente depois
+        carregamentoInicial = false;
+    }
 
     // Garante escala
     if (!estado.escalaFixa[filtroMes.value]) {
@@ -60,7 +84,7 @@ function atualizarVisualizacao() {
     }
     const escalaAtual = estado.escalaFixa[filtroMes.value];
 
-    // Pega a semana
+    // Pega a semana selecionada (Agora já estará correta se for a primeira carga)
     const indiceSemana = parseInt(filtroSemana.value);
     const diasDaSemana = estado.semanas[indiceSemana] || [];
 
@@ -73,8 +97,6 @@ function atualizarVisualizacao() {
     let htmlBody = '';
     
     diasDaSemana.forEach(dia => {
-        // dia = { iso: "2026-02-09", fmt: "09/02", diaSemana: "Segunda" }
-        
         let hojeISO = new Date().toISOString().split('T')[0];
         let classHoje = (dia.iso === hojeISO) ? "bg-warning" : "bg-white";
         let textoHoje = (dia.iso === hojeISO) ? '<br><span class="badge bg-danger mt-1">HOJE</span>' : '';
@@ -90,15 +112,13 @@ function atualizarVisualizacao() {
             </td>
         `;
 
-        // COLUNAS 2, 3, 4: OS 3 CORRETORES ESCALADOS
+        // COLUNAS 2, 3, 4: VAGAS
         const escalados = escalaAtual[dia.iso] || [];
 
-        // Loop fixo de 3 vezes (para as 3 vagas)
         for (let i = 0; i < 3; i++) {
             let corretor = escalados[i];
 
             if (corretor) {
-                // Se tem corretor na vaga, calcula os leads DELE naquele dia
                 const leadsPME = estado.leads.filter(l => l.corretor_id === corretor.id && l.data_entrega === dia.iso && l.tipo === 'pme').length;
                 const leadsPF = estado.leads.filter(l => l.corretor_id === corretor.id && l.data_entrega === dia.iso && l.tipo === 'pf').length;
 
@@ -118,7 +138,6 @@ function atualizarVisualizacao() {
                     </td>
                 `;
             } else {
-                // Vaga vazia (caso tenha menos de 3 corretores no total)
                 htmlBody += `<td class="bg-light text-muted fst-italic"><small>Vaga Livre</small></td>`;
             }
         }
@@ -179,15 +198,11 @@ function gerarLogicaRodizio(dias, corretores) {
     dias.forEach(objDia => { 
         let escalados = [];
         let tentativas = 0;
-        // Tenta achar 3 pessoas diferentes
         while (escalados.length < 3 && tentativas < 100) {
             let cand = corretores[Math.floor(Math.random() * corretores.length)];
             let jaEsta = escalados.some(c => c.id === cand.id);
             let trabalhouOntem = ultimoPlantao.some(c => c.id === cand.id);
-            
-            // Se tiver menos de 6 pessoas na equipe, permite trabalhar dias seguidos
             if (corretores.length < 6) trabalhouOntem = false;
-
             if (!jaEsta && !trabalhouOntem) escalados.push(cand);
             tentativas++;
         }
