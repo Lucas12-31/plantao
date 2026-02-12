@@ -5,7 +5,7 @@ const selectCorretor = document.getElementById('select-corretor');
 const tabelaRanking = document.getElementById('tabela-ranking');
 const form = document.getElementById('form-producao');
 
-// 1. CARREGAR CORRETORES (Para o Select e Tabela)
+// 1. CARREGAR CORRETORES
 onSnapshot(collection(db, "corretores"), (snapshot) => {
     let htmlOptions = '<option value="">Selecione...</option>';
     let corretores = [];
@@ -14,22 +14,24 @@ onSnapshot(collection(db, "corretores"), (snapshot) => {
         corretores.push({ id: d.id, ...d.data() });
     });
 
-    // Ordena Select por nome
     corretores.sort((a, b) => a.nome.localeCompare(b.nome));
-    corretores.forEach(c => {
-        htmlOptions += `<option value="${c.id}">${c.nome}</option>`;
-    });
-    if(selectCorretor) selectCorretor.innerHTML = htmlOptions;
+    
+    // Preenche o Select
+    if(selectCorretor) {
+        corretores.forEach(c => {
+            htmlOptions += `<option value="${c.id}">${c.nome}</option>`;
+        });
+        selectCorretor.innerHTML = htmlOptions;
+    }
 
     // Renderiza Ranking
     renderizarRanking(corretores);
 });
 
-// 2. FUNÇÃO RENDERIZAR RANKING
+// 2. RENDERIZAR RANKING (Mostra quem está vendendo mais NO MÊS ATUAL)
 function renderizarRanking(lista) {
     if(!tabelaRanking) return;
 
-    // Calcula total e pontos para ordenar
     lista.forEach(c => {
         c.v_pme = parseFloat(c.producao_pme) || 0;
         c.v_pf = parseFloat(c.producao_pf) || 0;
@@ -37,7 +39,6 @@ function renderizarRanking(lista) {
         c.pontos = (c.v_pme * 2) + c.v_pf;
     });
 
-    // Ordena por Pontos (Do maior para o menor)
     lista.sort((a, b) => b.pontos - a.pontos);
 
     let html = '';
@@ -68,7 +69,7 @@ if(form) {
         e.preventDefault();
 
         const id = selectCorretor.value;
-        const tipo = document.getElementById('tipo-prod').value; // 'pme' ou 'pf'
+        const tipo = document.getElementById('tipo-prod').value; 
         const valor = parseFloat(document.getElementById('valor-prod').value);
 
         if (!id || !valor) return alert("Preencha tudo!");
@@ -77,7 +78,6 @@ if(form) {
 
         try {
             const ref = doc(db, "corretores", id);
-            // Incrementa o valor existente
             await updateDoc(ref, {
                 [campoBanco]: increment(valor)
             });
@@ -90,53 +90,55 @@ if(form) {
     });
 }
 
-// 4. FUNÇÃO MESTRA: ENCERRAR MÊS (ZERA TUDO)
-export async function encerrarMes() {
-    if(!confirm("⚠️ ATENÇÃO EXTREMA ⚠️\n\nIsso irá ZERAR a produção e o saldo de leads de TODOS os corretores para iniciar um novo mês.\n\nO Plantão ficará vazio até que nova produção seja lançada e distribuída.\n\nTem certeza absoluta?")) {
-        return;
-    }
+// 4. FUNÇÃO DE FECHAMENTO (CORRIGIDA PARA SISTEMA RETROATIVO)
+export async function iniciarNovoCiclo() {
+    // Texto explicativo para evitar acidentes
+    const confirmacao = confirm(
+        "📅 INICIAR NOVO CICLO DE VENDAS\n\n" +
+        "1. Isso vai ZERAR o Ranking de Produção (R$) para começar o novo mês.\n" +
+        "2. O SALDO DE LEADS (Plantão) SERÁ MANTIDO (pois ele vem do mês anterior).\n\n" +
+        "⚠️ IMPORTANTE: Certifique-se de que você já rodou a DISTRIBUIÇÃO antes de clicar aqui, senão os corretores ficarão sem meta!\n\n" +
+        "Deseja continuar?"
+    );
 
-    const senha = prompt("Digite a senha de administrador para confirmar (Digite: limao123):");
+    if(!confirmacao) return;
+
+    const senha = prompt("Digite a senha de administrador (limao123):");
     if (senha !== "limao123") return alert("Senha incorreta.");
 
     try {
         const snapshot = await getDocs(collection(db, "corretores"));
+        const dataHoje = new Date().toLocaleDateString('pt-BR');
         
-        // Salvar Histórico (Snapshot do fechamento) - Opcional mas recomendado
-        const dataHoje = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
-        
-        // Loop para zerar um por um
+        // Loop para zerar produção
         for (const d of snapshot.docs) {
             const dados = d.data();
             
-            // 1. Salva backup na coleção 'historico_fechamentos'
+            // 1. Salva backup do que foi vendido no mês que passou
             await addDoc(collection(db, "historico_fechamentos"), {
-                data: new Date(),
-                mes_referencia: dataHoje,
+                data_fechamento: new Date(),
+                referencia: `Ciclo encerrado em ${dataHoje}`,
                 corretor: dados.nome,
                 producao_final_pme: dados.producao_pme,
-                producao_final_pf: dados.producao_pf,
-                pontos_finais: (dados.producao_pme * 2) + dados.producao_pf
+                producao_final_pf: dados.producao_pf
             });
 
-            // 2. Zera o corretor
+            // 2. Zera APENAS a produção (Vendas). 
+            // O SALDO (Leads a receber) é preservado para o plantão rodar.
             await updateDoc(doc(db, "corretores", d.id), {
                 producao_pme: 0,
-                producao_pf: 0,
-                saldo_pme: 0,   // Zera a meta de leads PME a receber
-                saldo_pf: 0,    // Zera a meta de leads PF a receber
-                leads_entregues_pme: 0,
-                leads_entregues_pf: 0
+                producao_pf: 0
+                // NÃO ZERAMOS saldo_pme nem saldo_pf AQUI!
             });
         }
 
-        alert("✅ Mês encerrado com sucesso! \n\nO ranking e o plantão foram reiniciados.");
+        alert("✅ Novo ciclo iniciado!\n\nO Ranking foi zerado para as novas vendas.\nO Plantão continua rodando com o saldo da distribuição anterior.");
         
     } catch (error) {
-        console.error("Erro ao fechar mês:", error);
-        alert("Erro ao processar o fechamento.");
+        console.error("Erro ao fechar ciclo:", error);
+        alert("Erro ao processar.");
     }
 }
 
-// Torna global para o botão HTML acessar
-window.encerrarMes = encerrarMes;
+// Torna global
+window.encerrarMes = iniciarNovoCiclo;
