@@ -1,14 +1,25 @@
 import { db } from "./firebase-config.js";
-import { collection, addDoc, getDocs, onSnapshot, query, orderBy, limit, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, addDoc, getDocs, onSnapshot, query, orderBy, limit, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const selectCorretor = document.getElementById('select-corretor');
 const selectFonte = document.getElementById('fonte-lead');
 const form = document.getElementById('form-lead');
 const tabela = document.getElementById('tabela-leads');
 
-// 1. CARREGAR CORRETORES
+// Lista fixa de opções de Follow Up
+const OPCOES_STATUS = [
+    "Distribuído",
+    "1º contato",
+    "Cliente interessado",
+    "Não tem Interesse",
+    "Proposta Gerada",
+    "Finalizado",
+    "Telefone Inexistente/Incorreto",
+    "Lead Inválido"
+];
+
+// 1. CARREGAR DADOS INICIAIS
 async function carregarCorretores() {
-    // Usar onSnapshot aqui também garante que se cadastrar corretor novo, aparece na hora
     onSnapshot(collection(db, "corretores"), (snapshot) => {
         let html = '<option value="">Selecione um corretor...</option>';
         snapshot.forEach(doc => {
@@ -19,12 +30,11 @@ async function carregarCorretores() {
     });
 }
 
-// 2. CARREGAR PARCEIROS
 async function carregarParceiros() {
     onSnapshot(collection(db, "parceiros"), (snapshot) => {
         let html = '<option value="">Selecione a fonte...</option>';
         if (snapshot.empty) {
-            html += '<option value="Outros">Nenhum parceiro cadastrado</option>';
+            html += '<option value="Outros">Nenhum parceiro</option>';
         } else {
             snapshot.forEach(doc => {
                 let d = doc.data();
@@ -36,11 +46,10 @@ async function carregarParceiros() {
     });
 }
 
-// Inicializa
 carregarCorretores();
 carregarParceiros();
 
-// 3. SALVAR LEAD
+// 2. SALVAR NOVO LEAD
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -50,6 +59,7 @@ form.addEventListener('submit', async (e) => {
     const tipo = document.getElementById('tipo-lead').value; 
     const dataChegada = document.getElementById('data-chegada').value;
     const dataEntrega = document.getElementById('data-entrega').value;
+    const statusInicial = document.getElementById('status-lead').value; // Novo campo
     
     const idCorretor = selectCorretor.value;
     const nomeCorretor = selectCorretor.options[selectCorretor.selectedIndex].text;
@@ -62,29 +72,31 @@ form.addEventListener('submit', async (e) => {
             tipo: tipo,
             data_chegada: dataChegada,
             data_entrega: dataEntrega,
+            status: statusInicial, // Salvando status
             corretor_id: idCorretor,
             corretor_nome: nomeCorretor,
             timestamp: new Date()
         });
         
-        alert("Lead cadastrado com sucesso!");
+        alert("Lead cadastrado!");
         form.reset();
         document.getElementById('data-chegada').valueAsDate = new Date();
         document.getElementById('data-entrega').valueAsDate = new Date();
+        document.getElementById('status-lead').value = "Distribuído"; // Reseta status pro padrão
     } catch (error) {
         console.error(error);
-        alert("Erro ao salvar lead.");
+        alert("Erro ao salvar.");
     }
 });
 
-// 4. LISTAR LEADS COM BOTÃO EXCLUIR
-const q = query(collection(db, "leads"), orderBy("timestamp", "desc"), limit(20)); // Aumentei para 20 últimos
+// 3. LISTAR E GERAR DROPDOWN DE STATUS
+const q = query(collection(db, "leads"), orderBy("timestamp", "desc"), limit(30)); 
 
 onSnapshot(q, (snapshot) => {
     let html = '';
     
     if (snapshot.empty) {
-        tabela.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Nenhum lead recente.</td></tr>';
+        tabela.innerHTML = '<tr><td colspan="6" class="text-center">Nenhum lead recente.</td></tr>';
         return;
     }
 
@@ -93,19 +105,38 @@ onSnapshot(q, (snapshot) => {
         let id = doc.id;
         
         let dataFormatada = d.data_entrega.split('-').reverse().slice(0,2).join('/');
-        let badge = d.tipo === 'pme' ? 'bg-warning text-dark' : 'bg-info text-white';
+        let badgeTipo = d.tipo === 'pme' ? 'bg-warning text-dark' : 'bg-info text-white';
+
+        // --- GERAR O SELECT DO STATUS ---
+        // Cria o HTML do <select> já marcando a opção que está no banco (selected)
+        let selectStatus = `<select class="form-select form-select-sm border-secondary" 
+                              onchange="mudarStatus('${id}', this.value)" 
+                              style="font-size: 0.85rem;">`;
+        
+        OPCOES_STATUS.forEach(opcao => {
+            let isSelected = (d.status === opcao) ? "selected" : "";
+            selectStatus += `<option value="${opcao}" ${isSelected}>${opcao}</option>`;
+        });
+        selectStatus += `</select>`;
+        // ---------------------------------
 
         html += `
             <tr>
                 <td>${dataFormatada}</td>
-                <td>${d.corretor_nome}</td>
-                <td><span class="badge ${badge}">${d.tipo.toUpperCase()}</span></td>
+                <td><span class="fw-bold">${d.corretor_nome.split(' ')[0]}</span></td>
                 <td>
-                    <div class="fw-bold text-truncate" style="max-width: 150px;">${d.cliente}</div>
-                    <div class="text-muted small">Via: ${d.fonte}</div>
+                    <div class="fw-bold text-truncate" style="max-width: 140px;">${d.cliente}</div>
+                    <div class="small">
+                        <span class="badge ${badgeTipo}">${d.tipo.toUpperCase()}</span>
+                        <span class="text-muted ms-1">${d.telefone || ''}</span>
+                    </div>
                 </td>
+                <td><small>${d.fonte}</small></td>
+                
+                <td>${selectStatus}</td>
+
                 <td>
-                    <button onclick="deletarLead('${id}')" class="btn btn-sm btn-outline-danger" title="Excluir Lead">
+                    <button onclick="deletarLead('${id}')" class="btn btn-sm btn-outline-danger" title="Excluir">
                         🗑️
                     </button>
                 </td>
@@ -115,15 +146,24 @@ onSnapshot(q, (snapshot) => {
     tabela.innerHTML = html;
 });
 
-// 5. FUNÇÃO PARA EXCLUIR LEAD
+// 4. FUNÇÃO DE MUDANÇA DE STATUS (Ao selecionar na lista)
+window.mudarStatus = async (id, novoStatus) => {
+    try {
+        const docRef = doc(db, "leads", id);
+        await updateDoc(docRef, {
+            status: novoStatus
+        });
+        // Feedback visual sutil (pisca o console)
+        console.log(`Lead ${id} atualizado para: ${novoStatus}`);
+    } catch (error) {
+        console.error("Erro ao atualizar status:", error);
+        alert("Erro ao atualizar status.");
+    }
+};
+
+// 5. DELETAR
 window.deletarLead = async (id) => {
-    if(confirm("Tem certeza que deseja excluir este lead? Isso afetará a contagem do Plantão e Parceiros.")) {
-        try {
-            await deleteDoc(doc(db, "leads", id));
-            // Não precisa de alert, a tabela atualiza sozinha
-        } catch (error) {
-            console.error("Erro ao excluir:", error);
-            alert("Erro ao excluir lead.");
-        }
+    if(confirm("Excluir este lead permanentemente?")) {
+        await deleteDoc(doc(db, "leads", id));
     }
 };
