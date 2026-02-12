@@ -6,19 +6,18 @@ const selectFonte = document.getElementById('fonte-lead');
 const form = document.getElementById('form-lead');
 const tabela = document.getElementById('tabela-leads');
 
-// Lista fixa de opções de Follow Up
-const OPCOES_STATUS = [
-    "Distribuído",
-    "1º contato",
-    "Cliente interessado",
-    "Não tem Interesse",
-    "Proposta Gerada",
-    "Finalizado",
-    "Telefone Inexistente/Incorreto",
-    "Lead Inválido"
+// MAPA DE STATUS E EMOJIS
+const STATUS_OPCOES = [
+    { valor: "Distribuído", label: "🔵 Distribuído" },
+    { valor: "Em negociação", label: "🟡 Em negociação" },
+    { valor: "Declinado", label: "🟠 Declinado" },
+    { valor: "Retornar depois", label: "🟣 Retornar depois" },
+    { valor: "Proposta Gerada", label: "🐬 Proposta Gerada" },
+    { valor: "Finalizado", label: "✅ Finalizado" },
+    { valor: "Lead Inválido", label: "🔴 Lead Inválido" }
 ];
 
-// 1. CARREGAR DADOS INICIAIS
+// 1. CARREGAR DADOS
 async function carregarCorretores() {
     onSnapshot(collection(db, "corretores"), (snapshot) => {
         let html = '<option value="">Selecione um corretor...</option>';
@@ -49,7 +48,7 @@ async function carregarParceiros() {
 carregarCorretores();
 carregarParceiros();
 
-// 2. SALVAR NOVO LEAD
+// 2. SALVAR LEAD
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -59,7 +58,7 @@ form.addEventListener('submit', async (e) => {
     const tipo = document.getElementById('tipo-lead').value; 
     const dataChegada = document.getElementById('data-chegada').value;
     const dataEntrega = document.getElementById('data-entrega').value;
-    const statusInicial = document.getElementById('status-lead').value; // Novo campo
+    const statusInicial = document.getElementById('status-lead').value;
     
     const idCorretor = selectCorretor.value;
     const nomeCorretor = selectCorretor.options[selectCorretor.selectedIndex].text;
@@ -72,7 +71,7 @@ form.addEventListener('submit', async (e) => {
             tipo: tipo,
             data_chegada: dataChegada,
             data_entrega: dataEntrega,
-            status: statusInicial, // Salvando status
+            status: statusInicial,
             corretor_id: idCorretor,
             corretor_nome: nomeCorretor,
             timestamp: new Date()
@@ -82,14 +81,14 @@ form.addEventListener('submit', async (e) => {
         form.reset();
         document.getElementById('data-chegada').valueAsDate = new Date();
         document.getElementById('data-entrega').valueAsDate = new Date();
-        document.getElementById('status-lead').value = "Distribuído"; // Reseta status pro padrão
+        document.getElementById('status-lead').value = "Distribuído"; 
     } catch (error) {
         console.error(error);
         alert("Erro ao salvar.");
     }
 });
 
-// 3. LISTAR E GERAR DROPDOWN DE STATUS
+// 3. LISTAR E GERAR STATUS COLORIDO
 const q = query(collection(db, "leads"), orderBy("timestamp", "desc"), limit(30)); 
 
 onSnapshot(q, (snapshot) => {
@@ -107,18 +106,16 @@ onSnapshot(q, (snapshot) => {
         let dataFormatada = d.data_entrega.split('-').reverse().slice(0,2).join('/');
         let badgeTipo = d.tipo === 'pme' ? 'bg-warning text-dark' : 'bg-info text-white';
 
-        // --- GERAR O SELECT DO STATUS ---
-        // Cria o HTML do <select> já marcando a opção que está no banco (selected)
-        let selectStatus = `<select class="form-select form-select-sm border-secondary" 
+        // GERA O SELECT
+        let selectStatus = `<select class="form-select form-select-sm border-secondary fw-bold" 
                               onchange="mudarStatus('${id}', this.value)" 
                               style="font-size: 0.85rem;">`;
         
-        OPCOES_STATUS.forEach(opcao => {
-            let isSelected = (d.status === opcao) ? "selected" : "";
-            selectStatus += `<option value="${opcao}" ${isSelected}>${opcao}</option>`;
+        STATUS_OPCOES.forEach(opcao => {
+            let isSelected = (d.status === opcao.valor) ? "selected" : "";
+            selectStatus += `<option value="${opcao.valor}" ${isSelected}>${opcao.label}</option>`;
         });
         selectStatus += `</select>`;
-        // ---------------------------------
 
         html += `
             <tr>
@@ -132,9 +129,7 @@ onSnapshot(q, (snapshot) => {
                     </div>
                 </td>
                 <td><small>${d.fonte}</small></td>
-                
                 <td>${selectStatus}</td>
-
                 <td>
                     <button onclick="deletarLead('${id}')" class="btn btn-sm btn-outline-danger" title="Excluir">
                         🗑️
@@ -146,22 +141,15 @@ onSnapshot(q, (snapshot) => {
     tabela.innerHTML = html;
 });
 
-// 4. FUNÇÃO DE MUDANÇA DE STATUS (Ao selecionar na lista)
 window.mudarStatus = async (id, novoStatus) => {
     try {
         const docRef = doc(db, "leads", id);
-        await updateDoc(docRef, {
-            status: novoStatus
-        });
-        // Feedback visual sutil (pisca o console)
-        console.log(`Lead ${id} atualizado para: ${novoStatus}`);
+        await updateDoc(docRef, { status: novoStatus });
     } catch (error) {
         console.error("Erro ao atualizar status:", error);
-        alert("Erro ao atualizar status.");
     }
 };
 
-// 5. DELETAR
 window.deletarLead = async (id) => {
     if(confirm("Excluir este lead permanentemente?")) {
         await deleteDoc(doc(db, "leads", id));
