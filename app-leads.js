@@ -74,7 +74,8 @@ form.addEventListener('submit', async (e) => {
             status: statusInicial,
             corretor_id: idCorretor,
             corretor_nome: nomeCorretor,
-            timestamp: new Date()
+            timestamp: new Date(),
+            data_status: new Date().toISOString() // Salva a data inicial do status também
         });
         
         alert("Lead cadastrado!");
@@ -97,7 +98,8 @@ onSnapshot(q, (snapshot) => {
     if (snapshot.empty) {
         tabela.innerHTML = '<tr><td colspan="6" class="text-center">Nenhum lead recente.</td></tr>';
         return;
-    }   
+    }
+    
     snapshot.forEach(doc => {
         let d = doc.data();
         let id = doc.id;
@@ -114,26 +116,10 @@ onSnapshot(q, (snapshot) => {
             let isSelected = (d.status === opcao.valor) ? "selected" : "";
             selectStatus += `<option value="${opcao.valor}" ${isSelected}>${opcao.label}</option>`;
         });
-
-        // 4. FUNÇÃO DE MUDANÇA DE STATUS (Atualizada para salvar DATA)
-window.mudarStatus = async (id, novoStatus) => {
-    try {
-        const docRef = doc(db, "leads", id);
-        
-        // Salvamos o novo status E a data atual (data_status)
-        // Isso serve de base para calcularmos as 24h ou 1 semana
-        await updateDoc(docRef, {
-            status: novoStatus,
-            data_status: new Date().toISOString() 
-        });
-        
-        console.log(`Lead ${id} mudou para ${novoStatus} em ${new Date().toLocaleString()}`);
-    } catch (error) {
-        console.error("Erro ao atualizar status:", error);
-        alert("Erro ao atualizar status.");
-    }
-};
         selectStatus += `</select>`;
+
+        // AQUI ESTAVA O ERRO: A função window.mudarStatus estava aqui dentro. 
+        // Eu removi e coloquei lá no final.
 
         html += `
             <tr>
@@ -159,17 +145,37 @@ window.mudarStatus = async (id, novoStatus) => {
     tabela.innerHTML = html;
 });
 
+// ========================================================
+// FUNÇÕES GLOBAIS (FORA DO LOOP) - LUGAR CORRETO
+// ========================================================
+
+// 4. MUDAR STATUS (Com Timestamp para Notificações)
 window.mudarStatus = async (id, novoStatus) => {
     try {
         const docRef = doc(db, "leads", id);
-        await updateDoc(docRef, { status: novoStatus });
+        
+        // Atualiza Status e Data (data_status)
+        await updateDoc(docRef, { 
+            status: novoStatus,
+            data_status: new Date().toISOString() 
+        });
+
+        console.log(`Sucesso: Lead ${id} mudou para ${novoStatus}`);
+
     } catch (error) {
         console.error("Erro ao atualizar status:", error);
+        alert("Erro ao atualizar status. Verifique o console.");
     }
 };
 
+// 5. DELETAR
 window.deletarLead = async (id) => {
     if(confirm("Excluir este lead permanentemente?")) {
-        await deleteDoc(doc(db, "leads", id));
+        try {
+            await deleteDoc(doc(db, "leads", id));
+        } catch (error) {
+            console.error(error);
+            alert("Erro ao excluir.");
+        }
     }
 };
