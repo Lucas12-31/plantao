@@ -97,8 +97,7 @@ onSnapshot(q, (snapshot) => {
     if (snapshot.empty) {
         tabela.innerHTML = '<tr><td colspan="6" class="text-center">Nenhum lead recente.</td></tr>';
         return;
-    }
-
+    }   
     snapshot.forEach(doc => {
         let d = doc.data();
         let id = doc.id;
@@ -115,6 +114,25 @@ onSnapshot(q, (snapshot) => {
             let isSelected = (d.status === opcao.valor) ? "selected" : "";
             selectStatus += `<option value="${opcao.valor}" ${isSelected}>${opcao.label}</option>`;
         });
+
+        // 4. FUNÇÃO DE MUDANÇA DE STATUS (Atualizada para salvar DATA)
+window.mudarStatus = async (id, novoStatus) => {
+    try {
+        const docRef = doc(db, "leads", id);
+        
+        // Salvamos o novo status E a data atual (data_status)
+        // Isso serve de base para calcularmos as 24h ou 1 semana
+        await updateDoc(docRef, {
+            status: novoStatus,
+            data_status: new Date().toISOString() 
+        });
+        
+        console.log(`Lead ${id} mudou para ${novoStatus} em ${new Date().toLocaleString()}`);
+    } catch (error) {
+        console.error("Erro ao atualizar status:", error);
+        alert("Erro ao atualizar status.");
+    }
+};
         selectStatus += `</select>`;
 
         html += `
