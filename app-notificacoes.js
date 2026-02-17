@@ -43,7 +43,7 @@ async function verificarRegrasDeNotificacao() {
         let tipoAlerta = ""; // Identificador único da regra
 
         // --- REGRA 1: Distribuído (24h depois) ---
-        if (lead.status === "Distribuído" && diffHoras >= 0) {
+        if (lead.status === "Distribuído" && diffHoras >= 24) {
             titulo = "⚠️ Cobrar Corretor";
             mensagem = `Falar com o corretor sobre Cliente <b>${lead.cliente}</b>`;
             tipoAlerta = "24h_distribuido";
