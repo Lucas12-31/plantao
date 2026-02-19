@@ -7,17 +7,14 @@
     <style>
         .table-escala th, .table-escala td { vertical-align: middle; text-align: center; }
         
-        /* Ajuste no card para virar um botão clicável */
         .card-vaga { border: 1px dashed #ccc; padding: 10px; border-radius: 8px; background-color: #fcfcfc; height: 100%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; position: relative; min-height: 50px;}
         .card-vaga:hover { background-color: #e9ecef; border-color: #adb5bd; }
         
-        /* COR DO NOME ALTERADA PARA PRETO/ESCURO */
         .nome-corretor { font-weight: bold; font-size: 1.1rem; color: #333; } 
         
         .manha-bg { background-color: #e0f7fa !important; }
         .tarde-bg { background-color: #fff3e0 !important; }
         
-        /* CORES PARA QUANDO O CORRETOR LEVAR FALTA */
         .falta-bg { background-color: #ffe6e6 !important; border-color: #dc3545 !important; border-style: solid !important; border-width: 2px !important;}
         .falta-text { color: #dc3545 !important; text-decoration: line-through; }
     </style>
@@ -65,14 +62,19 @@
         <div class="d-flex justify-content-between align-items-end mb-3 border-bottom pb-3">
             <div>
                 <h3 class="fw-bold text-dark mb-3">🏪 Escala Presencial</h3>
-                <ul class="nav nav-pills" id="lojas-tabs">
-                    <li class="nav-item me-2">
-                        <a class="nav-link active fw-bold px-4" href="#" onclick="mudarLoja('flamengo', event)">📍 Loja Flamengo</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link bg-white border text-dark fw-bold px-4" href="#" onclick="mudarLoja('tijuca', event)">📍 Loja Tijuca</a>
-                    </li>
-                </ul>
+                <div class="d-flex align-items-center">
+                    <ul class="nav nav-pills" id="lojas-tabs">
+                        <li class="nav-item me-2">
+                            <a class="nav-link active fw-bold px-4" href="#" onclick="mudarLoja('flamengo', event)">📍 Loja Flamengo</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link bg-white border text-dark fw-bold px-4" href="#" onclick="mudarLoja('tijuca', event)">📍 Loja Tijuca</a>
+                        </li>
+                    </ul>
+                    <button class="btn btn-outline-secondary ms-3 fw-bold border-2 shadow-sm" onclick="abrirModalTroca()">
+                        🔄 Troca de Plantão
+                    </button>
+                </div>
             </div>
             
             <div class="d-flex gap-3 align-items-center bg-white p-3 rounded shadow-sm border">
@@ -162,7 +164,7 @@
                         <label class="form-label fw-bold text-muted small text-uppercase">Substituir / Alterar Corretor:</label>
                         <select id="select-alterar-corretor" class="form-select border-secondary fw-bold shadow-sm">
                             <option value="">-- Vaga Livre --</option>
-                            </select>
+                        </select>
                     </div>
 
                     <div class="row g-3 align-items-center">
@@ -181,11 +183,72 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <div id="info-troca-container" class="mt-4 text-center d-none">
+                        <span class="badge bg-warning text-dark border border-warning shadow-sm p-2 w-100 fs-6" id="texto-info-troca" style="white-space: normal;"></span>
+                    </div>
 
                 </div>
                 <div class="modal-footer bg-white">
                     <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
                     <button type="button" class="btn btn-success fw-bold px-4 shadow-sm" onclick="salvarDetalhesPlantao()">💾 Salvar Alterações</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modal-troca" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-0">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title fw-bold">🔄 Trocar Plantões (Mesma Loja)</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-light p-4">
+                    <p class="text-muted small mb-4">Selecione os dois plantões que deseja inverter a posição.</p>
+
+                    <h6 class="fw-bold text-primary">Plantão 1 (Origem)</h6>
+                    <div class="row g-2 mb-3">
+                        <div class="col-5">
+                            <select id="troca-data-1" class="form-select form-select-sm shadow-sm border-primary"></select>
+                        </div>
+                        <div class="col-4">
+                            <select id="troca-turno-1" class="form-select form-select-sm shadow-sm border-primary">
+                                <option value="manha">Manhã</option>
+                                <option value="tarde">Tarde</option>
+                            </select>
+                        </div>
+                        <div class="col-3">
+                            <select id="troca-cadeira-1" class="form-select form-select-sm shadow-sm border-primary">
+                                <option value="0">Cad. 1</option>
+                                <option value="1">Cad. 2</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold text-info mt-4">Plantão 2 (Destino)</h6>
+                    <div class="row g-2 mb-3">
+                        <div class="col-5">
+                            <select id="troca-data-2" class="form-select form-select-sm shadow-sm border-info"></select>
+                        </div>
+                        <div class="col-4">
+                            <select id="troca-turno-2" class="form-select form-select-sm shadow-sm border-info">
+                                <option value="manha">Manhã</option>
+                                <option value="tarde">Tarde</option>
+                            </select>
+                        </div>
+                        <div class="col-3">
+                            <select id="troca-cadeira-2" class="form-select form-select-sm shadow-sm border-info">
+                                <option value="0">Cad. 1</option>
+                                <option value="1">Cad. 2</option>
+                            </select>
+                        </div>
+                    </div>
+
+                </div>
+                <div class="modal-footer bg-white">
+                    <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-warning fw-bold px-4 shadow-sm" onclick="efetuarTroca()">🔄 Confirmar Troca</button>
                 </div>
             </div>
         </div>
