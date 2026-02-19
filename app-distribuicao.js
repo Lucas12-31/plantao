@@ -1,61 +1,6 @@
 import { db } from "./firebase-config.js";
-import { collection, getDocs, updateDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// --- PARTE 1: MONITORAMENTO DE ESTOQUE (ATUALIZADO COM INVÁLIDOS) ---
-async function carregarEstoqueParceiros() {
-    const tabelaEstoque = document.getElementById('tabela-estoque-parceiros');
-
-    onSnapshot(collection(db, "parceiros"), async (snapParceiros) => {
-        const snapLeads = await getDocs(collection(db, "leads"));
-        const leads = [];
-        snapLeads.forEach(l => leads.push(l.data()));
-
-        let html = '';
-
-        snapParceiros.forEach(doc => {
-            const p = doc.data();
-            const nomeParceiro = p.nome;
-            const comprados = parseInt(p.leads_comprados) || 0;
-
-            // Filtra os leads específicos dessa fonte
-            const leadsDestaFonte = leads.filter(l => l.fonte === nomeParceiro);
-            const distribuidosTotal = leadsDestaFonte.length;
-
-            // Conta quantos foram marcados como inválidos
-            const invalidos = leadsDestaFonte.filter(l => l.status === 'Lead Inválido').length;
-
-            // Calcula o consumo real (descontando os inválidos, pois serão repostos)
-            const consumoReal = distribuidosTotal - invalidos;
-            const faltam = comprados - consumoReal;
-
-            let classeSaldo = "text-success fw-bold";
-            if (faltam <= 0) classeSaldo = "text-danger fw-bold";
-            else if (faltam < (comprados * 0.1)) classeSaldo = "text-warning fw-bold";
-
-            html += `
-                <tr>
-                    <td class="text-start ps-3 fw-bold text-truncate" style="max-width: 100px;" title="${nomeParceiro}">
-                        ${nomeParceiro}
-                    </td>
-                    <td>${comprados}</td>
-                    <td>${distribuidosTotal}</td>
-                    <td class="${classeSaldo}">${faltam}</td>
-                    <td>
-                        <span class="badge bg-danger rounded-pill">${invalidos}</span>
-                    </td>
-                </tr>
-            `;
-        });
-
-        if (html === '') html = '<tr><td colspan="5" class="text-muted">Nenhum parceiro.</td></tr>';
-        
-        if(tabelaEstoque) tabelaEstoque.innerHTML = html;
-    });
-}
-
-carregarEstoqueParceiros();
-
-// --- PARTE 2: LÓGICA DE DISTRIBUIÇÃO ---
 let resultadoParaSalvar = [];
 
 window.executarLogica = async () => {
@@ -105,7 +50,7 @@ window.executarLogica = async () => {
         }
     });
 
-    // 2. Peso 2 (PME Ativo)
+    // 2. Peso 2
     let corretoresPME = elegiveis.filter(c => c.isPmeAtivo);
     if (corretoresPME.length > 0 && totalPME > 0) {
         let pmePorCabeca = Math.floor(totalPME / corretoresPME.length);
@@ -151,8 +96,6 @@ window.salvarNoBanco = async () => {
     try {
         for (const c of resultadoParaSalvar) {
             const docRef = doc(db, "corretores", c.id);
-            // ATENÇÃO: Aqui usamos o += (increment) do firebase ou setamos o novo saldo?
-            // Como combinamos, a distribuição sobrepõe o saldo (Meta a receber)
             await updateDoc(docRef, {
                 saldo_pme: c.temp_leadsPME,
                 saldo_pf: c.temp_leadsPF
