@@ -6,8 +6,9 @@ const lista = document.getElementById('lista-parceiros');
 const listaHistorico = document.getElementById('lista-historico');
 const datalistEmpresas = document.getElementById('lista-empresas');
 
-// Preenche a data de hoje automaticamente no formulário
-document.getElementById('data-compra').valueAsDate = new Date();
+if(document.getElementById('data-compra')) {
+    document.getElementById('data-compra').valueAsDate = new Date();
+}
 
 // ==========================================
 // 1. SALVAR NOVA COMPRA
@@ -20,7 +21,6 @@ form.addEventListener('submit', async (e) => {
     const qtd = parseInt(document.getElementById('qtd-leads').value);
 
     try {
-        // Passo A: Gravar a transação no Histórico de Compras
         await addDoc(collection(db, "historico_compras"), {
             parceiro: nome,
             data_compra: dataCompra,
@@ -28,18 +28,15 @@ form.addEventListener('submit', async (e) => {
             timestamp: new Date().toISOString()
         });
 
-        // Passo B: Atualizar a Carteira Principal (Estoque)
         const q = query(collection(db, "parceiros"), where("nome", "==", nome));
         const snapshot = await getDocs(q);
 
         if (!snapshot.empty) {
-            // Empresa já existe: Apenas incrementa os leads no saldo dela
             const docId = snapshot.docs[0].id;
             await updateDoc(doc(db, "parceiros", docId), {
                 leads_comprados: increment(qtd)
             });
         } else {
-            // Empresa nova: Cria o registro na carteira
             await addDoc(collection(db, "parceiros"), {
                 nome: nome,
                 leads_comprados: qtd,
@@ -57,32 +54,65 @@ form.addEventListener('submit', async (e) => {
 });
 
 // ==========================================
-// 2. LISTAR CARTEIRA ATUAL (DIREITA)
+// 2. LÓGICA DE ESTOQUE (TEMPO REAL)
 // ==========================================
-onSnapshot(collection(db, "parceiros"), (snapshot) => {
+let estadoParceiros = [];
+let estadoLeads = [];
+
+// Fica "ouvindo" os parceiros
+onSnapshot(collection(db, "parceiros"), (snap) => {
+    estadoParceiros = [];
+    snap.forEach(d => estadoParceiros.push({ id: d.id, ...d.data() }));
+    atualizarTabelaEstoque();
+});
+
+// Fica "ouvindo" os leads (Para calcular Distribuídos e Inválidos em tempo real)
+onSnapshot(collection(db, "leads"), (snap) => {
+    estadoLeads = [];
+    snap.forEach(d => estadoLeads.push(d.data()));
+    atualizarTabelaEstoque();
+});
+
+function atualizarTabelaEstoque() {
     let html = '';
     let datalistHtml = '';
     
-    if (snapshot.empty) {
-        lista.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Nenhum parceiro cadastrado.</td></tr>';
+    if (estadoParceiros.length === 0) {
+        lista.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">Nenhum parceiro cadastrado.</td></tr>';
         datalistEmpresas.innerHTML = '';
         return;
     }
 
-    snapshot.forEach(d => {
-        let dados = d.data();
-        let id = d.id;
+    estadoParceiros.forEach(p => {
+        const nomeParceiro = p.nome;
+        const id = p.id;
+        const comprados = parseInt(p.leads_comprados) || 0;
 
-        // Alimenta as sugestões de digitação do formulário
-        datalistHtml += `<option value="${dados.nome}">`;
+        datalistHtml += `<option value="${nomeParceiro}">`;
 
-        // Monta a Tabela
+        // Lógica de Filtro para este Parceiro Específico
+        const leadsDestaFonte = estadoLeads.filter(l => l.fonte === nomeParceiro);
+        const distribuidosTotal = leadsDestaFonte.length;
+        const invalidos = leadsDestaFonte.filter(l => l.status === 'Lead Inválido').length;
+
+        // Calcula o Saldo
+        const consumoReal = distribuidosTotal - invalidos;
+        const faltam = comprados - consumoReal;
+
+        // Cores de alerta
+        let classeSaldo = "text-success fw-bold";
+        if (faltam <= 0) classeSaldo = "text-danger fw-bold";
+        else if (faltam < (comprados * 0.1)) classeSaldo = "text-warning fw-bold";
+
         html += `
             <tr>
-                <td class="fw-bold">${dados.nome}</td>
-                <td><span class="badge bg-primary fs-6">${dados.leads_comprados}</span></td>
+                <td class="text-start ps-4 fw-bold text-uppercase">${nomeParceiro}</td>
+                <td class="fs-5">${comprados}</td>
+                <td class="fs-5">${distribuidosTotal}</td>
+                <td class="${classeSaldo} fs-5">${faltam}</td>
+                <td><span class="badge bg-danger rounded-pill fs-6 px-3 py-2">${invalidos}</span></td>
                 <td>
-                    <button onclick="editar('${id}', '${dados.leads_comprados}')" class="btn btn-outline-warning btn-sm me-2" title="Editar Saldo">
+                    <button onclick="editar('${id}', '${comprados}')" class="btn btn-outline-warning btn-sm me-1" title="Editar Comprados (Manual)">
                         ✏️ Editar
                     </button>
                     <button onclick="deletar('${id}')" class="btn btn-outline-danger btn-sm" title="Excluir Empresa">
@@ -94,8 +124,8 @@ onSnapshot(collection(db, "parceiros"), (snapshot) => {
     });
 
     lista.innerHTML = html;
-    datalistEmpresas.innerHTML = datalistHtml; // Atualiza sugestões
-});
+    datalistEmpresas.innerHTML = datalistHtml;
+}
 
 // ==========================================
 // 3. LISTAR HISTÓRICO MENSAL (ESQUERDA)
@@ -111,28 +141,21 @@ onSnapshot(qHist, (snapshot) => {
     const mesesNome = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
     let agrupadoPorMes = {};
 
-    // Agrupa os documentos por Mês/Ano (Ex: Fevereiro 2026)
     snapshot.forEach(doc => {
         const dados = doc.data();
         const [ano, mes, dia] = dados.data_compra.split('-');
         const chaveMes = `${mesesNome[parseInt(mes) - 1]} ${ano}`;
 
-        if (!agrupadoPorMes[chaveMes]) {
-            agrupadoPorMes[chaveMes] = [];
-        }
+        if (!agrupadoPorMes[chaveMes]) agrupadoPorMes[chaveMes] = [];
         agrupadoPorMes[chaveMes].push({ ...dados, dia });
     });
 
-    // Monta o HTML separado por meses
     let html = '';
     for (const [mesAno, compras] of Object.entries(agrupadoPorMes)) {
-        
-        // Cabeçalho do Mês
         html += `<li class="list-group-item bg-light fw-bold text-secondary text-uppercase border-bottom-0" style="font-size: 0.8rem;">
                     📆 ${mesAno}
                  </li>`;
         
-        // Lista de Compras do Mês
         compras.forEach(c => {
             html += `
                 <li class="list-group-item d-flex justify-content-between align-items-center">
@@ -153,7 +176,7 @@ onSnapshot(qHist, (snapshot) => {
 // FUNÇÕES DE EDIÇÃO E EXCLUSÃO
 // ==========================================
 window.editar = async (id, valorAtual) => {
-    let novoValor = prompt(`Alterar saldo ATUAL de leads na carteira:`, valorAtual);
+    let novoValor = prompt(`Alterar a quantidade de leads COMPRADOS:`, valorAtual);
     if (novoValor === null || novoValor.trim() === "") return;
 
     novoValor = parseInt(novoValor);
@@ -163,7 +186,6 @@ window.editar = async (id, valorAtual) => {
         await updateDoc(doc(db, "parceiros", id), {
             leads_comprados: novoValor
         });
-        // Obs: Editar o saldo aqui NÃO altera o histórico de compras, serve apenas para ajuste de estoque.
     } catch (error) {
         console.error(error);
         alert("Erro ao atualizar o valor.");
