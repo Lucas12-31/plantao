@@ -1,12 +1,15 @@
 import { db } from "./firebase-config.js";
-import { collection, addDoc, getDocs, onSnapshot, query, orderBy, limit, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const selectCorretor = document.getElementById('select-corretor');
 const selectFonte = document.getElementById('fonte-lead');
 const form = document.getElementById('form-lead');
 const tabela = document.getElementById('tabela-leads');
+const inputBusca = document.getElementById('busca-leads');
 
-// MAPA DE STATUS E EMOJIS
+// Memória Global para o Filtro de Busca
+let memoriaLeads = [];
+
 const STATUS_OPCOES = [
     { valor: "Distribuído", label: "🔵 Distribuído" },
     { valor: "Em negociação", label: "🟡 Em negociação" },
@@ -17,7 +20,7 @@ const STATUS_OPCOES = [
     { valor: "Lead Inválido", label: "🔴 Lead Inválido" }
 ];
 
-// 1. CARREGAR DADOS
+// 1. CARREGAR SELECTS (CORRETORES E PARCEIROS)
 async function carregarCorretores() {
     onSnapshot(collection(db, "corretores"), (snapshot) => {
         let html = '<option value="">Selecione um corretor...</option>';
@@ -32,9 +35,8 @@ async function carregarCorretores() {
 async function carregarParceiros() {
     onSnapshot(collection(db, "parceiros"), (snapshot) => {
         let html = '<option value="">Selecione a fonte...</option>';
-        if (snapshot.empty) {
-            html += '<option value="Outros">Nenhum parceiro</option>';
-        } else {
+        if (snapshot.empty) html += '<option value="Outros">Nenhum parceiro</option>';
+        else {
             snapshot.forEach(doc => {
                 let d = doc.data();
                 html += `<option value="${d.nome}">${d.nome}</option>`;
@@ -48,7 +50,7 @@ async function carregarParceiros() {
 carregarCorretores();
 carregarParceiros();
 
-// 2. SALVAR LEAD
+// 2. SALVAR NOVO LEAD
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -74,11 +76,11 @@ form.addEventListener('submit', async (e) => {
             status: statusInicial,
             corretor_id: idCorretor,
             corretor_nome: nomeCorretor,
-            timestamp: new Date(),
-            data_status: new Date().toISOString() // Salva a data inicial do status também
+            timestamp: new Date().toISOString(),
+            data_status: new Date().toISOString() 
         });
         
-        alert("Lead cadastrado!");
+        alert("Lead cadastrado com sucesso!");
         form.reset();
         document.getElementById('data-chegada').valueAsDate = new Date();
         document.getElementById('data-entrega').valueAsDate = new Date();
@@ -89,27 +91,56 @@ form.addEventListener('submit', async (e) => {
     }
 });
 
-// 3. LISTAR E GERAR STATUS COLORIDO
-const q = query(collection(db, "leads"), orderBy("timestamp", "desc"), limit(30)); 
+// 3. BUSCAR DADOS DO FIREBASE EM TEMPO REAL
+// Removido o limit() para permitir buscar no histórico inteiro
+const q = query(collection(db, "leads"), orderBy("timestamp", "desc")); 
 
 onSnapshot(q, (snapshot) => {
+    memoriaLeads = []; // Limpa a memória
+    snapshot.forEach(doc => {
+        memoriaLeads.push({ id: doc.id, ...doc.data() });
+    });
+    
+    // Assim que os dados chegam, chama a função para desenhar a tabela
+    renderizarTabela(memoriaLeads);
+});
+
+// 4. SISTEMA DE BUSCA / FILTRO
+if(inputBusca) {
+    inputBusca.addEventListener('input', (e) => {
+        const termoDeBusca = e.target.value.toLowerCase(); // O que o usuário digitou
+        
+        // Filtra a memória
+        const leadsFiltrados = memoriaLeads.filter(lead => {
+            // Cria um "texto gigante" com tudo do lead para procurar dentro
+            const textoBusca = `${lead.cliente} ${lead.corretor_nome} ${lead.fonte} ${lead.status} ${lead.tipo}`.toLowerCase();
+            return textoBusca.includes(termoDeBusca);
+        });
+
+        // Redesenha a tabela só com os que passaram no filtro
+        renderizarTabela(leadsFiltrados);
+    });
+}
+
+// 5. FUNÇÃO PARA DESENHAR A TABELA HTML
+function renderizarTabela(listaDeLeads) {
     let html = '';
     
-    if (snapshot.empty) {
-        tabela.innerHTML = '<tr><td colspan="6" class="text-center">Nenhum lead recente.</td></tr>';
+    if (listaDeLeads.length === 0) {
+        tabela.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">Nenhum lead encontrado.</td></tr>';
         return;
     }
     
-    snapshot.forEach(doc => {
-        let d = doc.data();
-        let id = doc.id;
+    listaDeLeads.forEach(d => {
+        let dataFormatada = "";
+        if(d.data_entrega) {
+            dataFormatada = d.data_entrega.split('-').reverse().slice(0,2).join('/');
+        }
         
-        let dataFormatada = d.data_entrega.split('-').reverse().slice(0,2).join('/');
         let badgeTipo = d.tipo === 'pme' ? 'bg-warning text-dark' : 'bg-info text-white';
 
-        // GERA O SELECT
         let selectStatus = `<select class="form-select form-select-sm border-secondary fw-bold" 
-                              onchange="mudarStatus('${id}', this.value)" 
+                              onchange="mudarStatus('${d.id}', this.value)" 
                               style="font-size: 0.85rem;">`;
         
         STATUS_OPCOES.forEach(opcao => {
@@ -118,24 +149,21 @@ onSnapshot(q, (snapshot) => {
         });
         selectStatus += `</select>`;
 
-        // AQUI ESTAVA O ERRO: A função window.mudarStatus estava aqui dentro. 
-        // Eu removi e coloquei lá no final.
-
         html += `
             <tr>
                 <td>${dataFormatada}</td>
-                <td><span class="fw-bold">${d.corretor_nome.split(' ')[0]}</span></td>
+                <td><span class="fw-bold text-uppercase">${d.corretor_nome.split(' ')[0]}</span></td>
                 <td>
-                    <div class="fw-bold text-truncate" style="max-width: 140px;">${d.cliente}</div>
+                    <div class="fw-bold text-truncate" style="max-width: 140px;" title="${d.cliente}">${d.cliente}</div>
                     <div class="small">
-                        <span class="badge ${badgeTipo}">${d.tipo.toUpperCase()}</span>
+                        <span class="badge ${badgeTipo}">${(d.tipo || '').toUpperCase()}</span>
                         <span class="text-muted ms-1">${d.telefone || ''}</span>
                     </div>
                 </td>
                 <td><small>${d.fonte}</small></td>
                 <td>${selectStatus}</td>
                 <td>
-                    <button onclick="deletarLead('${id}')" class="btn btn-sm btn-outline-danger" title="Excluir">
+                    <button onclick="deletarLead('${d.id}')" class="btn btn-sm btn-outline-danger" title="Excluir">
                         🗑️
                     </button>
                 </td>
@@ -143,34 +171,26 @@ onSnapshot(q, (snapshot) => {
         `;
     });
     tabela.innerHTML = html;
-});
+}
 
 // ========================================================
-// FUNÇÕES GLOBAIS (FORA DO LOOP) - LUGAR CORRETO
+// FUNÇÕES GLOBAIS
 // ========================================================
-
-// 4. MUDAR STATUS (Com Timestamp para Notificações)
 window.mudarStatus = async (id, novoStatus) => {
     try {
         const docRef = doc(db, "leads", id);
-        
-        // Atualiza Status e Data (data_status)
         await updateDoc(docRef, { 
             status: novoStatus,
             data_status: new Date().toISOString() 
         });
-
         console.log(`Sucesso: Lead ${id} mudou para ${novoStatus}`);
-
     } catch (error) {
         console.error("Erro ao atualizar status:", error);
-        alert("Erro ao atualizar status. Verifique o console.");
     }
 };
 
-// 5. DELETAR
 window.deletarLead = async (id) => {
-    if(confirm("Excluir este lead permanentemente?")) {
+    if(confirm("Tem certeza que deseja excluir este lead permanentemente?")) {
         try {
             await deleteDoc(doc(db, "leads", id));
         } catch (error) {
