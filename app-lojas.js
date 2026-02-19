@@ -26,7 +26,7 @@ window.iniciarLojas = async () => {
     onSnapshot(qFeriados, (snap) => {
         estado.feriados = [];
         snap.forEach(d => estado.feriados.push({ id: d.id, ...d.data() }));
-        buscarEscalaNoBanco(); // Se o feriado mudar, atualiza a tela
+        buscarEscalaNoBanco(); 
     });
 
     // Busca Corretores para o Modal
@@ -46,14 +46,14 @@ window.iniciarLojas = async () => {
 // ==========================================
 async function buscarEscalaNoBanco() {
     const mesRef = filtroMes.value;
-    const docId = `${lojaAtual}_${mesRef}`; // Ex: flamengo_2026-02
+    const docId = `${lojaAtual}_${mesRef}`; 
 
     try {
         const docSnap = await getDoc(doc(db, "escala_lojas", docId));
         if (docSnap.exists()) {
-            estado.escalaSalva = docSnap.data().escala; // Pega o objeto da escala
+            estado.escalaSalva = docSnap.data().escala; 
         } else {
-            estado.escalaSalva = {}; // Vazio, precisa sortear
+            estado.escalaSalva = {}; 
         }
         atualizarVisualizacao();
     } catch (error) {
@@ -107,10 +107,8 @@ function atualizarVisualizacao() {
                 </td>
             `;
         } else {
-            // Pega os corretores do banco. Se não tiver, fica vazio.
             let escaladosHoje = estado.escalaSalva[dia.iso] || { manha: [null, null], tarde: [null, null] };
 
-            // Função helper para desenhar as cadeiras
             const desenharCadeira = (corretor) => {
                 if (corretor) {
                     return `<td class="align-middle">
@@ -121,14 +119,14 @@ function atualizarVisualizacao() {
                                 </div>
                             </td>`;
                 } else {
-                    return `<td class="bg-light text-muted fst-italic align-middle text-center"><small>Livre</small></td>`;
+                    return `<td class="bg-light text-muted fst-italic align-middle text-center"><small>Vaga Livre</small></td>`;
                 }
             };
 
-            htmlBody += desenharCadeira(escaladosHoje.manha[0]); // Manhã 1
-            htmlBody += desenharCadeira(escaladosHoje.manha[1]); // Manhã 2
-            htmlBody += desenharCadeira(escaladosHoje.tarde[0]); // Tarde 1
-            htmlBody += desenharCadeira(escaladosHoje.tarde[1]); // Tarde 2
+            htmlBody += desenharCadeira(escaladosHoje.manha[0]); 
+            htmlBody += desenharCadeira(escaladosHoje.manha[1]); 
+            htmlBody += desenharCadeira(escaladosHoje.tarde[0]); 
+            htmlBody += desenharCadeira(escaladosHoje.tarde[1]); 
         }
         
         htmlBody += `</tr>`;
@@ -143,7 +141,6 @@ window.mudarLoja = (loja, event) => {
     event.preventDefault();
     lojaAtual = loja;
     
-    // Atualiza visual das abas
     tabs.forEach(t => {
         t.classList.remove('active', 'bg-white', 'border', 'text-dark');
         if (t.innerText.toLowerCase().includes(loja)) {
@@ -157,14 +154,14 @@ window.mudarLoja = (loja, event) => {
     document.getElementById('titulo-tabela').innerText = `📅 Escala - Loja ${nomeCapitalizado}`;
     document.getElementById('nome-loja-btn').innerText = nomeCapitalizado;
 
-    buscarEscalaNoBanco(); // Recarrega os dados da nova loja
+    buscarEscalaNoBanco(); 
 };
 
 filtroMes.addEventListener('change', buscarEscalaNoBanco);
 filtroSemana.addEventListener('change', atualizarVisualizacao);
 
 // ==========================================
-// 4. MODAL E SORTEIO MÁGICO
+// 4. MODAL E SORTEIO INTELIGENTE
 // ==========================================
 window.abrirModalSorteio = () => {
     const divCheckboxes = document.getElementById('lista-checkboxes-corretores');
@@ -196,45 +193,94 @@ window.sortearESalvar = async () => {
     const checkboxes = document.querySelectorAll('.chk-corretor:checked');
     if (checkboxes.length === 0) return alert("Selecione pelo menos um corretor!");
 
+    // Alerta de segurança caso o gestor marque menos de 4 pessoas (ficarão cadeiras vazias)
+    if (checkboxes.length < 4) {
+        if (!confirm("⚠️ Atenção: Marcou menos de 4 corretores. Como a regra impede que um corretor trabalhe duas vezes no mesmo dia, algumas cadeiras ficarão obrigatoriamente vazias. Deseja continuar?")) {
+            return;
+        }
+    }
+
     let selecionados = [];
     checkboxes.forEach(c => selecionados.push({ id: c.value, nome: c.getAttribute('data-nome') }));
 
-    // Conta quantos dias úteis (sem feriado) tem no mês
-    let diasAtivos = estado.diasDoMes.filter(d => !d.isFeriado);
-    let totalCadeiras = diasAtivos.length * 4; // 4 vagas por dia ativo
+    const mesRef = filtroMes.value;
+    const outraLoja = lojaAtual === 'flamengo' ? 'tijuca' : 'flamengo';
+    let escalaOutraLoja = {};
 
-    // Cria um "Baralho" justo: Multiplica a lista de selecionados até dar a quantidade exata de cadeiras
-    let baralho = [];
-    let indexSelecionado = 0;
-    
-    // Embaralha a lista inicial para não favorecer a ordem alfabética
-    selecionados.sort(() => Math.random() - 0.5);
+    // REGRA 2: LER A ESCALA DA OUTRA LOJA PARA EVITAR CONFLITOS
+    try {
+        const docOutraLoja = await getDoc(doc(db, "escala_lojas", `${outraLoja}_${mesRef}`));
+        if (docOutraLoja.exists()) {
+            escalaOutraLoja = docOutraLoja.data().escala || {};
+        }
+    } catch(e) { console.error("Erro ao buscar dados da outra loja", e); }
 
-    while (baralho.length < totalCadeiras) {
-        baralho.push(selecionados[indexSelecionado]);
-        indexSelecionado++;
-        if (indexSelecionado >= selecionados.length) indexSelecionado = 0;
-    }
+    // Dicionário para garantir distribuição equilibrada e justa (quem tem menos turnos, ganha a vaga)
+    let contagemTurnos = {};
+    selecionados.forEach(c => contagemTurnos[c.id] = 0);
 
-    // Embaralha o baralho final
-    baralho.sort(() => Math.random() - 0.5);
-
-    // Distribui o baralho nos dias
     let novaEscala = {};
-    let cartaAtual = 0;
 
     estado.diasDoMes.forEach(dia => {
-        if (dia.isFeriado) return; // Pula
+        if (dia.isFeriado) return; // Pula feriados
 
-        novaEscala[dia.iso] = {
-            manha: [baralho[cartaAtual++], baralho[cartaAtual++]],
-            tarde: [baralho[cartaAtual++], baralho[cartaAtual++]]
+        let iso = dia.iso;
+        let ocupadosOutraLoja = []; // IDs de quem está na outra loja hoje
+
+        // Verifica quem já está a trabalhar na outra loja neste dia específico
+        if (escalaOutraLoja[iso]) {
+            const eOutra = escalaOutraLoja[iso];
+            if (eOutra.manha[0]) ocupadosOutraLoja.push(eOutra.manha[0].id);
+            if (eOutra.manha[1]) ocupadosOutraLoja.push(eOutra.manha[1].id);
+            if (eOutra.tarde[0]) ocupadosOutraLoja.push(eOutra.tarde[0].id);
+            if (eOutra.tarde[1]) ocupadosOutraLoja.push(eOutra.tarde[1].id);
+        }
+
+        let escolhidosHoje = []; // IDs de quem já foi escolhido para esta loja hoje (Regra 1)
+
+        // Precisamos preencher 4 cadeiras por dia
+        for (let i = 0; i < 4; i++) {
+            
+            // Filtra candidatos aptos
+            let candidatosDisponiveis = selecionados.filter(c => 
+                !ocupadosOutraLoja.includes(c.id) && // Não pode estar na outra loja
+                !escolhidosHoje.some(escolhido => escolhido !== null && escolhido.id === c.id) // Não pode já ter sido escolhido hoje nesta loja
+            );
+
+            if (candidatosDisponiveis.length === 0) {
+                // Se acabaram as opções válidas, a cadeira fica "Vaga Livre" (null)
+                escolhidosHoje.push(null); 
+            } else {
+                // Ordena por quem tem MENOS plantões neste mês, para ficar justo
+                candidatosDisponiveis.sort((a, b) => {
+                    let pesoA = contagemTurnos[a.id];
+                    let pesoB = contagemTurnos[b.id];
+                    if (pesoA === pesoB) return Math.random() - 0.5; // Desempate aleatório
+                    return pesoA - pesoB;
+                });
+
+                let selecionado = candidatosDisponiveis[0];
+                escolhidosHoje.push(selecionado);
+                contagemTurnos[selecionado.id]++; // Adiciona 1 plantão à contagem deste corretor
+            }
+        }
+
+        // Baralha os 4 lugares do dia para que o mesmo corretor não calhe sempre na Manhã
+        let validos = escolhidosHoje.filter(x => x !== null);
+        let nulos = escolhidosHoje.filter(x => x === null);
+        validos.sort(() => Math.random() - 0.5);
+        let resultadoFinalDia = [...validos, ...nulos];
+        
+        while(resultadoFinalDia.length < 4) resultadoFinalDia.push(null);
+
+        novaEscala[iso] = {
+            manha: [resultadoFinalDia[0], resultadoFinalDia[1]],
+            tarde: [resultadoFinalDia[2], resultadoFinalDia[3]]
         };
     });
 
     // Salvar no Banco
     try {
-        const mesRef = filtroMes.value;
         const docId = `${lojaAtual}_${mesRef}`;
         
         await setDoc(doc(db, "escala_lojas", docId), {
@@ -244,9 +290,9 @@ window.sortearESalvar = async () => {
             atualizadoEm: new Date().toISOString()
         });
 
-        alert("✅ Escala gerada e salva com sucesso!");
+        alert("✅ Escala gerada com sucesso! Sem repetições no mesmo dia e com verificação inter-lojas.");
         
-        // Fecha o modal e recarrega
+        // Fecha o modal e recarrega a vista
         bootstrap.Modal.getInstance(document.getElementById('modal-sorteio')).hide();
         buscarEscalaNoBanco();
 
@@ -257,7 +303,7 @@ window.sortearESalvar = async () => {
 };
 
 // ==========================================
-// 5. HELPER: CALENDÁRIO (Copiado do Plantão Normal)
+// 5. HELPER: CALENDÁRIO
 // ==========================================
 function getDiasUteisMes(ano, mesIndex, listaDeFeriados = []) {
     let date = new Date(ano, mesIndex, 1);
