@@ -9,48 +9,40 @@
         .legenda-item { display: inline-block; margin-right: 15px; margin-bottom: 5px; }
     </style>
 </head>
-<body>
+<body class="bg-light">
 
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow border-bottom border-secondary">
-    <div class="container">
-        <a class="navbar-brand fw-bold" href="index.html">🍋 Sistema Limão</a>
-        
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="index.html">🍋 Sistema Limão</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto align-items-center gap-3" style="font-size: 0.95rem;">
+                    <li class="nav-item"><a class="nav-link text-light" href="cadastro.html">👥 Cadastro</a></li>
+                    <li class="nav-item"><a class="nav-link text-light" href="parceiros.html">🤝 Parceiros</a></li>
+                    <li class="nav-item"><a class="nav-link text-success fw-bold" href="producao.html">💰 Produção</a></li>
+                    <li class="nav-item d-none d-lg-block text-secondary">|</li>
+                    <li class="nav-item"><a class="nav-link text-warning fw-bold" href="distribuicao.html">🎲 Distribuição</a></li>
+                    <li class="nav-item"><a class="nav-link text-info fw-bold" href="plantao.html">📅 Plantão</a></li>
+                    <li class="nav-item"><a class="nav-link text-danger fw-bold border-bottom border-danger" href="leads.html">🔥 Leads</a></li>
 
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto align-items-center gap-3" style="font-size: 0.95rem;">
-                
-                <li class="nav-item"><a class="nav-link text-light" href="cadastro.html">👥 Cadastro</a></li>
-                <li class="nav-item"><a class="nav-link text-light" href="parceiros.html">🤝 Parceiros</a></li>
-                <li class="nav-item"><a class="nav-link text-success fw-bold" href="producao.html">💰 Produção</a></li>
-                <li class="nav-item d-none d-lg-block text-secondary">|</li>
-                <li class="nav-item"><a class="nav-link text-warning fw-bold" href="distribuicao.html">🎲 Distribuição</a></li>
-                <li class="nav-item"><a class="nav-link text-info fw-bold" href="plantao.html">📅 Plantão</a></li>
-                <li class="nav-item"><a class="nav-link text-danger fw-bold" href="leads.html">🔥 Leads</a></li>
-
-                <li class="nav-item dropdown">
-                    <a class="nav-link position-relative" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <span style="font-size: 1.2rem;">🔔</span>
-                        <span id="badge-contador" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" style="font-size: 0.6rem;">
-                            0
-                        </span>
-                    </a>
-                    <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="navbarDropdown" style="width: 320px; max-height: 400px; overflow-y: auto;">
-                        <li><h6 class="dropdown-header">Notificações / Lembretes</h6></li>
-                        <div id="lista-notificacoes">
-                            <li><span class="dropdown-item text-muted small">Nenhuma notificação nova.</span></li>
-                        </div>
-                    </ul>
-                </li>
-
-            </ul>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link position-relative" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span style="font-size: 1.2rem;">🔔</span>
+                            <span id="badge-contador" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" style="font-size: 0.6rem;">0</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="navbarDropdown" style="width: 320px; max-height: 400px; overflow-y: auto;">
+                            <li><h6 class="dropdown-header">Notificações / Lembretes</h6></li>
+                            <div id="lista-notificacoes">
+                                <li><span class="dropdown-item text-muted small">Nenhuma notificação nova.</span></li>
+                            </div>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
         </div>
-    </div>
-</nav>
-
-<script type="module" src="app-notificacoes.js"></script>
+    </nav>
 
     <div class="container-fluid px-4">
         <div class="row">
@@ -125,11 +117,12 @@
             </div>
 
             <div class="col-md-9">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h4>Últimos Leads Cadastrados</h4>
+                <div class="d-flex justify-content-between align-items-center mb-3 bg-white p-3 rounded shadow-sm border">
+                    <h4 class="m-0 text-danger">Base de Leads</h4>
+                    <input type="text" id="busca-leads" class="form-control w-50 border-secondary" placeholder="🔍 Buscar por corretor, cliente, fonte ou status...">
                 </div>
 
-                <div class="legenda-box mb-3">
+                <div class="legenda-box mb-3 shadow-sm">
                     <strong class="d-block mb-1 text-dark">📝 Gabarito de Status:</strong>
                     <span class="legenda-item">🔵 <b>Distribuído:</b> Enviado para Corretor</span>
                     <span class="legenda-item">🟡 <b>Em negociação:</b> Entrou em contato</span>
@@ -140,7 +133,7 @@
                     <span class="legenda-item text-danger">🔴 <b>Lead Inválido:</b> Tel. Incorreto/Não pediu (Gera Reposição)</span>
                 </div>
                 
-                <div class="table-responsive shadow rounded">
+                <div class="table-responsive shadow rounded bg-white">
                     <table class="table table-striped table-hover align-middle mb-0">
                         <thead class="table-dark">
                             <tr>
@@ -161,6 +154,7 @@
     </div>
 
     <script type="module" src="app-leads.js"></script>
+    <script type="module" src="app-notificacoes.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
