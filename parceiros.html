@@ -40,11 +40,9 @@
         </div>
     </nav>
 
-    <div class="container">
-        <div class="row">
+    <div class="container-fluid px-4"> <div class="row">
             
-            <div class="col-md-4">
-                
+            <div class="col-md-3">
                 <div class="card shadow border-info mb-4">
                     <div class="card-header bg-info text-white fw-bold">
                         Novo Parceiro / Compra
@@ -52,7 +50,7 @@
                     <div class="card-body">
                         <form id="form-parceiro">
                             <div class="mb-3">
-                                <label class="form-label text-muted small fw-bold mb-1">Nome da Empresa (Fonte)</label>
+                                <label class="form-label text-muted small fw-bold mb-1">Nome da Empresa</label>
                                 <input type="text" id="nome-parceiro" class="form-control" list="lista-empresas" placeholder="Ex: Just Sell..." required>
                                 <datalist id="lista-empresas"></datalist>
                             </div>
@@ -63,9 +61,8 @@
                             </div>
 
                             <div class="mb-4">
-                                <label class="form-label text-muted small fw-bold mb-1">Quantidade Comprada</label>
+                                <label class="form-label text-muted small fw-bold mb-1">Qtd. Comprada</label>
                                 <input type="number" id="qtd-leads" class="form-control" placeholder="0" required>
-                                <small class="text-muted" style="font-size: 0.75rem;">Total de leads adquiridos neste pacote.</small>
                             </div>
 
                             <button type="submit" class="btn btn-info text-white w-100 fw-bold">Salvar Compra</button>
@@ -83,28 +80,31 @@
                         </ul>
                     </div>
                 </div>
-
             </div>
 
-            <div class="col-md-8">
+            <div class="col-md-9">
                 <h4 class="mb-3 d-flex align-items-center gap-2">
                     💼 Carteira de Parceiros (Estoque Atual)
                 </h4>
-                <div class="table-responsive shadow-sm rounded">
-                    <table class="table table-striped table-hover align-middle mb-0">
+                <div class="table-responsive shadow-sm rounded bg-white">
+                    <table class="table table-striped table-hover align-middle mb-0 text-center">
                         <thead class="table-dark">
                             <tr>
-                                <th>Empresa</th>
-                                <th>Leads Disponíveis</th>
+                                <th class="text-start ps-4">Empresa (Fonte)</th>
+                                <th>Comprados</th>
+                                <th>Dist.</th>
+                                <th>Restam</th>
+                                <th>Inválidos</th>
                                 <th>Ações</th>
                             </tr>
                         </thead>
                         <tbody id="lista-parceiros">
-                            </tbody>
+                            <tr><td colspan="6" class="text-center py-4">Carregando estoque...</td></tr>
+                        </tbody>
                     </table>
                 </div>
                 <small class="text-muted mt-2 d-block">
-                    * A quantidade nesta tabela diminui automaticamente conforme os leads são distribuídos no sistema.
+                    * <b>Dist.</b> = Leads já cadastrados. <b>Restam</b> = Seu saldo a receber. <b>Inválidos</b> são devolvidos ao seu saldo para reposição.
                 </small>
             </div>
 
