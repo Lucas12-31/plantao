@@ -1,15 +1,28 @@
 import { db } from "./firebase-config.js";
-import { collection, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, getDocs, onSnapshot, addDoc, deleteDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const tabelaBody = document.getElementById('tabela-body');
 const filtroMes = document.getElementById('filtro-mes');
 const filtroSemana = document.getElementById('filtro-semana');
-const loading = document.getElementById('loading');
 
-let estado = { corretores: [], leads: [], escalaFixa: {}, diasDoMes: [], semanas: [] };
+// Elementos Modal de Feriados
+const formFeriado = document.getElementById('form-feriado');
+const listaFeriadosEl = document.getElementById('lista-feriados');
+
+// Estado Global
+let estado = { 
+    corretores: [], 
+    leads: [], 
+    feriados: [], // Array para guardar as folgas
+    escalaFixa: {}, 
+    diasDoMes: [], 
+    semanas: [] 
+};
 let carregamentoInicial = true;
 
+// ==========================================
 // 1. INICIALIZAÇÃO
+// ==========================================
 window.iniciarPlantao = async () => {
     if (!filtroMes.value) {
         const hoje = new Date();
@@ -18,9 +31,39 @@ window.iniciarPlantao = async () => {
         filtroMes.value = `${yyyy}-${mm}`;
     }
 
-    tabelaBody.innerHTML = '';
-    loading.classList.remove('d-none');
+    tabelaBody.innerHTML = '<tr><td colspan="4" class="text-center py-5">Buscando dados no servidor...</td></tr>';
 
+    // A. Busca Feriados em Tempo Real
+    const qFeriados = query(collection(db, "feriados"), orderBy("data", "asc"));
+    onSnapshot(qFeriados, (snap) => {
+        estado.feriados = [];
+        let htmlFeriados = '';
+        
+        snap.forEach(d => {
+            const f = d.data();
+            estado.feriados.push({ id: d.id, ...f });
+            
+            const dataFmt = f.data.split('-').reverse().join('/');
+            htmlFeriados += `
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong class="text-danger">${dataFmt}</strong><br>
+                        <small class="text-muted">${f.descricao}</small>
+                    </div>
+                    <button onclick="deletarFeriado('${d.id}')" class="btn btn-sm btn-outline-danger" title="Remover Folga">🗑️</button>
+                </li>
+            `;
+        });
+        
+        if(estado.feriados.length === 0) htmlFeriados = '<li class="list-group-item text-muted text-center">Nenhum feriado cadastrado.</li>';
+        if(listaFeriadosEl) listaFeriadosEl.innerHTML = htmlFeriados;
+
+        // Se a escala já existia, apaga a memória para forçar o recálculo pulando os novos feriados
+        estado.escalaFixa = {}; 
+        atualizarVisualizacao();
+    });
+
+    // B. Busca Corretores Apto
     const snapCorretores = await getDocs(collection(db, "corretores"));
     estado.corretores = [];
     snapCorretores.forEach(d => {
@@ -30,6 +73,7 @@ window.iniciarPlantao = async () => {
         }
     });
 
+    // C. Busca Leads em Tempo Real
     onSnapshot(collection(db, "leads"), (snap) => {
         estado.leads = [];
         snap.forEach(d => estado.leads.push(d.data()));
@@ -37,12 +81,14 @@ window.iniciarPlantao = async () => {
     });
 };
 
-// 2. RENDERIZAÇÃO
+// ==========================================
+// 2. RENDERIZAÇÃO E CÁLCULO DA ESCALA
+// ==========================================
 function atualizarVisualizacao() {
-    loading.classList.add('d-none');
-    
     const [ano, mes] = filtroMes.value.split('-');
-    estado.diasDoMes = getDiasUteisMes(parseInt(ano), parseInt(mes) - 1);
+    
+    // Agora passamos a lista de feriados para a função pular essas datas
+    estado.diasDoMes = getDiasUteisMes(parseInt(ano), parseInt(mes) - 1, estado.feriados);
     estado.semanas = agruparSemanas(estado.diasDoMes);
 
     if (carregamentoInicial) {
@@ -52,15 +98,17 @@ function atualizarVisualizacao() {
         carregamentoInicial = false;
     }
 
+    // Se a escala desse mês ainda não foi sorteada, sorteia agora
     if (!estado.escalaFixa[filtroMes.value]) {
         estado.escalaFixa[filtroMes.value] = gerarLogicaRodizio(estado.diasDoMes, estado.corretores);
     }
+    
     const escalaAtual = estado.escalaFixa[filtroMes.value];
     const indiceSemana = parseInt(filtroSemana.value);
     const diasDaSemana = estado.semanas[indiceSemana] || [];
 
     if (diasDaSemana.length === 0) {
-        tabelaBody.innerHTML = '<tr><td colspan="4" class="text-center py-4">Sem dias úteis nesta semana/mês.</td></tr>';
+        tabelaBody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">Não há dias úteis nesta semana (ou são todos feriados).</td></tr>';
         return;
     }
 
@@ -86,40 +134,32 @@ function atualizarVisualizacao() {
             let corretor = escalados[i];
 
             if (corretor) {
-                // --- AQUI ESTÁ A LÓGICA DE REPOSIÇÃO ---
-                // Filtramos os leads que NÃO SÃO 'Lead Inválido'.
-                // Se o status for Inválido, ele não conta aqui.
+                // Filtra apenas leads entregues HOJE para este corretor e que NÃO são Inválidos
                 const leadsPME = estado.leads.filter(l => 
-                    l.corretor_id === corretor.id && 
-                    l.data_entrega === dia.iso && 
-                    l.tipo === 'pme' && 
-                    l.status !== 'Lead Inválido' // <--- FILTRO NOVO
+                    l.corretor_id === corretor.id && l.data_entrega === dia.iso && 
+                    l.tipo === 'pme' && l.status !== 'Lead Inválido' 
                 ).length;
 
                 const leadsPF = estado.leads.filter(l => 
-                    l.corretor_id === corretor.id && 
-                    l.data_entrega === dia.iso && 
-                    l.tipo === 'pf' && 
-                    l.status !== 'Lead Inválido' // <--- FILTRO NOVO
+                    l.corretor_id === corretor.id && l.data_entrega === dia.iso && 
+                    l.tipo === 'pf' && l.status !== 'Lead Inválido'
                 ).length;
 
                 htmlBody += `
                     <td>
                         <div class="card-vaga">
-                            <div class="nome-corretor">${corretor.nome.split(' ')[0]}</div>
-                            <div class="d-flex gap-2">
-                                <span class="badge bg-warning text-dark border border-dark p-2" style="min-width: 60px;">
-                                    PME: ${leadsPME}
-                                </span>
-                                <span class="badge bg-info text-white border border-dark p-2" style="min-width: 60px;">
-                                    PF: ${leadsPF}
-                                </span>
+                            <div class="nome-corretor text-truncate" style="max-width: 150px;" title="${corretor.nome}">
+                                ${corretor.nome.split(' ')[0]}
+                            </div>
+                            <div class="d-flex justify-content-center gap-2">
+                                <span class="badge bg-warning text-dark border border-dark p-2" style="min-width: 60px;">PME: ${leadsPME}</span>
+                                <span class="badge bg-info text-white border border-dark p-2" style="min-width: 60px;">PF: ${leadsPF}</span>
                             </div>
                         </div>
                     </td>
                 `;
             } else {
-                htmlBody += `<td class="bg-light text-muted fst-italic"><small>Vaga Livre</small></td>`;
+                htmlBody += `<td class="bg-light text-muted fst-italic align-middle"><small>Vaga Livre</small></td>`;
             }
         }
         htmlBody += `</tr>`;
@@ -131,20 +171,31 @@ filtroMes.addEventListener('change', atualizarVisualizacao);
 filtroSemana.addEventListener('change', atualizarVisualizacao);
 
 window.refazerSorteio = () => {
-    if(confirm("Refazer o sorteio apagará a escala atual deste mês. Continuar?")) {
+    if(confirm("Refazer o sorteio apagará a ordem atual deste mês e os corretores trocarão de dias. Continuar?")) {
         estado.escalaFixa[filtroMes.value] = null;
         atualizarVisualizacao();
     }
 };
 
-function getDiasUteisMes(ano, mesIndex) {
+// ==========================================
+// 3. LÓGICA MATEMÁTICA E CALENDÁRIO
+// ==========================================
+
+// Atualizada para pular sábados, domingos E FERIADOS!
+function getDiasUteisMes(ano, mesIndex, listaDeFeriados = []) {
     let date = new Date(ano, mesIndex, 1);
     let days = [];
     const nomesDias = ['Dom', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sáb'];
+    
     while (date.getMonth() === mesIndex) {
         let diaSemana = date.getDay();
-        if (diaSemana !== 0 && diaSemana !== 6) { 
-            let iso = date.toISOString().split('T')[0]; 
+        let iso = date.toISOString().split('T')[0]; 
+        
+        // Verifica se a data atual está na lista de feriados
+        let isFeriado = listaDeFeriados.some(f => f.data === iso);
+
+        // Se não for fim de semana E NÃO for feriado, adiciona como dia útil
+        if (diaSemana !== 0 && diaSemana !== 6 && !isFeriado) { 
             let fmt = date.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
             days.push({ iso, fmt, diaSemana: nomesDias[diaSemana] });
         }
@@ -171,14 +222,18 @@ function gerarLogicaRodizio(dias, corretores) {
     if (corretores.length === 0) return {};
     let escala = {};
     let ultimoPlantao = [];
+    
     dias.forEach(objDia => { 
         let escalados = [];
         let tentativas = 0;
+        
         while (escalados.length < 3 && tentativas < 100) {
             let cand = corretores[Math.floor(Math.random() * corretores.length)];
             let jaEsta = escalados.some(c => c.id === cand.id);
             let trabalhouOntem = ultimoPlantao.some(c => c.id === cand.id);
+            
             if (corretores.length < 6) trabalhouOntem = false;
+            
             if (!jaEsta && !trabalhouOntem) escalados.push(cand);
             tentativas++;
         }
@@ -187,5 +242,34 @@ function gerarLogicaRodizio(dias, corretores) {
     });
     return escala;
 }
+
+// ==========================================
+// 4. CRUD DE FERIADOS
+// ==========================================
+if(formFeriado) {
+    formFeriado.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const dataIn = document.getElementById('data-feriado').value;
+        const descIn = document.getElementById('desc-feriado').value;
+
+        try {
+            await addDoc(collection(db, "feriados"), {
+                data: dataIn,
+                descricao: descIn,
+                timestamp: new Date().toISOString()
+            });
+            formFeriado.reset();
+        } catch (error) {
+            console.error(error);
+            alert("Erro ao adicionar folga.");
+        }
+    });
+}
+
+window.deletarFeriado = async (id) => {
+    if(confirm("Excluir este feriado? A escala voltará a usar este dia como útil.")) {
+        await deleteDoc(doc(db, "feriados", id));
+    }
+};
 
 window.iniciarPlantao();
