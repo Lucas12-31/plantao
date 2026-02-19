@@ -40,7 +40,8 @@
         </div>
     </nav>
 
-    <div class="container-fluid px-4"> <div class="row">
+    <div class="container-fluid px-4">
+        <div class="row">
             
             <div class="col-md-3">
                 <div class="card shadow border-info mb-4">
@@ -108,6 +109,45 @@
                 </small>
             </div>
 
+        </div>
+    </div>
+
+    <div class="modal fade" id="modal-detalhes-historico" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title fw-bold" id="modal-titulo">Detalhes da Empresa</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 bg-light">
+                    <div class="row text-center g-3">
+                        <div class="col-6">
+                            <div class="p-3 border rounded bg-white shadow-sm">
+                                <h6 class="text-muted mb-1 small text-uppercase fw-bold">Comprados</h6>
+                                <h2 class="mb-0 text-primary fw-bold" id="modal-comprados">0</h2>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 border rounded bg-white shadow-sm">
+                                <h6 class="text-muted mb-1 small text-uppercase fw-bold">Distribuídos</h6>
+                                <h2 class="mb-0 text-info fw-bold" id="modal-distribuidos">0</h2>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 border rounded bg-white shadow-sm border-success">
+                                <h6 class="text-success mb-1 small text-uppercase fw-bold">Finalizados (Vendas)</h6>
+                                <h2 class="mb-0 text-success fw-bold" id="modal-finalizados">0</h2>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 border rounded bg-white shadow-sm border-danger">
+                                <h6 class="text-danger mb-1 small text-uppercase fw-bold">Inválidos</h6>
+                                <h2 class="mb-0 text-danger fw-bold" id="modal-invalidos">0</h2>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
