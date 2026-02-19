@@ -7,7 +7,7 @@ const form = document.getElementById('form-lead');
 const tabela = document.getElementById('tabela-leads');
 const inputBusca = document.getElementById('busca-leads');
 
-// Memória Global para o Filtro de Busca
+// Memória Global
 let memoriaLeads = [];
 
 const STATUS_OPCOES = [
@@ -20,7 +20,7 @@ const STATUS_OPCOES = [
     { valor: "Lead Inválido", label: "🔴 Lead Inválido" }
 ];
 
-// 1. CARREGAR SELECTS (CORRETORES E PARCEIROS)
+// 1. CARREGAR SELECTS
 async function carregarCorretores() {
     onSnapshot(collection(db, "corretores"), (snapshot) => {
         let html = '<option value="">Selecione um corretor...</option>';
@@ -91,35 +91,39 @@ form.addEventListener('submit', async (e) => {
     }
 });
 
-// 3. BUSCAR DADOS DO FIREBASE EM TEMPO REAL
-// Removido o limit() para permitir buscar no histórico inteiro
+// 3. SISTEMA DE BUSCA / FILTRO INTELIGENTE
+function filtrarE_Renderizar() {
+    if(!inputBusca) return; // Se o campo de busca não existir, ignora
+    
+    const termoDeBusca = inputBusca.value.toLowerCase().trim(); 
+    
+    // Filtra a memória de leads
+    const leadsFiltrados = memoriaLeads.filter(lead => {
+        // Junta todos os dados em um texto só, prevenindo erros se algo estiver vazio
+        const textoBusca = `${lead.cliente || ''} ${lead.corretor_nome || ''} ${lead.fonte || ''} ${lead.status || ''} ${lead.tipo || ''}`.toLowerCase();
+        return textoBusca.includes(termoDeBusca);
+    });
+
+    // Manda desenhar apenas os filtrados
+    renderizarTabela(leadsFiltrados);
+}
+
+// 4. BUSCAR DADOS DO FIREBASE EM TEMPO REAL
 const q = query(collection(db, "leads"), orderBy("timestamp", "desc")); 
 
 onSnapshot(q, (snapshot) => {
-    memoriaLeads = []; // Limpa a memória
+    memoriaLeads = []; 
     snapshot.forEach(doc => {
         memoriaLeads.push({ id: doc.id, ...doc.data() });
     });
     
-    // Assim que os dados chegam, chama a função para desenhar a tabela
-    renderizarTabela(memoriaLeads);
+    // Assim que chegam novos dados do banco, ele aplica o filtro (se houver) e renderiza
+    filtrarE_Renderizar();
 });
 
-// 4. SISTEMA DE BUSCA / FILTRO
+// Aciona o filtro sempre que o usuário digitar algo
 if(inputBusca) {
-    inputBusca.addEventListener('input', (e) => {
-        const termoDeBusca = e.target.value.toLowerCase(); // O que o usuário digitou
-        
-        // Filtra a memória
-        const leadsFiltrados = memoriaLeads.filter(lead => {
-            // Cria um "texto gigante" com tudo do lead para procurar dentro
-            const textoBusca = `${lead.cliente} ${lead.corretor_nome} ${lead.fonte} ${lead.status} ${lead.tipo}`.toLowerCase();
-            return textoBusca.includes(termoDeBusca);
-        });
-
-        // Redesenha a tabela só com os que passaram no filtro
-        renderizarTabela(leadsFiltrados);
-    });
+    inputBusca.addEventListener('input', filtrarE_Renderizar);
 }
 
 // 5. FUNÇÃO PARA DESENHAR A TABELA HTML
