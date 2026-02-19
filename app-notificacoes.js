@@ -42,40 +42,30 @@ async function verificarRegrasDeNotificacao() {
         let mensagem = "";
         let tipoAlerta = "";
         
-        // Pega apenas o primeiro nome do corretor (Ex: "Lucas" em vez de "Lucas Silva")
         const primeiroNomeCorretor = lead.corretor_nome ? lead.corretor_nome.split(' ')[0] : 'Corretor';
-        
         const intervaloRecorrenciaHoras = 24; 
 
-        // --- REGRA 1: Distribuído ---
-        if (lead.status === "Distribuído" && diffStatusHoras >= 24) {
+        if (lead.status === "Distribuído" && diffStatusHoras >= 0) {
             titulo = "⚠️ Cobrar Corretor";
             mensagem = `Falar com <b>${primeiroNomeCorretor}</b> sobre o lead <b>${lead.cliente}</b> (Parado há ${Math.floor(diffStatusDias)} dias).`;
             tipoAlerta = "24h_distribuido";
         }
-
-        // --- REGRA 2: Retornar depois ---
         else if (lead.status === "Retornar depois" && diffStatusDias >= 7) {
             titulo = "📞 Retornar Contato";
             mensagem = `Prazo de retorno venceu! Cobrar <b>${primeiroNomeCorretor}</b> sobre <b>${lead.cliente}</b>.`;
             tipoAlerta = "7d_retornar";
         }
-
-        // --- REGRA 3: Em negociação ---
         else if (lead.status === "Em negociação" && diffStatusDias >= 7) {
             titulo = "👀 Acompanhamento";
             mensagem = `Negociação lenta. Verificar cliente <b>${lead.cliente}</b> com <b>${primeiroNomeCorretor}</b>.`;
             tipoAlerta = "7d_negociacao";
         }
-
-        // --- REGRA 4: Proposta Gerada ---
         else if (lead.status === "Proposta Gerada" && diffStatusDias >= 7) {
             titulo = "💼 Suporte Comercial";
             mensagem = `Proposta pendente! Verificar <b>${lead.cliente}</b> (De: <b>${primeiroNomeCorretor}</b>) com o Suporte.`;
             tipoAlerta = "7d_proposta";
         }
 
-        // --- LÓGICA DE DISPARO ---
         if (titulo) {
             const chave = `${leadId}_${tipoAlerta}`;
             const ultimaVez = mapaUltimaNotificacao[chave];
@@ -84,18 +74,17 @@ async function verificarRegrasDeNotificacao() {
 
             if (!ultimaVez) {
                 devoNotificar = true;
-                console.log(`[Novo Alerta] ${lead.cliente} - ${tipoAlerta}`);
             } else {
                 const diffUltimaNotifHoras = (agoraMs - ultimaVez) / (1000 * 60 * 60);
                 if (diffUltimaNotifHoras >= intervaloRecorrenciaHoras) {
                     devoNotificar = true;
-                    console.log(`[Recorrência] ${lead.cliente} - Cobrando novamente.`);
                 }
             }
 
             if (devoNotificar) {
                 await addDoc(collection(db, "notificacoes"), {
                     lead_id: leadId,
+                    cliente: lead.cliente, // <-- NOVO: Salvando o nome do cliente no alerta
                     titulo: titulo,
                     mensagem: mensagem,
                     tipo_alerta: tipoAlerta,
@@ -134,10 +123,14 @@ onSnapshot(q, (snapshot) => {
             const n = doc.data();
             const dataN = new Date(n.timestamp).toLocaleDateString('pt-BR');
             const horaN = new Date(n.timestamp).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
+            
+            // Prepara o nome do cliente para não quebrar o código (remove aspas se tiver)
+            const safeCliente = n.cliente ? n.cliente.replace(/'/g, "\\'") : '';
 
+            // Adiciona a ação de clique passando o ID e o Nome do Cliente
             html += `
                 <li>
-                    <a class="dropdown-item p-2 border-bottom" href="#" onclick="lerNotificacao('${doc.id}', event)">
+                    <a class="dropdown-item p-2 border-bottom" href="#" onclick="lerNotificacao('${doc.id}', '${safeCliente}', event)">
                         <div class="d-flex w-100 justify-content-between">
                             <strong class="mb-1 text-primary" style="font-size:0.85rem">${n.titulo}</strong>
                             <small class="text-muted" style="font-size:0.7rem">${dataN} ${horaN}</small>
@@ -154,10 +147,16 @@ onSnapshot(q, (snapshot) => {
     if(listaEl) listaEl.innerHTML = html;
 });
 
-window.lerNotificacao = async (id, event) => {
+// Atualizada: Agora recebe o nome do cliente e redireciona
+window.lerNotificacao = async (id, clienteNome, event) => {
     if(event) event.preventDefault();
     try {
+        // Marca como lida no banco
         await updateDoc(doc(db, "notificacoes", id), { lida: true });
+        
+        // Redireciona para a página de leads com o parâmetro de busca na URL
+        window.location.href = `leads.html?busca=${encodeURIComponent(clienteNome)}`;
+        
     } catch (error) {
         console.error(error);
     }
