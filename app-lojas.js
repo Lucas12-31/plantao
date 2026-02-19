@@ -1,261 +1,521 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <title>Plantão Lojas Físicas</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        .table-escala th, .table-escala td { vertical-align: middle; text-align: center; }
-        
-        .card-vaga { border: 1px dashed #ccc; padding: 10px; border-radius: 8px; background-color: #fcfcfc; height: 100%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; position: relative; min-height: 50px;}
-        .card-vaga:hover { background-color: #e9ecef; border-color: #adb5bd; }
-        
-        .nome-corretor { font-weight: bold; font-size: 1.1rem; color: #333; } 
-        
-        .manha-bg { background-color: #e0f7fa !important; }
-        .tarde-bg { background-color: #fff3e0 !important; }
-        
-        .falta-bg { background-color: #ffe6e6 !important; border-color: #dc3545 !important; border-style: solid !important; border-width: 2px !important;}
-        .falta-text { color: #dc3545 !important; text-decoration: line-through; }
-    </style>
-</head>
-<body class="bg-light">
+import { db } from "./firebase-config.js";
+import { collection, getDocs, onSnapshot, doc, setDoc, getDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow border-bottom border-secondary">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="index.html">🍋 Sistema Limão</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto align-items-center gap-3" style="font-size: 0.95rem;">
-                    <li class="nav-item"><a class="nav-link text-light" href="cadastro.html">👥 Cadastro</a></li>
-                    <li class="nav-item"><a class="nav-link text-light" href="parceiros.html">🤝 Parceiros</a></li>
-                    <li class="nav-item"><a class="nav-link text-success fw-bold" href="producao.html">💰 Produção</a></li>
-                    <li class="nav-item d-none d-lg-block text-secondary">|</li>
-                    <li class="nav-item"><a class="nav-link text-warning fw-bold" href="distribuicao.html">🎲 Distribuição</a></li>
-                    <li class="nav-item"><a class="nav-link text-info fw-bold" href="plantao.html">📅 Plantão (Digital)</a></li>
-                    
-                    <li class="nav-item"><a class="nav-link text-primary fw-bold border-bottom border-primary" href="lojas.html">🏪 Lojas</a></li>
-                    
-                    <li class="nav-item"><a class="nav-link text-danger fw-bold" href="leads.html">🔥 Leads</a></li>
+const tabelaBody = document.getElementById('tabela-body');
+const filtroMes = document.getElementById('filtro-mes');
+const filtroSemana = document.getElementById('filtro-semana');
+const tabs = document.querySelectorAll('#lojas-tabs .nav-link');
 
-                    <li class="nav-item dropdown">
-                        <a class="nav-link position-relative" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
-                            <span style="font-size: 1.2rem;">🔔</span>
-                            <span id="badge-contador" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" style="font-size: 0.6rem;">0</span>
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="navbarDropdown" style="width: 320px; max-height: 400px; overflow-y: auto;">
-                            <li><h6 class="dropdown-header">Notificações / Lembretes</h6></li>
-                            <div id="lista-notificacoes">
-                                <li><span class="dropdown-item text-muted small">Nenhuma notificação nova.</span></li>
+let lojaAtual = 'flamengo'; 
+let estado = { corretores: [], feriados: [], escalaSalva: null, diasDoMes: [], semanas: [] };
+let carregamentoInicial = true;
+
+window.editandoPlantao = { iso: null, turno: null, index: null, dataFmt: null };
+
+// ==========================================
+// 1. INICIALIZAÇÃO E BUSCA
+// ==========================================
+window.iniciarLojas = async () => {
+    if (!filtroMes.value) {
+        const hoje = new Date();
+        const yyyy = hoje.getFullYear();
+        const mm = String(hoje.getMonth() + 1).padStart(2, '0');
+        filtroMes.value = `${yyyy}-${mm}`;
+    }
+
+    const qFeriados = query(collection(db, "feriados"), orderBy("data", "asc"));
+    onSnapshot(qFeriados, (snap) => {
+        estado.feriados = [];
+        snap.forEach(d => estado.feriados.push({ id: d.id, ...d.data() }));
+        buscarEscalaNoBanco(); 
+    });
+
+    const snapCorretores = await getDocs(collection(db, "corretores"));
+    estado.corretores = [];
+    snapCorretores.forEach(d => {
+        estado.corretores.push({ id: d.id, nome: d.data().nome });
+    });
+    estado.corretores.sort((a, b) => a.nome.localeCompare(b.nome));
+
+    buscarEscalaNoBanco();
+};
+
+async function buscarEscalaNoBanco() {
+    const mesRef = filtroMes.value;
+    const docId = `${lojaAtual}_${mesRef}`; 
+
+    try {
+        const docSnap = await getDoc(doc(db, "escala_lojas", docId));
+        if (docSnap.exists()) {
+            estado.escalaSalva = docSnap.data().escala; 
+        } else {
+            estado.escalaSalva = {}; 
+        }
+        atualizarVisualizacao();
+    } catch (error) {
+        console.error("Erro ao buscar escala:", error);
+    }
+}
+
+// ==========================================
+// 2. RENDERIZAR TABELA
+// ==========================================
+function atualizarVisualizacao() {
+    const [ano, mes] = filtroMes.value.split('-');
+    estado.diasDoMes = getDiasUteisMes(parseInt(ano), parseInt(mes) - 1, estado.feriados);
+    estado.semanas = agruparSemanas(estado.diasDoMes);
+
+    if (carregamentoInicial) {
+        const hojeISO = new Date().toISOString().split('T')[0];
+        const indexSemanaAtual = estado.semanas.findIndex(semana => semana.some(dia => dia.iso === hojeISO));
+        if (indexSemanaAtual !== -1) filtroSemana.value = indexSemanaAtual;
+        carregamentoInicial = false;
+    }
+
+    const indiceSemana = parseInt(filtroSemana.value);
+    const diasDaSemana = estado.semanas[indiceSemana] || [];
+
+    if (diasDaSemana.length === 0) {
+        tabelaBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">Não há dias úteis nesta semana.</td></tr>';
+        return;
+    }
+
+    let htmlBody = '';
+    
+    diasDaSemana.forEach(dia => {
+        let hojeISO = new Date().toISOString().split('T')[0];
+        let classHoje = (dia.iso === hojeISO) ? "bg-warning" : "bg-white";
+        let textoHoje = (dia.iso === hojeISO) ? '<br><span class="badge bg-danger mt-1">HOJE</span>' : '';
+        let classFeriadoTd = dia.isFeriado ? "bg-danger text-white bg-opacity-75 border-danger" : classHoje;
+
+        htmlBody += `<tr>`;
+        htmlBody += `
+            <td class="${classFeriadoTd} border-end border-3 border-dark fw-bold text-center" style="vertical-align: middle;">
+                <div class="fs-5">${dia.diaSemana}</div>
+                <div class="${dia.isFeriado ? 'text-white' : 'text-muted'} small">${dia.fmt}</div>
+                ${textoHoje}
+            </td>
+        `;
+
+        if (dia.isFeriado) {
+            htmlBody += `
+                <td colspan="4" class="bg-light align-middle text-center" style="height: 80px;">
+                    <div class="alert alert-secondary mb-0 d-inline-block shadow-sm border-secondary fw-bold px-4 py-2">
+                        🏖️ Folga / Feriado: <span class="text-danger">${dia.descricaoFeriado}</span>
+                    </div>
+                </td>
+            `;
+        } else {
+            let escaladosHoje = estado.escalaSalva[dia.iso] || { manha: [null, null], tarde: [null, null] };
+
+            const desenharCadeira = (corretor, iso, turno, index, dataFmt) => {
+                let conteudo = '';
+                let classesCard = 'card-vaga shadow-sm';
+                let classesTexto = 'nome-corretor text-truncate text-center w-100';
+                let badgeAtendimentos = '';
+
+                if (corretor) {
+                    if (corretor.falta) {
+                        classesCard += ' falta-bg';
+                        classesTexto += ' falta-text';
+                    }
+                    if (corretor.atendimentos > 0) {
+                        badgeAtendimentos = `<span class="badge bg-success position-absolute top-0 start-100 translate-middle rounded-pill shadow" style="font-size: 0.8rem; z-index: 2;">${corretor.atendimentos}</span>`;
+                    }
+                    
+                    // Se houver indicação de troca, coloca uma pequena borda amarela
+                    if (corretor.trocaInfo) {
+                        classesCard += ' border-warning border-2';
+                    }
+
+                    conteudo = `
+                        <div class="${classesCard}" onclick="abrirDetalhesPlantao('${iso}', '${turno}', ${index}, '${dataFmt}')">
+                            ${badgeAtendimentos}
+                            <div class="${classesTexto}" title="${corretor.nome}">
+                                ${corretor.nome.split(' ')[0]}
                             </div>
-                        </ul>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+                        </div>`;
+                } else {
+                    conteudo = `
+                        <div class="card-vaga" style="border-style: dotted;" onclick="abrirDetalhesPlantao('${iso}', '${turno}', ${index}, '${dataFmt}')">
+                            <div class="text-muted fst-italic text-center w-100"><small>Vaga Livre</small></div>
+                        </div>`;
+                }
+                return `<td class="align-middle p-2" style="width: 21%;">${conteudo}</td>`;
+            };
 
-    <div class="container-fluid px-4">
+            htmlBody += desenharCadeira(escaladosHoje.manha[0], dia.iso, 'manha', 0, dia.fmt); 
+            htmlBody += desenharCadeira(escaladosHoje.manha[1], dia.iso, 'manha', 1, dia.fmt); 
+            htmlBody += desenharCadeira(escaladosHoje.tarde[0], dia.iso, 'tarde', 0, dia.fmt); 
+            htmlBody += desenharCadeira(escaladosHoje.tarde[1], dia.iso, 'tarde', 1, dia.fmt); 
+        }
         
-        <div class="d-flex justify-content-between align-items-end mb-3 border-bottom pb-3">
-            <div>
-                <h3 class="fw-bold text-dark mb-3">🏪 Escala Presencial</h3>
-                <div class="d-flex align-items-center">
-                    <ul class="nav nav-pills" id="lojas-tabs">
-                        <li class="nav-item me-2">
-                            <a class="nav-link active fw-bold px-4" href="#" onclick="mudarLoja('flamengo', event)">📍 Loja Flamengo</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link bg-white border text-dark fw-bold px-4" href="#" onclick="mudarLoja('tijuca', event)">📍 Loja Tijuca</a>
-                        </li>
-                    </ul>
-                    <button class="btn btn-outline-secondary ms-3 fw-bold border-2 shadow-sm" onclick="abrirModalTroca()">
-                        🔄 Troca de Plantão
-                    </button>
+        htmlBody += `</tr>`;
+    });
+    tabelaBody.innerHTML = htmlBody;
+}
+
+// ==========================================
+// 3. GERENCIAMENTO DE PLANTÃO INDIVIDUAL E TROCA
+// ==========================================
+
+window.abrirDetalhesPlantao = (iso, turno, index, dataFmt) => {
+    window.editandoPlantao = { iso, turno, index, dataFmt };
+    
+    let corretorAtual = null;
+    if(estado.escalaSalva[iso] && estado.escalaSalva[iso][turno]) {
+        corretorAtual = estado.escalaSalva[iso][turno][index];
+    }
+
+    let nomeExibicao = corretorAtual ? corretorAtual.nome.split(' ')[0] : 'Vaga Livre';
+    let turnoExibicao = turno === 'manha' ? 'Manhã' : 'Tarde';
+    document.getElementById('modal-detalhes-titulo').innerText = `${nomeExibicao} - ${dataFmt} (${turnoExibicao})`;
+
+    let selectHtml = '<option value="">-- Deixar Vaga Livre --</option>';
+    estado.corretores.forEach(c => {
+        let isSelected = (corretorAtual && corretorAtual.id === c.id) ? 'selected' : '';
+        selectHtml += `<option value="${c.id}" data-nome="${c.nome}" ${isSelected}>${c.nome}</option>`;
+    });
+    document.getElementById('select-alterar-corretor').innerHTML = selectHtml;
+
+    document.getElementById('input-atendimentos').value = corretorAtual && corretorAtual.atendimentos ? corretorAtual.atendimentos : 0;
+    document.getElementById('check-falta').checked = corretorAtual && corretorAtual.falta === true;
+
+    // NOVO: Exibe o texto da troca se existir
+    const divTroca = document.getElementById('info-troca-container');
+    const textoTroca = document.getElementById('texto-info-troca');
+    if (corretorAtual && corretorAtual.trocaInfo) {
+        textoTroca.innerHTML = corretorAtual.trocaInfo;
+        divTroca.classList.remove('d-none');
+    } else {
+        textoTroca.innerHTML = '';
+        divTroca.classList.add('d-none');
+    }
+
+    new bootstrap.Modal(document.getElementById('modal-detalhes-plantao')).show();
+}
+
+window.mudarAtendimentos = (valor) => {
+    const input = document.getElementById('input-atendimentos');
+    let atual = parseInt(input.value) || 0;
+    atual += valor;
+    if(atual < 0) atual = 0; 
+    input.value = atual;
+}
+
+window.salvarDetalhesPlantao = async () => {
+    const select = document.getElementById('select-alterar-corretor');
+    const idSelecionado = select.value;
+    const { iso, turno, index } = window.editandoPlantao;
+    
+    if(!estado.escalaSalva[iso]) estado.escalaSalva[iso] = { manha: [null, null], tarde: [null, null] };
+
+    let corretorOriginal = estado.escalaSalva[iso][turno][index];
+    let infoTrocaExistente = null;
+    
+    // Se não trocou a pessoa manualmente, mantem o registro de troca dela
+    if (corretorOriginal && corretorOriginal.id === idSelecionado) {
+        infoTrocaExistente = corretorOriginal.trocaInfo;
+    }
+
+    if (idSelecionado) {
+        const nomeSelecionado = select.options[select.selectedIndex].getAttribute('data-nome');
+        const atendimentos = parseInt(document.getElementById('input-atendimentos').value) || 0;
+        const falta = document.getElementById('check-falta').checked;
+
+        estado.escalaSalva[iso][turno][index] = {
+            id: idSelecionado,
+            nome: nomeSelecionado,
+            atendimentos: atendimentos,
+            falta: falta
+        };
+
+        if (infoTrocaExistente) {
+            estado.escalaSalva[iso][turno][index].trocaInfo = infoTrocaExistente;
+        }
+    } else {
+        estado.escalaSalva[iso][turno][index] = null;
+    }
+
+    try {
+        const mesRef = filtroMes.value;
+        const docId = `${lojaAtual}_${mesRef}`;
+        await setDoc(doc(db, "escala_lojas", docId), {
+            loja: lojaAtual, mes: mesRef, escala: estado.escalaSalva, atualizadoEm: new Date().toISOString()
+        });
+
+        bootstrap.Modal.getInstance(document.getElementById('modal-detalhes-plantao')).hide();
+        atualizarVisualizacao(); 
+
+    } catch (error) {
+        console.error("Erro ao salvar detalhes:", error);
+        alert("Erro ao salvar no banco de dados.");
+    }
+}
+
+// ==========================================
+// 4. NOVA FUNÇÃO: SISTEMA DE TROCA ENTRE 2 DIAS
+// ==========================================
+window.abrirModalTroca = () => {
+    let options = '';
+    estado.diasDoMes.forEach(d => {
+        if(!d.isFeriado) {
+            options += `<option value="${d.iso}">${d.fmt} - ${d.diaSemana}</option>`;
+        }
+    });
+    document.getElementById('troca-data-1').innerHTML = options;
+    document.getElementById('troca-data-2').innerHTML = options;
+    
+    new bootstrap.Modal(document.getElementById('modal-troca')).show();
+};
+
+window.efetuarTroca = async () => {
+    const d1 = document.getElementById('troca-data-1').value;
+    const t1 = document.getElementById('troca-turno-1').value;
+    const c1 = parseInt(document.getElementById('troca-cadeira-1').value);
+
+    const d2 = document.getElementById('troca-data-2').value;
+    const t2 = document.getElementById('troca-turno-2').value;
+    const c2 = parseInt(document.getElementById('troca-cadeira-2').value);
+
+    if (d1 === d2 && t1 === t2 && c1 === c2) {
+        return alert("Você selecionou exatamente a mesma cadeira nas duas opções. Altere para trocar.");
+    }
+
+    if (!estado.escalaSalva[d1] || !estado.escalaSalva[d2]) {
+        return alert("Erro: Um dos dias selecionados ainda não possui escala gerada.");
+    }
+
+    // Pega os objetos originais
+    let obj1 = estado.escalaSalva[d1][t1][c1];
+    let obj2 = estado.escalaSalva[d2][t2][c2];
+
+    let nome1 = obj1 ? obj1.nome.split(' ')[0] : "Vaga Livre";
+    let nome2 = obj2 ? obj2.nome.split(' ')[0] : "Vaga Livre";
+
+    const fmtData1 = estado.diasDoMes.find(d => d.iso === d1).fmt;
+    const fmtData2 = estado.diasDoMes.find(d => d.iso === d2).fmt;
+    const labelT1 = t1 === 'manha' ? 'Manhã' : 'Tarde';
+    const labelT2 = t2 === 'manha' ? 'Manhã' : 'Tarde';
+
+    // Cria cópias pra evitar bugs de referência de memória
+    let novoObj1 = obj2 ? { ...obj2 } : null;
+    let novoObj2 = obj1 ? { ...obj1 } : null;
+
+    // Adiciona as mensagens invertidas
+    if (novoObj1) {
+        novoObj1.trocaInfo = `🔄 Trocou com <b>${nome1}</b><br><small>(O original dele era ${fmtData1} - ${labelT1})</small>`;
+    }
+    if (novoObj2) {
+        novoObj2.trocaInfo = `🔄 Trocou com <b>${nome2}</b><br><small>(O original dele era ${fmtData2} - ${labelT2})</small>`;
+    }
+
+    // Efetua a substituição
+    estado.escalaSalva[d1][t1][c1] = novoObj1;
+    estado.escalaSalva[d2][t2][c2] = novoObj2;
+
+    try {
+        const mesRef = filtroMes.value;
+        const docId = `${lojaAtual}_${mesRef}`;
+        
+        await setDoc(doc(db, "escala_lojas", docId), {
+            loja: lojaAtual,
+            mes: mesRef,
+            escala: estado.escalaSalva,
+            atualizadoEm: new Date().toISOString()
+        });
+
+        alert(`✅ Troca efetuada com sucesso!\n\n${nome1} assumiu a cadeira de ${fmtData2}.\n${nome2} assumiu a cadeira de ${fmtData1}.`);
+        bootstrap.Modal.getInstance(document.getElementById('modal-troca')).hide();
+        atualizarVisualizacao();
+
+    } catch (error) {
+        console.error("Erro ao salvar troca:", error);
+        alert("Erro ao salvar no banco de dados.");
+    }
+};
+
+// ==========================================
+// 5. NAVEGAÇÃO ENTRE ABAS
+// ==========================================
+window.mudarLoja = (loja, event) => {
+    event.preventDefault();
+    lojaAtual = loja;
+    
+    tabs.forEach(t => {
+        t.classList.remove('active', 'bg-white', 'border', 'text-dark');
+        if (t.innerText.toLowerCase().includes(loja)) {
+            t.classList.add('active');
+        } else {
+            t.classList.add('bg-white', 'border', 'text-dark');
+        }
+    });
+
+    const nomeCapitalizado = loja.charAt(0).toUpperCase() + loja.slice(1);
+    document.getElementById('titulo-tabela').innerText = `📅 Escala - Loja ${nomeCapitalizado}`;
+    document.getElementById('nome-loja-btn').innerText = nomeCapitalizado;
+
+    buscarEscalaNoBanco(); 
+};
+
+filtroMes.addEventListener('change', buscarEscalaNoBanco);
+filtroSemana.addEventListener('change', atualizarVisualizacao);
+
+// ==========================================
+// 6. MODAL E SORTEIO INTELIGENTE
+// ==========================================
+window.abrirModalSorteio = () => {
+    const divCheckboxes = document.getElementById('lista-checkboxes-corretores');
+    let html = '';
+
+    estado.corretores.forEach(c => {
+        html += `
+            <div class="col-md-4">
+                <div class="form-check border rounded p-2 bg-white shadow-sm">
+                    <input class="form-check-input ms-1 me-2 chk-corretor" type="checkbox" value="${c.id}" id="chk_${c.id}" data-nome="${c.nome}">
+                    <label class="form-check-label fw-bold w-100" style="cursor: pointer;" for="chk_${c.id}">
+                        ${c.nome.split(' ')[0]}
+                    </label>
                 </div>
             </div>
-            
-            <div class="d-flex gap-3 align-items-center bg-white p-3 rounded shadow-sm border">
-                <div>
-                    <label class="small text-muted fw-bold">Mês Referência:</label>
-                    <input type="month" id="filtro-mes" class="form-control fw-bold form-control-sm">
-                </div>
-                <div>
-                    <label class="small text-muted fw-bold">Semana:</label>
-                    <select id="filtro-semana" class="form-select fw-bold form-select-sm">
-                        <option value="0">Semana 1</option>
-                        <option value="1">Semana 2</option>
-                        <option value="2">Semana 3</option>
-                        <option value="3">Semana 4</option>
-                        <option value="4">Semana 5</option>
-                    </select>
-                </div>
-                <div class="mt-3">
-                    <button class="btn btn-primary fw-bold shadow-sm" onclick="abrirModalSorteio()">
-                        🎲 Gerar Escala (<span id="nome-loja-btn">Flamengo</span>)
-                    </button>
-                </div>
-            </div>
-        </div>
+        `;
+    });
 
-        <div class="card shadow border-dark mb-5">
-            <div class="card-header bg-dark text-white fw-bold fs-5 d-flex justify-content-between align-items-center">
-                <span id="titulo-tabela">📅 Escala - Loja Flamengo</span>
-                <small class="fw-normal">Manhã: 09h às 13h30 | Tarde: 13h30 às 18h</small>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-bordered table-escala mb-0">
-                        <thead>
-                            <tr>
-                                <th class="bg-light" rowspan="2" style="width: 15%;">Data</th>
-                                <th colspan="2" class="manha-bg border-bottom-0">☀️ Turno da Manhã</th>
-                                <th colspan="2" class="tarde-bg border-bottom-0">🌙 Turno da Tarde</th>
-                            </tr>
-                            <tr>
-                                <th class="manha-bg text-muted small" style="width: 21%;">Cadeira 1</th>
-                                <th class="manha-bg text-muted small" style="width: 21%;">Cadeira 2</th>
-                                <th class="tarde-bg text-muted small" style="width: 21%;">Cadeira 1</th>
-                                <th class="tarde-bg text-muted small" style="width: 21%;">Cadeira 2</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabela-body">
-                            <tr><td colspan="5" class="text-center py-5">Carregando escala...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
+    divCheckboxes.innerHTML = html;
+    new bootstrap.Modal(document.getElementById('modal-sorteio')).show();
+};
 
-    <div class="modal fade" id="modal-sorteio" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content border-0 shadow">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title fw-bold">Selecione os Corretores para Sortear</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body bg-light">
-                    <p class="text-muted mb-3">Marque os corretores que participarão da escala presencial desta loja neste mês.</p>
-                    <div class="row g-2" id="lista-checkboxes-corretores">
-                        <div class="col-12 text-center text-muted py-3">Buscando equipe...</div>
-                    </div>
-                </div>
-                <div class="modal-footer bg-white">
-                    <button type="button" class="btn btn-secondary fw-bold" onclick="marcarTodos()">Marcar Todos</button>
-                    <button type="button" class="btn btn-primary fw-bold px-4" onclick="sortearESalvar()">🎲 Confirmar e Sortear</button>
-                </div>
-            </div>
-        </div>
-    </div>
+window.marcarTodos = () => {
+    document.querySelectorAll('.chk-corretor').forEach(el => el.checked = true);
+};
 
-    <div class="modal fade" id="modal-detalhes-plantao" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content shadow-lg border-0">
-                <div class="modal-header bg-dark text-white">
-                    <h5 class="modal-title fw-bold" id="modal-detalhes-titulo">Detalhes do Plantão</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body bg-light p-4">
-                    
-                    <div class="mb-4">
-                        <label class="form-label fw-bold text-muted small text-uppercase">Substituir / Alterar Corretor:</label>
-                        <select id="select-alterar-corretor" class="form-select border-secondary fw-bold shadow-sm">
-                            <option value="">-- Vaga Livre --</option>
-                        </select>
-                    </div>
+window.sortearESalvar = async () => {
+    const checkboxes = document.querySelectorAll('.chk-corretor:checked');
+    if (checkboxes.length === 0) return alert("Selecione pelo menos um corretor!");
 
-                    <div class="row g-3 align-items-center">
-                        <div class="col-6 border-end">
-                            <label class="form-label fw-bold text-muted small text-uppercase text-center w-100">Contador Atendimentos:</label>
-                            <div class="input-group shadow-sm">
-                                <button class="btn btn-secondary fw-bold px-3" type="button" onclick="mudarAtendimentos(-1)">-</button>
-                                <input type="number" class="form-control text-center fw-bold fs-5" id="input-atendimentos" value="0" min="0">
-                                <button class="btn btn-primary fw-bold px-3" type="button" onclick="mudarAtendimentos(1)">+</button>
-                            </div>
-                        </div>
-                        <div class="col-6 text-center">
-                            <div class="form-check form-switch fs-4 d-inline-block mt-2">
-                                <input class="form-check-input shadow-sm" type="checkbox" id="check-falta" style="cursor: pointer;">
-                                <label class="form-check-label fw-bold text-danger fs-6 ms-2" for="check-falta" style="cursor: pointer;">MARCAR FALTA</label>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div id="info-troca-container" class="mt-4 text-center d-none">
-                        <span class="badge bg-warning text-dark border border-warning shadow-sm p-2 w-100 fs-6" id="texto-info-troca" style="white-space: normal;"></span>
-                    </div>
+    if (checkboxes.length < 4) {
+        if (!confirm("⚠️ Atenção: Marcou menos de 4 corretores. Algumas cadeiras ficarão vazias. Continuar?")) return;
+    }
 
-                </div>
-                <div class="modal-footer bg-white">
-                    <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-success fw-bold px-4 shadow-sm" onclick="salvarDetalhesPlantao()">💾 Salvar Alterações</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    let selecionados = [];
+    checkboxes.forEach(c => selecionados.push({ id: c.value, nome: c.getAttribute('data-nome') }));
 
-    <div class="modal fade" id="modal-troca" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content shadow-lg border-0">
-                <div class="modal-header bg-warning text-dark">
-                    <h5 class="modal-title fw-bold">🔄 Trocar Plantões (Mesma Loja)</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body bg-light p-4">
-                    <p class="text-muted small mb-4">Selecione os dois plantões que deseja inverter a posição.</p>
+    const mesRef = filtroMes.value;
+    const outraLoja = lojaAtual === 'flamengo' ? 'tijuca' : 'flamengo';
+    let escalaOutraLoja = {};
 
-                    <h6 class="fw-bold text-primary">Plantão 1 (Origem)</h6>
-                    <div class="row g-2 mb-3">
-                        <div class="col-5">
-                            <select id="troca-data-1" class="form-select form-select-sm shadow-sm border-primary"></select>
-                        </div>
-                        <div class="col-4">
-                            <select id="troca-turno-1" class="form-select form-select-sm shadow-sm border-primary">
-                                <option value="manha">Manhã</option>
-                                <option value="tarde">Tarde</option>
-                            </select>
-                        </div>
-                        <div class="col-3">
-                            <select id="troca-cadeira-1" class="form-select form-select-sm shadow-sm border-primary">
-                                <option value="0">Cad. 1</option>
-                                <option value="1">Cad. 2</option>
-                            </select>
-                        </div>
-                    </div>
+    try {
+        const docOutraLoja = await getDoc(doc(db, "escala_lojas", `${outraLoja}_${mesRef}`));
+        if (docOutraLoja.exists()) escalaOutraLoja = docOutraLoja.data().escala || {};
+    } catch(e) { console.error("Erro ao buscar dados da outra loja", e); }
 
-                    <h6 class="fw-bold text-info mt-4">Plantão 2 (Destino)</h6>
-                    <div class="row g-2 mb-3">
-                        <div class="col-5">
-                            <select id="troca-data-2" class="form-select form-select-sm shadow-sm border-info"></select>
-                        </div>
-                        <div class="col-4">
-                            <select id="troca-turno-2" class="form-select form-select-sm shadow-sm border-info">
-                                <option value="manha">Manhã</option>
-                                <option value="tarde">Tarde</option>
-                            </select>
-                        </div>
-                        <div class="col-3">
-                            <select id="troca-cadeira-2" class="form-select form-select-sm shadow-sm border-info">
-                                <option value="0">Cad. 1</option>
-                                <option value="1">Cad. 2</option>
-                            </select>
-                        </div>
-                    </div>
+    let contagemTurnos = {};
+    selecionados.forEach(c => contagemTurnos[c.id] = 0);
 
-                </div>
-                <div class="modal-footer bg-white">
-                    <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-warning fw-bold px-4 shadow-sm" onclick="efetuarTroca()">🔄 Confirmar Troca</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    let novaEscala = {};
 
-    <script type="module" src="app-lojas.js"></script>
-    <script type="module" src="app-notificacoes.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+    estado.diasDoMes.forEach(dia => {
+        if (dia.isFeriado) return; 
+
+        let iso = dia.iso;
+        let ocupadosOutraLoja = []; 
+
+        if (escalaOutraLoja[iso]) {
+            const eOutra = escalaOutraLoja[iso];
+            if (eOutra.manha[0]) ocupadosOutraLoja.push(eOutra.manha[0].id);
+            if (eOutra.manha[1]) ocupadosOutraLoja.push(eOutra.manha[1].id);
+            if (eOutra.tarde[0]) ocupadosOutraLoja.push(eOutra.tarde[0].id);
+            if (eOutra.tarde[1]) ocupadosOutraLoja.push(eOutra.tarde[1].id);
+        }
+
+        let escolhidosHoje = []; 
+
+        for (let i = 0; i < 4; i++) {
+            let candidatosDisponiveis = selecionados.filter(c => 
+                !ocupadosOutraLoja.includes(c.id) && 
+                !escolhidosHoje.some(escolhido => escolhido !== null && escolhido.id === c.id) 
+            );
+
+            if (candidatosDisponiveis.length === 0) {
+                escolhidosHoje.push(null); 
+            } else {
+                candidatosDisponiveis.sort((a, b) => {
+                    let pesoA = contagemTurnos[a.id];
+                    let pesoB = contagemTurnos[b.id];
+                    if (pesoA === pesoB) return Math.random() - 0.5; 
+                    return pesoA - pesoB;
+                });
+
+                let selecionado = candidatosDisponiveis[0];
+                escolhidosHoje.push({ id: selecionado.id, nome: selecionado.nome, atendimentos: 0, falta: false }); 
+                contagemTurnos[selecionado.id]++; 
+            }
+        }
+
+        let validos = escolhidosHoje.filter(x => x !== null);
+        let nulos = escolhidosHoje.filter(x => x === null);
+        validos.sort(() => Math.random() - 0.5);
+        let resultadoFinalDia = [...validos, ...nulos];
+        
+        while(resultadoFinalDia.length < 4) resultadoFinalDia.push(null);
+
+        novaEscala[iso] = {
+            manha: [resultadoFinalDia[0], resultadoFinalDia[1]],
+            tarde: [resultadoFinalDia[2], resultadoFinalDia[3]]
+        };
+    });
+
+    try {
+        const docId = `${lojaAtual}_${mesRef}`;
+        await setDoc(doc(db, "escala_lojas", docId), {
+            loja: lojaAtual, mes: mesRef, escala: novaEscala, atualizadoEm: new Date().toISOString()
+        });
+        alert("✅ Escala gerada com sucesso!");
+        bootstrap.Modal.getInstance(document.getElementById('modal-sorteio')).hide();
+        buscarEscalaNoBanco();
+
+    } catch (error) {
+        console.error("Erro ao salvar:", error);
+        alert("Erro ao salvar no banco de dados.");
+    }
+};
+
+// ==========================================
+// 7. HELPER: CALENDÁRIO
+// ==========================================
+function getDiasUteisMes(ano, mesIndex, listaDeFeriados = []) {
+    let date = new Date(ano, mesIndex, 1);
+    let days = [];
+    const nomesDias = ['Dom', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sáb'];
+    
+    while (date.getMonth() === mesIndex) {
+        let diaSemana = date.getDay();
+        let iso = date.toISOString().split('T')[0]; 
+        let feriadoEncontrado = listaDeFeriados.find(f => f.data === iso);
+
+        if (diaSemana !== 0 && diaSemana !== 6) { 
+            let fmt = date.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
+            days.push({ 
+                iso, fmt, diaSemana: nomesDias[diaSemana], isFeriado: !!feriadoEncontrado, descricaoFeriado: feriadoEncontrado ? feriadoEncontrado.descricao : "" 
+            });
+        }
+        date.setDate(date.getDate() + 1);
+    }
+    return days;
+}
+
+function agruparSemanas(diasUteis) {
+    let semanas = [];
+    let semanaAtual = [];
+    diasUteis.forEach(dia => {
+        semanaAtual.push(dia);
+        if (dia.diaSemana === 'Sexta' || semanaAtual.length === 5) {
+            semanas.push(semanaAtual);
+            semanaAtual = [];
+        }
+    });
+    if (semanaAtual.length > 0) semanas.push(semanaAtual);
+    return semanas;
+}
+
+window.iniciarLojas();
