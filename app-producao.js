@@ -5,6 +5,15 @@ const selectCorretor = document.getElementById('select-corretor');
 const tabelaRanking = document.getElementById('tabela-ranking');
 const form = document.getElementById('form-producao');
 
+// Preenche o campo de Mês com o mês atual automaticamente ao abrir a tela
+const inputMes = document.getElementById('mes-referencia');
+if(inputMes) {
+    const hoje = new Date();
+    const ano = hoje.getFullYear();
+    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+    inputMes.value = `${ano}-${mes}`; // Formato que o input type="month" exige
+}
+
 // Elementos do Histórico
 const selectHistorico = document.getElementById('select-historico');
 const tabelaHistorico = document.getElementById('tabela-historico');
@@ -53,7 +62,6 @@ function renderizarRanking(lista, elementoTabela, ehHistorico = false) {
         if (index === 1) medalha = "🥈";
         if (index === 2) medalha = "🥉";
 
-        // Cores mais neutras se for histórico, vibrantes se for mês atual
         let corBadge = ehHistorico ? 'bg-secondary' : 'bg-dark';
 
         html += `
@@ -72,27 +80,43 @@ function renderizarRanking(lista, elementoTabela, ehHistorico = false) {
 }
 
 // ========================================================
-// 2. LANÇAR PRODUÇÃO DO MÊS ATUAL
+// 2. LANÇAR PRODUÇÃO DO MÊS ATUAL (COM AUDITORIA)
 // ========================================================
 if(form) {
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
         const id = selectCorretor.value;
+        const nomeCorretor = selectCorretor.options[selectCorretor.selectedIndex].text;
         const tipo = document.getElementById('tipo-prod').value; 
         const valor = parseFloat(document.getElementById('valor-prod').value);
+        const mesRef = document.getElementById('mes-referencia').value;
 
-        if (!id || !valor) return alert("Preencha tudo!");
+        if (!id || !valor || !mesRef) return alert("Preencha todos os campos!");
 
         const campoBanco = tipo === 'pme' ? 'producao_pme' : 'producao_pf';
 
         try {
+            // A. Cria um "recibo" do lançamento para auditoria e histórico
+            await addDoc(collection(db, "lancamentos_producao"), {
+                corretor_id: id,
+                corretor_nome: nomeCorretor,
+                tipo_produto: tipo,
+                valor_lancado: valor,
+                mes_competencia: mesRef, // <-- AQUI FICA SALVO O MÊS!
+                data_lancamento: new Date().toISOString()
+            });
+
+            // B. Incrementa o saldo do ranking atual do corretor
             const ref = doc(db, "corretores", id);
             await updateDoc(ref, {
                 [campoBanco]: increment(valor)
             });
-            alert(`R$ ${valor} adicionado com sucesso!`);
-            form.reset();
+            
+            alert(`R$ ${valor} adicionado com sucesso para a competência ${mesRef}!`);
+            
+            // Limpa apenas o valor, mantendo o corretor e o mês selecionados para facilitar múltiplos lançamentos
+            document.getElementById('valor-prod').value = ''; 
         } catch (error) {
             console.error(error);
             alert("Erro ao lançar.");
@@ -121,13 +145,11 @@ export async function iniciarNovoCiclo() {
         const snapshot = await getDocs(collection(db, "corretores"));
         const dataHoje = new Date().toLocaleDateString('pt-BR');
         
-        // Nome único para o mês salvo
         const referenciaCiclo = `Ciclo encerrado em ${dataHoje}`;
 
         for (const d of snapshot.docs) {
             const dados = d.data();
             
-            // 1. Salva no Histórico
             if(dados.producao_pme > 0 || dados.producao_pf > 0) {
                 await addDoc(collection(db, "historico_fechamentos"), {
                     data_fechamento: new Date().toISOString(),
@@ -138,7 +160,6 @@ export async function iniciarNovoCiclo() {
                 });
             }
 
-            // 2. Zera APENAS a produção (Vendas)
             await updateDoc(doc(db, "corretores", d.id), {
                 producao_pme: 0,
                 producao_pf: 0
@@ -146,7 +167,7 @@ export async function iniciarNovoCiclo() {
         }
 
         alert("✅ Novo ciclo iniciado! O histórico foi salvo com sucesso.");
-        carregarOpcoesHistorico(); // Atualiza a caixinha de histórico
+        carregarOpcoesHistorico(); 
         
     } catch (error) {
         console.error("Erro ao fechar ciclo:", error);
@@ -157,15 +178,12 @@ export async function iniciarNovoCiclo() {
 // ========================================================
 // 4. LER E EXIBIR HISTÓRICO ANTERIOR
 // ========================================================
-
-// Carrega os nomes dos meses que já foram encerrados
 async function carregarOpcoesHistorico() {
     if(!selectHistorico) return;
 
     try {
         const snap = await getDocs(collection(db, "historico_fechamentos"));
         
-        // Usa um "Set" para pegar apenas nomes únicos (evitar repetição na caixinha)
         const referenciasUnicas = new Set();
         snap.forEach(doc => {
             const ref = doc.data().referencia;
@@ -178,7 +196,6 @@ async function carregarOpcoesHistorico() {
         }
 
         let html = '<option value="">Selecione um ciclo...</option>';
-        // Transforma em array para poder colocar no select
         Array.from(referenciasUnicas).forEach(ref => {
             html += `<option value="${ref}">${ref}</option>`;
         });
@@ -189,7 +206,6 @@ async function carregarOpcoesHistorico() {
     }
 }
 
-// Quando o usuário escolhe um mês na caixinha, busca os dados daquele mês
 if(selectHistorico) {
     selectHistorico.addEventListener('change', async (e) => {
         const cicloEscolhido = e.target.value;
@@ -202,7 +218,6 @@ if(selectHistorico) {
         tabelaHistorico.innerHTML = '<tr><td colspan="5" class="text-center py-4">Buscando dados antigos... ⏳</td></tr>';
 
         try {
-            // Busca apenas os registros do ciclo selecionado
             const q = query(collection(db, "historico_fechamentos"), where("referencia", "==", cicloEscolhido));
             const snap = await getDocs(q);
             
@@ -210,7 +225,6 @@ if(selectHistorico) {
             
             snap.forEach(doc => {
                 let d = doc.data();
-                // Molda os dados para a função de renderizar tabela entender
                 corretoresAntigos.push({
                     nome: d.corretor,
                     producao_pme: d.producao_final_pme || 0,
@@ -218,7 +232,6 @@ if(selectHistorico) {
                 });
             });
 
-            // Reutiliza a função de renderizar tabela, avisando que é modo "histórico" (true)
             renderizarRanking(corretoresAntigos, tabelaHistorico, true);
 
         } catch (error) {
@@ -228,5 +241,4 @@ if(selectHistorico) {
     });
 }
 
-// Inicia o carregamento das opções assim que a tela abre
 carregarOpcoesHistorico();
