@@ -6,9 +6,12 @@ const filtroMes = document.getElementById('filtro-mes');
 const filtroSemana = document.getElementById('filtro-semana');
 const tabs = document.querySelectorAll('#lojas-tabs .nav-link');
 
-let lojaAtual = 'flamengo'; // Padrão
+let lojaAtual = 'flamengo'; 
 let estado = { corretores: [], feriados: [], escalaSalva: null, diasDoMes: [], semanas: [] };
 let carregamentoInicial = true;
+
+// Variável para saber qual cadeira estamos editando quando o Modal abrir
+window.editandoPlantao = { iso: null, turno: null, index: null, dataFmt: null };
 
 // ==========================================
 // 1. INICIALIZAÇÃO
@@ -21,7 +24,6 @@ window.iniciarLojas = async () => {
         filtroMes.value = `${yyyy}-${mm}`;
     }
 
-    // Busca Feriados
     const qFeriados = query(collection(db, "feriados"), orderBy("data", "asc"));
     onSnapshot(qFeriados, (snap) => {
         estado.feriados = [];
@@ -29,13 +31,11 @@ window.iniciarLojas = async () => {
         buscarEscalaNoBanco(); 
     });
 
-    // Busca Corretores para o Modal
     const snapCorretores = await getDocs(collection(db, "corretores"));
     estado.corretores = [];
     snapCorretores.forEach(d => {
         estado.corretores.push({ id: d.id, nome: d.data().nome });
     });
-    // Ordena por nome
     estado.corretores.sort((a, b) => a.nome.localeCompare(b.nome));
 
     buscarEscalaNoBanco();
@@ -109,24 +109,46 @@ function atualizarVisualizacao() {
         } else {
             let escaladosHoje = estado.escalaSalva[dia.iso] || { manha: [null, null], tarde: [null, null] };
 
-            const desenharCadeira = (corretor) => {
+            // NOVA FUNÇÃO: Agora a cadeira é um botão que abre o Modal de Gerenciamento!
+            const desenharCadeira = (corretor, iso, turno, index, dataFmt) => {
+                let conteudo = '';
+                let classesCard = 'card-vaga shadow-sm';
+                let classesTexto = 'nome-corretor text-truncate text-center w-100';
+                let badgeAtendimentos = '';
+
                 if (corretor) {
-                    return `<td class="align-middle">
-                                <div class="card-vaga">
-                                    <div class="nome-corretor text-truncate text-center w-100" title="${corretor.nome}">
-                                        ${corretor.nome.split(' ')[0]}
-                                    </div>
-                                </div>
-                            </td>`;
+                    // Verifica se tem falta
+                    if (corretor.falta) {
+                        classesCard += ' falta-bg';
+                        classesTexto += ' falta-text';
+                    }
+                    // Verifica se tem atendimentos para mostrar a bolinha verde
+                    if (corretor.atendimentos > 0) {
+                        badgeAtendimentos = `<span class="badge bg-success position-absolute top-0 start-100 translate-middle rounded-pill shadow" style="font-size: 0.8rem; z-index: 2;">${corretor.atendimentos} <span class="visually-hidden">atendimentos</span></span>`;
+                    }
+
+                    conteudo = `
+                        <div class="${classesCard}" onclick="abrirDetalhesPlantao('${iso}', '${turno}', ${index}, '${dataFmt}')">
+                            ${badgeAtendimentos}
+                            <div class="${classesTexto}" title="${corretor.nome}">
+                                ${corretor.nome.split(' ')[0]}
+                            </div>
+                        </div>`;
                 } else {
-                    return `<td class="bg-light text-muted fst-italic align-middle text-center"><small>Vaga Livre</small></td>`;
+                    // Se for Vaga Livre, faz pontilhado, mas CONTINUA CLICÁVEL pra você poder preencher!
+                    conteudo = `
+                        <div class="card-vaga" style="border-style: dotted;" onclick="abrirDetalhesPlantao('${iso}', '${turno}', ${index}, '${dataFmt}')">
+                            <div class="text-muted fst-italic text-center w-100"><small>Vaga Livre</small></div>
+                        </div>`;
                 }
+                return `<td class="align-middle p-2" style="width: 21%;">${conteudo}</td>`;
             };
 
-            htmlBody += desenharCadeira(escaladosHoje.manha[0]); 
-            htmlBody += desenharCadeira(escaladosHoje.manha[1]); 
-            htmlBody += desenharCadeira(escaladosHoje.tarde[0]); 
-            htmlBody += desenharCadeira(escaladosHoje.tarde[1]); 
+            // Preenche as 4 cadeiras passando as coordenadas delas
+            htmlBody += desenharCadeira(escaladosHoje.manha[0], dia.iso, 'manha', 0, dia.fmt); 
+            htmlBody += desenharCadeira(escaladosHoje.manha[1], dia.iso, 'manha', 1, dia.fmt); 
+            htmlBody += desenharCadeira(escaladosHoje.tarde[0], dia.iso, 'tarde', 0, dia.fmt); 
+            htmlBody += desenharCadeira(escaladosHoje.tarde[1], dia.iso, 'tarde', 1, dia.fmt); 
         }
         
         htmlBody += `</tr>`;
@@ -135,7 +157,102 @@ function atualizarVisualizacao() {
 }
 
 // ==========================================
-// 3. UI E NAVEGAÇÃO
+// 3. GERENCIAMENTO DE PLANTÃO INDIVIDUAL (MODAL)
+// ==========================================
+
+// Abre a janela quando clica no quadrado do corretor
+window.abrirDetalhesPlantao = (iso, turno, index, dataFmt) => {
+    // Guarda na memória qual quadrado estamos editando
+    window.editandoPlantao = { iso, turno, index, dataFmt };
+    
+    // Puxa o corretor atual se existir
+    let corretorAtual = null;
+    if(estado.escalaSalva[iso] && estado.escalaSalva[iso][turno]) {
+        corretorAtual = estado.escalaSalva[iso][turno][index];
+    }
+
+    // 1. Configura o Título
+    let nomeExibicao = corretorAtual ? corretorAtual.nome.split(' ')[0] : 'Vaga Livre';
+    let turnoExibicao = turno === 'manha' ? 'Manhã' : 'Tarde';
+    document.getElementById('modal-detalhes-titulo').innerText = `${nomeExibicao} - ${dataFmt} (${turnoExibicao})`;
+
+    // 2. Configura o Seletor de Corretores
+    let selectHtml = '<option value="">-- Deixar Vaga Livre --</option>';
+    estado.corretores.forEach(c => {
+        let isSelected = (corretorAtual && corretorAtual.id === c.id) ? 'selected' : '';
+        selectHtml += `<option value="${c.id}" data-nome="${c.nome}" ${isSelected}>${c.nome}</option>`;
+    });
+    document.getElementById('select-alterar-corretor').innerHTML = selectHtml;
+
+    // 3. Configura o Contador e a Falta
+    document.getElementById('input-atendimentos').value = corretorAtual && corretorAtual.atendimentos ? corretorAtual.atendimentos : 0;
+    document.getElementById('check-falta').checked = corretorAtual && corretorAtual.falta === true;
+
+    // Mostra o Modal
+    const modal = new bootstrap.Modal(document.getElementById('modal-detalhes-plantao'));
+    modal.show();
+}
+
+// Botões de + e - dos Atendimentos
+window.mudarAtendimentos = (valor) => {
+    const input = document.getElementById('input-atendimentos');
+    let atual = parseInt(input.value) || 0;
+    atual += valor;
+    if(atual < 0) atual = 0; // Não deixa ficar negativo
+    input.value = atual;
+}
+
+// Salva as alterações daquele quadrado no banco
+window.salvarDetalhesPlantao = async () => {
+    const select = document.getElementById('select-alterar-corretor');
+    const idSelecionado = select.value;
+    
+    const { iso, turno, index } = window.editandoPlantao;
+    
+    // Garante que a estrutura daquele dia exista (caso esteja em branco)
+    if(!estado.escalaSalva[iso]) {
+        estado.escalaSalva[iso] = { manha: [null, null], tarde: [null, null] };
+    }
+
+    if (idSelecionado) {
+        const nomeSelecionado = select.options[select.selectedIndex].getAttribute('data-nome');
+        const atendimentos = parseInt(document.getElementById('input-atendimentos').value) || 0;
+        const falta = document.getElementById('check-falta').checked;
+
+        estado.escalaSalva[iso][turno][index] = {
+            id: idSelecionado,
+            nome: nomeSelecionado,
+            atendimentos: atendimentos,
+            falta: falta
+        };
+    } else {
+        // Se escolheu "-- Deixar Vaga Livre --"
+        estado.escalaSalva[iso][turno][index] = null;
+    }
+
+    try {
+        const mesRef = filtroMes.value;
+        const docId = `${lojaAtual}_${mesRef}`;
+        
+        // Atualiza a tabela toda no banco
+        await setDoc(doc(db, "escala_lojas", docId), {
+            loja: lojaAtual,
+            mes: mesRef,
+            escala: estado.escalaSalva,
+            atualizadoEm: new Date().toISOString()
+        });
+
+        bootstrap.Modal.getInstance(document.getElementById('modal-detalhes-plantao')).hide();
+        atualizarVisualizacao(); // Recarrega a tela para mostrar o vermelho/verde
+
+    } catch (error) {
+        console.error("Erro ao salvar detalhes:", error);
+        alert("Erro ao salvar no banco de dados.");
+    }
+}
+
+// ==========================================
+// 4. UI E NAVEGAÇÃO
 // ==========================================
 window.mudarLoja = (loja, event) => {
     event.preventDefault();
@@ -161,7 +278,7 @@ filtroMes.addEventListener('change', buscarEscalaNoBanco);
 filtroSemana.addEventListener('change', atualizarVisualizacao);
 
 // ==========================================
-// 4. MODAL E SORTEIO INTELIGENTE
+// 5. MODAL E SORTEIO INTELIGENTE
 // ==========================================
 window.abrirModalSorteio = () => {
     const divCheckboxes = document.getElementById('lista-checkboxes-corretores');
@@ -193,9 +310,8 @@ window.sortearESalvar = async () => {
     const checkboxes = document.querySelectorAll('.chk-corretor:checked');
     if (checkboxes.length === 0) return alert("Selecione pelo menos um corretor!");
 
-    // Alerta de segurança caso o gestor marque menos de 4 pessoas (ficarão cadeiras vazias)
     if (checkboxes.length < 4) {
-        if (!confirm("⚠️ Atenção: Marcou menos de 4 corretores. Como a regra impede que um corretor trabalhe duas vezes no mesmo dia, algumas cadeiras ficarão obrigatoriamente vazias. Deseja continuar?")) {
+        if (!confirm("⚠️ Atenção: Marcou menos de 4 corretores. Como a regra impede repetição no mesmo dia, algumas cadeiras ficarão vazias. Continuar?")) {
             return;
         }
     }
@@ -207,7 +323,6 @@ window.sortearESalvar = async () => {
     const outraLoja = lojaAtual === 'flamengo' ? 'tijuca' : 'flamengo';
     let escalaOutraLoja = {};
 
-    // REGRA 2: LER A ESCALA DA OUTRA LOJA PARA EVITAR CONFLITOS
     try {
         const docOutraLoja = await getDoc(doc(db, "escala_lojas", `${outraLoja}_${mesRef}`));
         if (docOutraLoja.exists()) {
@@ -215,19 +330,17 @@ window.sortearESalvar = async () => {
         }
     } catch(e) { console.error("Erro ao buscar dados da outra loja", e); }
 
-    // Dicionário para garantir distribuição equilibrada e justa (quem tem menos turnos, ganha a vaga)
     let contagemTurnos = {};
     selecionados.forEach(c => contagemTurnos[c.id] = 0);
 
     let novaEscala = {};
 
     estado.diasDoMes.forEach(dia => {
-        if (dia.isFeriado) return; // Pula feriados
+        if (dia.isFeriado) return; 
 
         let iso = dia.iso;
-        let ocupadosOutraLoja = []; // IDs de quem está na outra loja hoje
+        let ocupadosOutraLoja = []; 
 
-        // Verifica quem já está a trabalhar na outra loja neste dia específico
         if (escalaOutraLoja[iso]) {
             const eOutra = escalaOutraLoja[iso];
             if (eOutra.manha[0]) ocupadosOutraLoja.push(eOutra.manha[0].id);
@@ -236,36 +349,30 @@ window.sortearESalvar = async () => {
             if (eOutra.tarde[1]) ocupadosOutraLoja.push(eOutra.tarde[1].id);
         }
 
-        let escolhidosHoje = []; // IDs de quem já foi escolhido para esta loja hoje (Regra 1)
+        let escolhidosHoje = []; 
 
-        // Precisamos preencher 4 cadeiras por dia
         for (let i = 0; i < 4; i++) {
-            
-            // Filtra candidatos aptos
             let candidatosDisponiveis = selecionados.filter(c => 
-                !ocupadosOutraLoja.includes(c.id) && // Não pode estar na outra loja
-                !escolhidosHoje.some(escolhido => escolhido !== null && escolhido.id === c.id) // Não pode já ter sido escolhido hoje nesta loja
+                !ocupadosOutraLoja.includes(c.id) && 
+                !escolhidosHoje.some(escolhido => escolhido !== null && escolhido.id === c.id) 
             );
 
             if (candidatosDisponiveis.length === 0) {
-                // Se acabaram as opções válidas, a cadeira fica "Vaga Livre" (null)
                 escolhidosHoje.push(null); 
             } else {
-                // Ordena por quem tem MENOS plantões neste mês, para ficar justo
                 candidatosDisponiveis.sort((a, b) => {
                     let pesoA = contagemTurnos[a.id];
                     let pesoB = contagemTurnos[b.id];
-                    if (pesoA === pesoB) return Math.random() - 0.5; // Desempate aleatório
+                    if (pesoA === pesoB) return Math.random() - 0.5; 
                     return pesoA - pesoB;
                 });
 
                 let selecionado = candidatosDisponiveis[0];
-                escolhidosHoje.push(selecionado);
-                contagemTurnos[selecionado.id]++; // Adiciona 1 plantão à contagem deste corretor
+                escolhidosHoje.push({ id: selecionado.id, nome: selecionado.nome, atendimentos: 0, falta: false }); // Já salva o padrão
+                contagemTurnos[selecionado.id]++; 
             }
         }
 
-        // Baralha os 4 lugares do dia para que o mesmo corretor não calhe sempre na Manhã
         let validos = escolhidosHoje.filter(x => x !== null);
         let nulos = escolhidosHoje.filter(x => x === null);
         validos.sort(() => Math.random() - 0.5);
@@ -279,7 +386,6 @@ window.sortearESalvar = async () => {
         };
     });
 
-    // Salvar no Banco
     try {
         const docId = `${lojaAtual}_${mesRef}`;
         
@@ -290,9 +396,7 @@ window.sortearESalvar = async () => {
             atualizadoEm: new Date().toISOString()
         });
 
-        alert("✅ Escala gerada com sucesso! Sem repetições no mesmo dia e com verificação inter-lojas.");
-        
-        // Fecha o modal e recarrega a vista
+        alert("✅ Escala gerada com sucesso!");
         bootstrap.Modal.getInstance(document.getElementById('modal-sorteio')).hide();
         buscarEscalaNoBanco();
 
@@ -303,7 +407,7 @@ window.sortearESalvar = async () => {
 };
 
 // ==========================================
-// 5. HELPER: CALENDÁRIO
+// 6. HELPER: CALENDÁRIO
 // ==========================================
 function getDiasUteisMes(ano, mesIndex, listaDeFeriados = []) {
     let date = new Date(ano, mesIndex, 1);
