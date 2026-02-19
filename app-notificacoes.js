@@ -45,7 +45,7 @@ async function verificarRegrasDeNotificacao() {
         const primeiroNomeCorretor = lead.corretor_nome ? lead.corretor_nome.split(' ')[0] : 'Corretor';
         const intervaloRecorrenciaHoras = 24; 
 
-        if (lead.status === "Distribuído" && diffStatusHoras >= 0) {
+        if (lead.status === "Distribuído" && diffStatusHoras >= 24) {
             titulo = "⚠️ Cobrar Corretor";
             mensagem = `Falar com <b>${primeiroNomeCorretor}</b> sobre o lead <b>${lead.cliente}</b> (Parado há ${Math.floor(diffStatusDias)} dias).`;
             tipoAlerta = "24h_distribuido";
