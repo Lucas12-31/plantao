@@ -5,131 +5,138 @@
     <title>Escala de Plantão</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        .table-plantao th { 
-            background-color: #212529; 
-            color: white; 
-            vertical-align: middle; 
-            text-align: center; 
-            padding: 15px;
-        }
-        .table-plantao td { 
-            vertical-align: middle; 
-            text-align: center; 
-            height: 110px; 
-            width: 25%; /* Divide igualmente */
-        }
-        .nome-corretor {
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: #dc3545; /* Vermelho igual ao seu print */
-            margin-bottom: 8px;
-            text-transform: uppercase;
-        }
-        .card-vaga {
-            background-color: #fff;
-            border-radius: 8px;
-            padding: 10px;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
+        .table-escala th, .table-escala td { vertical-align: middle; text-align: center; }
+        .card-vaga { border: 1px dashed #ccc; padding: 10px; border-radius: 8px; background-color: #fcfcfc; }
+        .nome-corretor { font-weight: bold; font-size: 1.1rem; color: #d9534f; margin-bottom: 5px; }
     </style>
 </head>
 <body class="bg-light">
 
-   <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow border-bottom border-secondary">
-    <div class="container">
-        <a class="navbar-brand fw-bold" href="index.html">🍋 Sistema Limão</a>
-        
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow border-bottom border-secondary">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="index.html">🍋 Sistema Limão</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto align-items-center gap-3" style="font-size: 0.95rem;">
+                    <li class="nav-item"><a class="nav-link text-light" href="cadastro.html">👥 Cadastro</a></li>
+                    <li class="nav-item"><a class="nav-link text-light" href="parceiros.html">🤝 Parceiros</a></li>
+                    <li class="nav-item"><a class="nav-link text-success fw-bold" href="producao.html">💰 Produção</a></li>
+                    <li class="nav-item d-none d-lg-block text-secondary">|</li>
+                    <li class="nav-item"><a class="nav-link text-warning fw-bold" href="distribuicao.html">🎲 Distribuição</a></li>
+                    <li class="nav-item"><a class="nav-link text-info fw-bold border-bottom border-info" href="plantao.html">📅 Plantão</a></li>
+                    <li class="nav-item"><a class="nav-link text-danger fw-bold" href="leads.html">🔥 Leads</a></li>
 
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto align-items-center gap-3" style="font-size: 0.95rem;">
-                
-                <li class="nav-item"><a class="nav-link text-light" href="cadastro.html">👥 Cadastro</a></li>
-                <li class="nav-item"><a class="nav-link text-light" href="parceiros.html">🤝 Parceiros</a></li>
-                <li class="nav-item"><a class="nav-link text-success fw-bold" href="producao.html">💰 Produção</a></li>
-                <li class="nav-item d-none d-lg-block text-secondary">|</li>
-                <li class="nav-item"><a class="nav-link text-warning fw-bold" href="distribuicao.html">🎲 Distribuição</a></li>
-                <li class="nav-item"><a class="nav-link text-info fw-bold" href="plantao.html">📅 Plantão</a></li>
-                <li class="nav-item"><a class="nav-link text-danger fw-bold" href="leads.html">🔥 Leads</a></li>
-
-                <li class="nav-item dropdown">
-                    <a class="nav-link position-relative" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <span style="font-size: 1.2rem;">🔔</span>
-                        <span id="badge-contador" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" style="font-size: 0.6rem;">
-                            0
-                        </span>
-                    </a>
-                    <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="navbarDropdown" style="width: 320px; max-height: 400px; overflow-y: auto;">
-                        <li><h6 class="dropdown-header">Notificações / Lembretes</h6></li>
-                        <div id="lista-notificacoes">
-                            <li><span class="dropdown-item text-muted small">Nenhuma notificação nova.</span></li>
-                        </div>
-                    </ul>
-                </li>
-
-            </ul>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link position-relative" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span style="font-size: 1.2rem;">🔔</span>
+                            <span id="badge-contador" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" style="font-size: 0.6rem;">0</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="navbarDropdown" style="width: 320px; max-height: 400px; overflow-y: auto;">
+                            <li><h6 class="dropdown-header">Notificações / Lembretes</h6></li>
+                            <div id="lista-notificacoes">
+                                <li><span class="dropdown-item text-muted small">Nenhuma notificação nova.</span></li>
+                            </div>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
         </div>
-    </div>
-</nav>
-
-<script type="module" src="app-notificacoes.js"></script>
+    </nav>
 
     <div class="container-fluid px-4">
-        <div class="card shadow-sm mb-4">
-            <div class="card-body py-3">
-                <div class="row align-items-end">
-                    <div class="col-md-3">
-                        <label class="fw-bold text-muted small">Mês de Referência</label>
-                        <input type="month" id="filtro-mes" class="form-control">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="fw-bold text-muted small">Visualizar Semana</label>
-                        <select id="filtro-semana" class="form-select">
-                            <option value="0">1ª Semana</option>
-                            <option value="1">2ª Semana</option>
-                            <option value="2">3ª Semana</option>
-                            <option value="3">4ª Semana</option>
-                            <option value="4">5ª Semana</option>
-                        </select>
-                    </div>
-                    <div class="col-md-6 text-end">
-                        <button onclick="gerarEscala()" class="btn btn-outline-primary btn-sm">
-                            🔄 Refazer Sorteio (Rodízio)
-                        </button>
-                    </div>
+        
+        <div class="d-flex justify-content-between align-items-center mb-4 bg-white p-3 rounded shadow-sm border">
+            <div class="d-flex gap-3 align-items-center">
+                <div>
+                    <label class="small text-muted fw-bold">Mês Referência:</label>
+                    <input type="month" id="filtro-mes" class="form-control fw-bold">
+                </div>
+                <div>
+                    <label class="small text-muted fw-bold">Semana:</label>
+                    <select id="filtro-semana" class="form-select fw-bold">
+                        <option value="0">Semana 1</option>
+                        <option value="1">Semana 2</option>
+                        <option value="2">Semana 3</option>
+                        <option value="3">Semana 4</option>
+                        <option value="4">Semana 5</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modal-feriados">
+                    🏖️ Feriados/Folgas
+                </button>
+                <button onclick="refazerSorteio()" class="btn btn-warning fw-bold shadow-sm">
+                    🎲 Refazer Sorteio da Escala
+                </button>
+            </div>
+        </div>
+
+        <div class="card shadow border-dark">
+            <div class="card-header bg-dark text-white fw-bold fs-5">
+                📅 Escala de Plantão (Recepção de Leads)
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-escala mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Data</th>
+                                <th>Vaga 1</th>
+                                <th>Vaga 2</th>
+                                <th>Vaga 3</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-body">
+                            <tr><td colspan="4" class="py-5">Carregando escala...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
 
-        <div class="table-responsive bg-white shadow rounded">
-            <table class="table table-bordered table-plantao mb-0">
-                <thead>
-                    <tr>
-                        <th class="bg-dark text-white">DATA / DIA</th>
-                        <th>CORRETOR 1</th>
-                        <th>CORRETOR 2</th>
-                        <th>CORRETOR 3</th>
-                    </tr>
-                </thead>
-                <tbody id="tabela-body">
-                    </tbody>
-            </table>
-        </div>
-        
-        <div id="loading" class="text-center mt-5 d-none">
-            <div class="spinner-border text-primary" role="status"></div>
-            <p>Carregando dados...</p>
+    </div>
+
+    <div class="modal fade" id="modal-feriados" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-secondary text-white">
+                    <h5 class="modal-title fw-bold">🏖️ Gerenciar Feriados e Folgas</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body bg-light">
+                    
+                    <form id="form-feriado" class="mb-4 p-3 border rounded bg-white shadow-sm">
+                        <h6 class="text-muted fw-bold mb-3">Adicionar Data Inativa</h6>
+                        <div class="mb-2">
+                            <label class="small fw-bold">Data:</label>
+                            <input type="date" id="data-feriado" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="small fw-bold">Motivo/Descrição:</label>
+                            <input type="text" id="desc-feriado" class="form-control" placeholder="Ex: Carnaval, Ponto Facultativo..." required>
+                        </div>
+                        <button type="submit" class="btn btn-secondary w-100 fw-bold">➕ Adicionar Folga</button>
+                    </form>
+
+                    <h6 class="text-muted fw-bold mb-2">Datas Cadastradas:</h6>
+                    <ul class="list-group shadow-sm" id="lista-feriados">
+                        <li class="list-group-item text-muted text-center py-3">Carregando...</li>
+                    </ul>
+                    
+                    <div class="alert alert-warning mt-3 small mb-0">
+                        ⚠️ <b>Aviso:</b> Adicionar ou remover um feriado irá recalcular automaticamente a escala do mês afetado para ajustar as datas.
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script type="module" src="app-plantao.js"></script>
-    <script>window.gerarEscala = () => window.refazerSorteio();</script>
+    <script type="module" src="app-notificacoes.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
