@@ -10,6 +10,11 @@ if(document.getElementById('data-compra')) {
     document.getElementById('data-compra').valueAsDate = new Date();
 }
 
+// Variáveis globais para armazenar os dados e usar no Modal
+let estadoParceiros = [];
+let estadoLeads = [];
+let estadoHistoricoCompras = [];
+
 // ==========================================
 // 1. SALVAR NOVA COMPRA
 // ==========================================
@@ -56,17 +61,12 @@ form.addEventListener('submit', async (e) => {
 // ==========================================
 // 2. LÓGICA DE ESTOQUE (TEMPO REAL)
 // ==========================================
-let estadoParceiros = [];
-let estadoLeads = [];
-
-// Fica "ouvindo" os parceiros
 onSnapshot(collection(db, "parceiros"), (snap) => {
     estadoParceiros = [];
     snap.forEach(d => estadoParceiros.push({ id: d.id, ...d.data() }));
     atualizarTabelaEstoque();
 });
 
-// Fica "ouvindo" os leads (Para calcular Distribuídos e Inválidos em tempo real)
 onSnapshot(collection(db, "leads"), (snap) => {
     estadoLeads = [];
     snap.forEach(d => estadoLeads.push(d.data()));
@@ -90,16 +90,13 @@ function atualizarTabelaEstoque() {
 
         datalistHtml += `<option value="${nomeParceiro}">`;
 
-        // Lógica de Filtro para este Parceiro Específico
         const leadsDestaFonte = estadoLeads.filter(l => l.fonte === nomeParceiro);
         const distribuidosTotal = leadsDestaFonte.length;
         const invalidos = leadsDestaFonte.filter(l => l.status === 'Lead Inválido').length;
 
-        // Calcula o Saldo
         const consumoReal = distribuidosTotal - invalidos;
         const faltam = comprados - consumoReal;
 
-        // Cores de alerta
         let classeSaldo = "text-success fw-bold";
         if (faltam <= 0) classeSaldo = "text-danger fw-bold";
         else if (faltam < (comprados * 0.1)) classeSaldo = "text-warning fw-bold";
@@ -112,12 +109,8 @@ function atualizarTabelaEstoque() {
                 <td class="${classeSaldo} fs-5">${faltam}</td>
                 <td><span class="badge bg-danger rounded-pill fs-6 px-3 py-2">${invalidos}</span></td>
                 <td>
-                    <button onclick="editar('${id}', '${comprados}')" class="btn btn-outline-warning btn-sm me-1" title="Editar Comprados (Manual)">
-                        ✏️ Editar
-                    </button>
-                    <button onclick="deletar('${id}')" class="btn btn-outline-danger btn-sm" title="Excluir Empresa">
-                        🗑️ Excluir
-                    </button>
+                    <button onclick="editar('${id}', '${comprados}')" class="btn btn-outline-warning btn-sm me-1" title="Editar Comprados">✏️</button>
+                    <button onclick="deletar('${id}')" class="btn btn-outline-danger btn-sm" title="Excluir Empresa">🗑️</button>
                 </td>
             </tr>
         `;
@@ -133,6 +126,8 @@ function atualizarTabelaEstoque() {
 const qHist = query(collection(db, "historico_compras"), orderBy("data_compra", "desc"));
 
 onSnapshot(qHist, (snapshot) => {
+    estadoHistoricoCompras = []; // Salva para o modal usar
+    
     if (snapshot.empty) {
         listaHistorico.innerHTML = '<li class="list-group-item text-center text-muted small py-3">Nenhuma compra registrada ainda.</li>';
         return;
@@ -143,11 +138,14 @@ onSnapshot(qHist, (snapshot) => {
 
     snapshot.forEach(doc => {
         const dados = doc.data();
+        estadoHistoricoCompras.push(dados); // Popula a array global
+
         const [ano, mes, dia] = dados.data_compra.split('-');
         const chaveMes = `${mesesNome[parseInt(mes) - 1]} ${ano}`;
 
         if (!agrupadoPorMes[chaveMes]) agrupadoPorMes[chaveMes] = [];
-        agrupadoPorMes[chaveMes].push({ ...dados, dia });
+        // Guardamos ano e mês puro para passar para a função do Modal
+        agrupadoPorMes[chaveMes].push({ ...dados, dia, anoOriginal: ano, mesOriginal: mes }); 
     });
 
     let html = '';
@@ -157,8 +155,12 @@ onSnapshot(qHist, (snapshot) => {
                  </li>`;
         
         compras.forEach(c => {
+            // Transformei o <li> em clicável, chamando a função abrirDetalhesMes
             html += `
-                <li class="list-group-item d-flex justify-content-between align-items-center">
+                <li class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" 
+                    style="cursor: pointer;" 
+                    onclick="abrirDetalhesMes('${c.parceiro}', '${c.anoOriginal}', '${c.mesOriginal}')"
+                    title="Clique para ver o resumo completo deste mês">
                     <div>
                         <span class="badge bg-secondary me-2">${c.dia}</span>
                         <span class="fw-bold text-dark">${c.parceiro}</span>
@@ -173,7 +175,49 @@ onSnapshot(qHist, (snapshot) => {
 });
 
 // ==========================================
-// FUNÇÕES DE EDIÇÃO E EXCLUSÃO
+// 4. FUNÇÃO DO MODAL (RAIO-X DO MÊS)
+// ==========================================
+window.abrirDetalhesMes = (parceiroNome, ano, mes) => {
+    
+    // 1. Somar compras FEITAS neste mês/ano para este parceiro
+    let compradosNoMes = 0;
+    estadoHistoricoCompras.forEach(h => {
+        if (h.parceiro === parceiroNome && h.data_compra.startsWith(`${ano}-${mes}`)) {
+            compradosNoMes += parseInt(h.qtd_comprada) || 0;
+        }
+    });
+
+    // 2. Filtrar os Leads ENTREGUES neste mês/ano oriundos deste parceiro
+    let distribuidosNoMes = 0;
+    let finalizadosNoMes = 0;
+    let invalidosNoMes = 0;
+
+    estadoLeads.forEach(lead => {
+        if (lead.fonte === parceiroNome && lead.data_entrega && lead.data_entrega.startsWith(`${ano}-${mes}`)) {
+            distribuidosNoMes++;
+            if (lead.status === 'Finalizado') finalizadosNoMes++;
+            if (lead.status === 'Lead Inválido') invalidosNoMes++;
+        }
+    });
+
+    // 3. Preencher os dados na Janelinha HTML
+    const mesesNome = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    const nomeDoMes = mesesNome[parseInt(mes) - 1];
+
+    document.getElementById('modal-titulo').innerText = `${parceiroNome} - ${nomeDoMes}/${ano}`;
+    document.getElementById('modal-comprados').innerText = compradosNoMes;
+    document.getElementById('modal-distribuidos').innerText = distribuidosNoMes;
+    document.getElementById('modal-finalizados').innerText = finalizadosNoMes;
+    document.getElementById('modal-invalidos').innerText = invalidosNoMes;
+
+    // 4. Exibir o Modal na tela
+    const modalEl = document.getElementById('modal-detalhes-historico');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+};
+
+// ==========================================
+// FUNÇÕES DE EDIÇÃO E EXCLUSÃO GERAIS
 // ==========================================
 window.editar = async (id, valorAtual) => {
     let novoValor = prompt(`Alterar a quantidade de leads COMPRADOS:`, valorAtual);
