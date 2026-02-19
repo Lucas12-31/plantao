@@ -5,23 +5,22 @@ const listaEl = document.getElementById('lista-notificacoes');
 const badgeEl = document.getElementById('badge-contador');
 
 // ======================================================
-// 1. O ROBÔ (VERIFICADOR DE REGRAS)
+// 1. O ROBÔ (VERSÃO DEBUG / TESTE)
 // ======================================================
 async function verificarRegrasDeNotificacao() {
-    console.log("🤖 Robô de notificações verificando...");
+    console.log("🤖 1. Robô iniciou a verificação...");
 
-    // Busca leads ativos (que não foram finalizados/invalidados)
-    // Para otimizar, trazemos tudo e filtramos no JS, ou filtramos no query
     const leadsSnap = await getDocs(collection(db, "leads"));
-    
-    // Busca notificações já existentes (para não criar duplicado)
     const notifSnap = await getDocs(collection(db, "notificacoes"));
-    const chavesExistentes = []; // Vamos guardar "IDLead_TipoAlerta"
     
+    // Lista de notificações que já existem
+    const chavesExistentes = [];
     notifSnap.forEach(d => {
         const dados = d.data();
         chavesExistentes.push(`${dados.lead_id}_${dados.tipo_alerta}`);
     });
+
+    console.log(`🤖 2. Encontrei ${leadsSnap.size} leads para analisar.`);
 
     const agora = new Date();
 
@@ -29,77 +28,86 @@ async function verificarRegrasDeNotificacao() {
         const lead = d.data();
         const leadId = d.id;
 
-        // Se o lead não tem data de status ou já foi finalizado/invalido, ignora
-        if (!lead.data_status) return;
+        // VALIDAÇÃO 1: TEM STATUS?
         if (["Finalizado", "Lead Inválido", "Declinado"].includes(lead.status)) return;
 
+        // VALIDAÇÃO 2: TEM DATA?
+        if (!lead.data_status) {
+            console.warn(`⚠️ Lead ${lead.cliente} não tem 'data_status'. Altere o status dele para corrigir.`);
+            return;
+        }
+
         const dataStatus = new Date(lead.data_status);
-        const diffMs = agora - dataStatus; // Diferença em milissegundos
+        const diffMs = agora - dataStatus;
         const diffHoras = diffMs / (1000 * 60 * 60);
         const diffDias = diffMs / (1000 * 60 * 60 * 24);
 
+        // LOG DO CÁLCULO (Para você ver se está funcionando)
+        // Se for o lead que você está testando, vai aparecer aqui
+        if (lead.status === "Distribuído") {
+            console.log(`🔎 Analisando ${lead.cliente}: Status há ${diffHoras.toFixed(2)} horas.`);
+        }
+
         let titulo = "";
         let mensagem = "";
-        let tipoAlerta = ""; // Identificador único da regra
+        let tipoAlerta = "";
 
-        // --- REGRA 1: Distribuído (24h depois) ---
-        if (lead.status === "Distribuído" && diffHoras >= 24) {
+        // --- REGRA DE TESTE (MUDEI PARA 0 HORAS AQUI) ---
+        // Se quiser testar 1 minuto, use 0.01
+        if (lead.status === "Distribuído" && diffHoras >= 0) { 
             titulo = "⚠️ Cobrar Corretor";
             mensagem = `Falar com o corretor sobre Cliente <b>${lead.cliente}</b>`;
             tipoAlerta = "24h_distribuido";
         }
 
-        // --- REGRA 2: Retornar depois (1 semana / 7 dias) ---
+        // Outras regras originais...
         else if (lead.status === "Retornar depois" && diffDias >= 7) {
             titulo = "📞 Retornar Contato";
             mensagem = `Retornar contato cliente <b>${lead.cliente}</b>`;
             tipoAlerta = "7d_retornar";
         }
-
-        // --- REGRA 3: Em negociação (1 semana) ---
         else if (lead.status === "Em negociação" && diffDias >= 7) {
             titulo = "👀 Acompanhamento";
             mensagem = `Falar com o corretor sobre Cliente <b>${lead.cliente}</b>`;
             tipoAlerta = "7d_negociacao";
         }
-
-        // --- REGRA 4: Proposta Gerada (1 semana) ---
         else if (lead.status === "Proposta Gerada" && diffDias >= 7) {
             titulo = "💼 Suporte Comercial";
             mensagem = `Falar com o Suporte sobre Proposta <b>${lead.cliente}</b>`;
             tipoAlerta = "7d_proposta";
         }
 
-        // --- DISPARAR NOTIFICAÇÃO (Se houver regra e não existir ainda) ---
-        if (titulo && !chavesExistentes.includes(`${leadId}_${tipoAlerta}`)) {
-            console.log(`🔔 Nova Notificação Gerada: ${mensagem}`);
-            
-            await addDoc(collection(db, "notificacoes"), {
-                lead_id: leadId,
-                titulo: titulo,
-                mensagem: mensagem,
-                tipo_alerta: tipoAlerta, // Evita duplicidade
-                lida: false,
-                timestamp: new Date().toISOString()
-            });
-            
-            // Adiciona no array local para não criar de novo no mesmo loop
-            chavesExistentes.push(`${leadId}_${tipoAlerta}`);
+        // DISPARAR
+        if (titulo) {
+            // Verifica se já notificou antes
+            if (!chavesExistentes.includes(`${leadId}_${tipoAlerta}`)) {
+                console.log(`✅ CRIANDO NOTIFICAÇÃO PARA: ${lead.cliente}`);
+                
+                await addDoc(collection(db, "notificacoes"), {
+                    lead_id: leadId,
+                    titulo: titulo,
+                    mensagem: mensagem,
+                    tipo_alerta: tipoAlerta,
+                    lida: false,
+                    timestamp: new Date().toISOString()
+                });
+                chavesExistentes.push(`${leadId}_${tipoAlerta}`); // Evita duplicar no mesmo loop
+            } else {
+                console.log(`ℹ️ Notificação já existe para: ${lead.cliente}`);
+            }
         }
     });
 }
 
 // ======================================================
-// 2. A UI (EXIBIR E MARCAR COMO LIDA)
+// 2. A UI (VISUAL)
 // ======================================================
-
-// Escuta notificações em tempo real
 const q = query(collection(db, "notificacoes"), where("lida", "==", false), orderBy("timestamp", "desc"));
 
 onSnapshot(q, (snapshot) => {
     const qtd = snapshot.size;
+    console.log(`🔔 Atualizando sino: ${qtd} notificações não lidas.`);
 
-    // Atualiza o Badge (Contador)
     if (qtd > 0) {
         badgeEl.textContent = qtd;
         badgeEl.classList.remove('d-none');
@@ -107,16 +115,13 @@ onSnapshot(q, (snapshot) => {
         badgeEl.classList.add('d-none');
     }
 
-    // Renderiza a Lista
     let html = '';
     if (qtd === 0) {
         html = '<li><span class="dropdown-item text-muted small text-center py-3">Tudo limpo! 🍃</span></li>';
     } else {
         snapshot.forEach(doc => {
             const n = doc.data();
-            // Formatar data curta
             const dataN = new Date(n.timestamp).toLocaleDateString('pt-BR');
-
             html += `
                 <li>
                     <a class="dropdown-item p-2 border-bottom" href="#" onclick="lerNotificacao('${doc.id}', event)">
@@ -124,33 +129,22 @@ onSnapshot(q, (snapshot) => {
                             <strong class="mb-1 text-primary" style="font-size:0.85rem">${n.titulo}</strong>
                             <small class="text-muted" style="font-size:0.7rem">${dataN}</small>
                         </div>
-                        <p class="mb-1 text-wrap" style="font-size:0.8rem; line-height: 1.2;">
-                            ${n.mensagem}
-                        </p>
-                        <small class="text-muted" style="font-size:0.7rem">Clique para marcar como lida</small>
+                        <p class="mb-1 text-wrap" style="font-size:0.8rem; line-height: 1.2;">${n.mensagem}</p>
                     </a>
-                </li>
-            `;
+                </li>`;
         });
     }
-    
     if(listaEl) listaEl.innerHTML = html;
 });
 
-// Função Global para marcar como lida
 window.lerNotificacao = async (id, event) => {
-    // Evita fechar o dropdown instantaneamente (opcional)
     if(event) event.preventDefault();
-
     try {
-        const ref = doc(db, "notificacoes", id);
-        await updateDoc(ref, { lida: true });
-    } catch (error) {
-        console.error(error);
-    }
+        await updateDoc(doc(db, "notificacoes", id), { lida: true });
+    } catch (error) { console.error(error); }
 };
 
-// Roda o robô verificador a cada 60 segundos (para não sobrecarregar)
-// E roda uma vez assim que abre a página
+// Roda imediatamente
 verificarRegrasDeNotificacao();
+// E repete a cada 60s
 setInterval(verificarRegrasDeNotificacao, 60000);
