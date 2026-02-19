@@ -54,7 +54,7 @@ async function verificarRegrasDeNotificacao() {
 
         // --- REGRA DE TESTE (MUDEI PARA 0 HORAS AQUI) ---
         // Se quiser testar 1 minuto, use 0.01
-        if (lead.status === "Distribuído" && diffHoras >= 0) { 
+        if (lead.status === "Distribuído" && diffHoras >= 24) { 
             titulo = "⚠️ Cobrar Corretor";
             mensagem = `Falar com o corretor sobre Cliente <b>${lead.cliente}</b>`;
             tipoAlerta = "24h_distribuido";
