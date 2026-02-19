@@ -1,14 +1,11 @@
 import { db } from "./firebase-config.js";
 import { collection, getDocs, updateDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// --- PARTE 1: MONITORAMENTO DE ESTOQUE (NOVO) ---
-// Roda automaticamente assim que abre a página para preencher a tabelinha lateral
+// --- PARTE 1: MONITORAMENTO DE ESTOQUE (ATUALIZADO COM INVÁLIDOS) ---
 async function carregarEstoqueParceiros() {
     const tabelaEstoque = document.getElementById('tabela-estoque-parceiros');
 
-    // Escuta em tempo real para atualizar os números se alguém cadastrar lead
     onSnapshot(collection(db, "parceiros"), async (snapParceiros) => {
-        // Precisamos buscar os leads para contar
         const snapLeads = await getDocs(collection(db, "leads"));
         const leads = [];
         snapLeads.forEach(l => leads.push(l.data()));
@@ -20,11 +17,17 @@ async function carregarEstoqueParceiros() {
             const nomeParceiro = p.nome;
             const comprados = parseInt(p.leads_comprados) || 0;
 
-            // CONTA MÁGICA: Filtra quantos leads têm essa fonte
-            const distribuidos = leads.filter(l => l.fonte === nomeParceiro).length;
-            const faltam = comprados - distribuidos;
+            // Filtra os leads específicos dessa fonte
+            const leadsDestaFonte = leads.filter(l => l.fonte === nomeParceiro);
+            const distribuidosTotal = leadsDestaFonte.length;
 
-            // Cor de alerta se estiver acabando (menos de 10%)
+            // Conta quantos foram marcados como inválidos
+            const invalidos = leadsDestaFonte.filter(l => l.status === 'Lead Inválido').length;
+
+            // Calcula o consumo real (descontando os inválidos, pois serão repostos)
+            const consumoReal = distribuidosTotal - invalidos;
+            const faltam = comprados - consumoReal;
+
             let classeSaldo = "text-success fw-bold";
             if (faltam <= 0) classeSaldo = "text-danger fw-bold";
             else if (faltam < (comprados * 0.1)) classeSaldo = "text-warning fw-bold";
@@ -35,24 +38,24 @@ async function carregarEstoqueParceiros() {
                         ${nomeParceiro}
                     </td>
                     <td>${comprados}</td>
-                    <td>${distribuidos}</td>
+                    <td>${distribuidosTotal}</td>
                     <td class="${classeSaldo}">${faltam}</td>
+                    <td>
+                        <span class="badge bg-danger rounded-pill">${invalidos}</span>
+                    </td>
                 </tr>
             `;
         });
 
-        if (html === '') html = '<tr><td colspan="4">Nenhum parceiro.</td></tr>';
+        if (html === '') html = '<tr><td colspan="5" class="text-muted">Nenhum parceiro.</td></tr>';
         
-        // Verifica se o elemento existe antes de escrever (evita erro em outras páginas)
         if(tabelaEstoque) tabelaEstoque.innerHTML = html;
     });
 }
 
-// Inicia o monitoramento
 carregarEstoqueParceiros();
 
-
-// --- PARTE 2: LÓGICA DE DISTRIBUIÇÃO (Mantida Original) ---
+// --- PARTE 2: LÓGICA DE DISTRIBUIÇÃO ---
 let resultadoParaSalvar = [];
 
 window.executarLogica = async () => {
@@ -86,7 +89,6 @@ window.executarLogica = async () => {
         return;
     }
 
-    // Zera contadores
     elegiveis.forEach(c => { c.temp_leadsPME = 0; c.temp_leadsPF = 0; c.temp_motivo = ""; });
 
     // 1. Bônus Progressivo
@@ -149,11 +151,11 @@ window.salvarNoBanco = async () => {
     try {
         for (const c of resultadoParaSalvar) {
             const docRef = doc(db, "corretores", c.id);
+            // ATENÇÃO: Aqui usamos o += (increment) do firebase ou setamos o novo saldo?
+            // Como combinamos, a distribuição sobrepõe o saldo (Meta a receber)
             await updateDoc(docRef, {
                 saldo_pme: c.temp_leadsPME,
-                saldo_pf: c.temp_leadsPF,
-                leads_entregues_pme: 0,
-                leads_entregues_pf: 0
+                saldo_pf: c.temp_leadsPF
             });
         }
         alert("✅ Distribuição salva com sucesso!");
