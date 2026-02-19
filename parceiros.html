@@ -5,83 +5,97 @@
     <title>Gestão de Parceiros</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body>
+<body class="bg-light">
 
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow border-bottom border-secondary">
-    <div class="container">
-        <a class="navbar-brand fw-bold" href="index.html">🍋 Sistema Limão</a>
-        
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="index.html">🍋 Sistema Limão</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto align-items-center gap-3" style="font-size: 0.95rem;">
+                    <li class="nav-item"><a class="nav-link text-light" href="cadastro.html">👥 Cadastro</a></li>
+                    <li class="nav-item"><a class="nav-link text-warning fw-bold border-bottom border-warning" href="parceiros.html">🤝 Parceiros</a></li>
+                    <li class="nav-item"><a class="nav-link text-success fw-bold" href="producao.html">💰 Produção</a></li>
+                    <li class="nav-item d-none d-lg-block text-secondary">|</li>
+                    <li class="nav-item"><a class="nav-link text-warning fw-bold" href="distribuicao.html">🎲 Distribuição</a></li>
+                    <li class="nav-item"><a class="nav-link text-info fw-bold" href="plantao.html">📅 Plantão</a></li>
+                    <li class="nav-item"><a class="nav-link text-danger fw-bold" href="leads.html">🔥 Leads</a></li>
 
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto align-items-center gap-3" style="font-size: 0.95rem;">
-                
-                <li class="nav-item"><a class="nav-link text-light" href="cadastro.html">👥 Cadastro</a></li>
-                <li class="nav-item"><a class="nav-link text-light" href="parceiros.html">🤝 Parceiros</a></li>
-                <li class="nav-item"><a class="nav-link text-success fw-bold" href="producao.html">💰 Produção</a></li>
-                <li class="nav-item d-none d-lg-block text-secondary">|</li>
-                <li class="nav-item"><a class="nav-link text-warning fw-bold" href="distribuicao.html">🎲 Distribuição</a></li>
-                <li class="nav-item"><a class="nav-link text-info fw-bold" href="plantao.html">📅 Plantão</a></li>
-                <li class="nav-item"><a class="nav-link text-danger fw-bold" href="leads.html">🔥 Leads</a></li>
-
-                <li class="nav-item dropdown">
-                    <a class="nav-link position-relative" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <span style="font-size: 1.2rem;">🔔</span>
-                        <span id="badge-contador" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" style="font-size: 0.6rem;">
-                            0
-                        </span>
-                    </a>
-                    <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="navbarDropdown" style="width: 320px; max-height: 400px; overflow-y: auto;">
-                        <li><h6 class="dropdown-header">Notificações / Lembretes</h6></li>
-                        <div id="lista-notificacoes">
-                            <li><span class="dropdown-item text-muted small">Nenhuma notificação nova.</span></li>
-                        </div>
-                    </ul>
-                </li>
-
-            </ul>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link position-relative" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span style="font-size: 1.2rem;">🔔</span>
+                            <span id="badge-contador" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" style="font-size: 0.6rem;">0</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="navbarDropdown" style="width: 320px; max-height: 400px; overflow-y: auto;">
+                            <li><h6 class="dropdown-header">Notificações / Lembretes</h6></li>
+                            <div id="lista-notificacoes">
+                                <li><span class="dropdown-item text-muted small">Nenhuma notificação nova.</span></li>
+                            </div>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
         </div>
-    </div>
-</nav>
-
-<script type="module" src="app-notificacoes.js"></script>
+    </nav>
 
     <div class="container">
         <div class="row">
+            
             <div class="col-md-4">
-                <div class="card shadow border-info">
-                    <div class="card-header bg-info text-white">
-                        <strong>Novo Parceiro / Compra</strong>
+                
+                <div class="card shadow border-info mb-4">
+                    <div class="card-header bg-info text-white fw-bold">
+                        Novo Parceiro / Compra
                     </div>
                     <div class="card-body">
                         <form id="form-parceiro">
                             <div class="mb-3">
-                                <label>Nome da Empresa (Fonte)</label>
-                                <input type="text" id="nome-parceiro" class="form-control" placeholder="Ex: Just Sell, Facebook..." required>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label>Quantidade Comprada</label>
-                                <input type="number" id="qtd-leads" class="form-control" placeholder="0" required>
-                                <small class="text-muted">Total de leads adquiridos neste pacote.</small>
+                                <label class="form-label text-muted small fw-bold mb-1">Nome da Empresa (Fonte)</label>
+                                <input type="text" id="nome-parceiro" class="form-control" list="lista-empresas" placeholder="Ex: Just Sell..." required>
+                                <datalist id="lista-empresas"></datalist>
                             </div>
 
-                            <button type="submit" class="btn btn-info text-white w-100 fw-bold">Salvar Parceiro</button>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Data da Compra</label>
+                                <input type="date" id="data-compra" class="form-control" required>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label text-muted small fw-bold mb-1">Quantidade Comprada</label>
+                                <input type="number" id="qtd-leads" class="form-control" placeholder="0" required>
+                                <small class="text-muted" style="font-size: 0.75rem;">Total de leads adquiridos neste pacote.</small>
+                            </div>
+
+                            <button type="submit" class="btn btn-info text-white w-100 fw-bold">Salvar Compra</button>
                         </form>
                     </div>
                 </div>
+
+                <div class="card shadow border-secondary mb-4">
+                    <div class="card-header bg-secondary text-white fw-bold d-flex justify-content-between">
+                        <span>📅 Histórico de Compras</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <ul class="list-group list-group-flush" id="lista-historico">
+                            <li class="list-group-item text-center text-muted small py-3">Carregando histórico...</li>
+                        </ul>
+                    </div>
+                </div>
+
             </div>
 
             <div class="col-md-8">
-                <h4>💼 Carteira de Parceiros</h4>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle">
+                <h4 class="mb-3 d-flex align-items-center gap-2">
+                    💼 Carteira de Parceiros (Estoque Atual)
+                </h4>
+                <div class="table-responsive shadow-sm rounded">
+                    <table class="table table-striped table-hover align-middle mb-0">
                         <thead class="table-dark">
                             <tr>
                                 <th>Empresa</th>
-                                <th>Leads Comprados</th>
+                                <th>Leads Disponíveis</th>
                                 <th>Ações</th>
                             </tr>
                         </thead>
@@ -89,11 +103,16 @@
                             </tbody>
                     </table>
                 </div>
+                <small class="text-muted mt-2 d-block">
+                    * A quantidade nesta tabela diminui automaticamente conforme os leads são distribuídos no sistema.
+                </small>
             </div>
+
         </div>
     </div>
 
     <script type="module" src="app-parceiros.js"></script>
+    <script type="module" src="app-notificacoes.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
