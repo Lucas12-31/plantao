@@ -5,121 +5,99 @@
     <title>Distribuição Equipe Limão</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body>
+<body class="bg-light">
+
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow border-bottom border-secondary">
-    <div class="container">
-        <a class="navbar-brand fw-bold" href="index.html">🍋 Sistema Limão</a>
-        
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="index.html">🍋 Sistema Limão</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto align-items-center gap-3" style="font-size: 0.95rem;">
+                    <li class="nav-item"><a class="nav-link text-light" href="cadastro.html">👥 Cadastro</a></li>
+                    <li class="nav-item"><a class="nav-link text-light" href="parceiros.html">🤝 Parceiros</a></li>
+                    <li class="nav-item"><a class="nav-link text-success fw-bold" href="producao.html">💰 Produção</a></li>
+                    <li class="nav-item d-none d-lg-block text-secondary">|</li>
+                    <li class="nav-item"><a class="nav-link text-warning fw-bold border-bottom border-warning" href="distribuicao.html">🎲 Distribuição</a></li>
+                    <li class="nav-item"><a class="nav-link text-info fw-bold" href="plantao.html">📅 Plantão</a></li>
+                    <li class="nav-item"><a class="nav-link text-danger fw-bold" href="leads.html">🔥 Leads</a></li>
 
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto align-items-center gap-3" style="font-size: 0.95rem;">
-                
-                <li class="nav-item"><a class="nav-link text-light" href="cadastro.html">👥 Cadastro</a></li>
-                <li class="nav-item"><a class="nav-link text-light" href="parceiros.html">🤝 Parceiros</a></li>
-                <li class="nav-item"><a class="nav-link text-success fw-bold" href="producao.html">💰 Produção</a></li>
-                <li class="nav-item d-none d-lg-block text-secondary">|</li>
-                <li class="nav-item"><a class="nav-link text-warning fw-bold" href="distribuicao.html">🎲 Distribuição</a></li>
-                <li class="nav-item"><a class="nav-link text-info fw-bold" href="plantao.html">📅 Plantão</a></li>
-                <li class="nav-item"><a class="nav-link text-danger fw-bold" href="leads.html">🔥 Leads</a></li>
-
-                <li class="nav-item dropdown">
-                    <a class="nav-link position-relative" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <span style="font-size: 1.2rem;">🔔</span>
-                        <span id="badge-contador" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" style="font-size: 0.6rem;">
-                            0
-                        </span>
-                    </a>
-                    <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="navbarDropdown" style="width: 320px; max-height: 400px; overflow-y: auto;">
-                        <li><h6 class="dropdown-header">Notificações / Lembretes</h6></li>
-                        <div id="lista-notificacoes">
-                            <li><span class="dropdown-item text-muted small">Nenhuma notificação nova.</span></li>
-                        </div>
-                    </ul>
-                </li>
-
-            </ul>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link position-relative" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span style="font-size: 1.2rem;">🔔</span>
+                            <span id="badge-contador" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" style="font-size: 0.6rem;">0</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="navbarDropdown" style="width: 320px; max-height: 400px; overflow-y: auto;">
+                            <li><h6 class="dropdown-header">Notificações / Lembretes</h6></li>
+                            <div id="lista-notificacoes">
+                                <li><span class="dropdown-item text-muted small">Nenhuma notificação nova.</span></li>
+                            </div>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
         </div>
-    </div>
-</nav>
+    </nav>
 
-<script type="module" src="app-notificacoes.js"></script>
     <div class="container">
+        
         <div class="row">
             <div class="col-md-4">
-                <div class="card shadow">
-                    <div class="card-header bg-warning text-dark">
-                        <strong>⚙️ Configuração do Dia</strong>
+                <div class="card shadow border-warning">
+                    <div class="card-header bg-warning text-dark fw-bold">
+                        ⚙️ Configuração do Dia
                     </div>
                     <div class="card-body">
-                        <label>Leads PME Disponíveis Hoje:</label>
-                        <input type="number" id="leads-pme-total" class="form-control mb-3" value="10">
-
-                        <label>Leads PF Disponíveis Hoje:</label>
-                        <input type="number" id="leads-pf-total" class="form-control mb-3" value="20">
-
-                        <hr>
-                        <button onclick="calcularDistribuicao()" class="btn btn-primary w-100">
+                        <div class="mb-3">
+                            <label>Leads PME Disponíveis Hoje:</label>
+                            <input type="number" id="leads-pme-total" class="form-control" value="0" min="0">
+                        </div>
+                        <div class="mb-4">
+                            <label>Leads PF Disponíveis Hoje:</label>
+                            <input type="number" id="leads-pf-total" class="form-control" value="0" min="0">
+                        </div>
+                        <button onclick="executarLogica()" class="btn btn-primary w-100 fw-bold shadow-sm">
                             🎲 Rodar Distribuição
                         </button>
-                        <button id="btn-salvar-db" onclick="salvarNoBanco()" class="btn btn-success w-100 mt-3 d-none">
-                            💾 Confirmar e Salvar no Sistema
-                        </button>
+
+                        <div id="alert-sobras" class="alert alert-danger mt-3 d-none py-2" style="font-size: 0.85rem;"></div>
                     </div>
                 </div>
             </div>
-            
+
             <div class="col-md-8">
-                <h3>Resultado da Distribuição</h3>
-                <div id="alert-sobras" class="alert alert-info d-none"></div>
-                
-                <table class="table table-bordered table-hover">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>Corretor</th>
-                            <th>Status</th>
-                            <th>Meta (R$)</th>
-                            <th>Leads PME</th>
-                            <th>Leads PF</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tabela-resultado">
+                <h3 class="mb-3">Resultado da Distribuição</h3>
+                <div class="table-responsive shadow-sm rounded">
+                    <table class="table table-striped align-middle mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Corretor</th>
+                                <th>Status</th>
+                                <th>Meta (R$)</th>
+                                <th>Leads PME</th>
+                                <th>Leads PF</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-resultado">
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-4">Clique em "Rodar Distribuição" para calcular.</td>
+                            </tr>
                         </tbody>
-                </table>
+                    </table>
+                </div>
+
+                <div class="text-end mt-4">
+                    <button id="btn-salvar-db" onclick="salvarNoBanco()" class="btn btn-success btn-lg fw-bold d-none shadow">
+                        💾 Confirmar e Salvar no Plantão
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
-     <div class="card shadow mt-4">
-    <div class="card-header bg-secondary text-white">
-        <strong>📦 Estoque de Parceiros</strong>
-    </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-sm table-striped mb-0 text-center" style="font-size: 0.85rem;">
-                <thead class="table-dark">
-                    <tr>
-                        <th class="text-start ps-3">Fonte</th>
-                        <th>Comp.</th>
-                        <th>Dist.</th>
-                        <th>Restam</th>
-                        <th>Inválidos</th> </tr>
-                </thead>
-                <tbody id="tabela-estoque-parceiros">
-                    <tr><td colspan="5">Carregando estoque...</td></tr> 
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-    
     <script type="module" src="app-distribuicao.js"></script>
-    <script>
-        window.calcularDistribuicao = () => window.executarLogica();
-    </script>
+    <script type="module" src="app-notificacoes.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
