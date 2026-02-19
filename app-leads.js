@@ -7,7 +7,14 @@ const form = document.getElementById('form-lead');
 const tabela = document.getElementById('tabela-leads');
 const inputBusca = document.getElementById('busca-leads');
 
-// Memória Global
+// Verifica se viemos de um clique em notificação
+const urlParams = new URLSearchParams(window.location.search);
+const buscaDaUrl = urlParams.get('busca');
+
+if (buscaDaUrl && inputBusca) {
+    inputBusca.value = buscaDaUrl;
+}
+
 let memoriaLeads = [];
 
 const STATUS_OPCOES = [
@@ -20,7 +27,6 @@ const STATUS_OPCOES = [
     { valor: "Lead Inválido", label: "🔴 Lead Inválido" }
 ];
 
-// 1. CARREGAR SELECTS
 async function carregarCorretores() {
     onSnapshot(collection(db, "corretores"), (snapshot) => {
         let html = '<option value="">Selecione um corretor...</option>';
@@ -50,7 +56,6 @@ async function carregarParceiros() {
 carregarCorretores();
 carregarParceiros();
 
-// 2. SALVAR NOVO LEAD
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -60,6 +65,7 @@ form.addEventListener('submit', async (e) => {
     const tipo = document.getElementById('tipo-lead').value; 
     const dataChegada = document.getElementById('data-chegada').value;
     const dataEntrega = document.getElementById('data-entrega').value;
+    const observacao = document.getElementById('obs-lead').value; // <-- Pega a Observação
     const statusInicial = document.getElementById('status-lead').value;
     
     const idCorretor = selectCorretor.value;
@@ -73,6 +79,7 @@ form.addEventListener('submit', async (e) => {
             tipo: tipo,
             data_chegada: dataChegada,
             data_entrega: dataEntrega,
+            observacao: observacao, // <-- Salva a observação no banco
             status: statusInicial,
             corretor_id: idCorretor,
             corretor_nome: nomeCorretor,
@@ -91,24 +98,20 @@ form.addEventListener('submit', async (e) => {
     }
 });
 
-// 3. SISTEMA DE BUSCA / FILTRO INTELIGENTE
 function filtrarE_Renderizar() {
-    if(!inputBusca) return; // Se o campo de busca não existir, ignora
+    if(!inputBusca) return; 
     
     const termoDeBusca = inputBusca.value.toLowerCase().trim(); 
     
-    // Filtra a memória de leads
     const leadsFiltrados = memoriaLeads.filter(lead => {
-        // Junta todos os dados em um texto só, prevenindo erros se algo estiver vazio
-        const textoBusca = `${lead.cliente || ''} ${lead.corretor_nome || ''} ${lead.fonte || ''} ${lead.status || ''} ${lead.tipo || ''}`.toLowerCase();
+        // Agora o texto da busca também lê o que está dentro das observações!
+        const textoBusca = `${lead.cliente || ''} ${lead.corretor_nome || ''} ${lead.fonte || ''} ${lead.status || ''} ${lead.tipo || ''} ${lead.observacao || ''}`.toLowerCase();
         return textoBusca.includes(termoDeBusca);
     });
 
-    // Manda desenhar apenas os filtrados
     renderizarTabela(leadsFiltrados);
 }
 
-// 4. BUSCAR DADOS DO FIREBASE EM TEMPO REAL
 const q = query(collection(db, "leads"), orderBy("timestamp", "desc")); 
 
 onSnapshot(q, (snapshot) => {
@@ -117,16 +120,13 @@ onSnapshot(q, (snapshot) => {
         memoriaLeads.push({ id: doc.id, ...doc.data() });
     });
     
-    // Assim que chegam novos dados do banco, ele aplica o filtro (se houver) e renderiza
     filtrarE_Renderizar();
 });
 
-// Aciona o filtro sempre que o usuário digitar algo
 if(inputBusca) {
     inputBusca.addEventListener('input', filtrarE_Renderizar);
 }
 
-// 5. FUNÇÃO PARA DESENHAR A TABELA HTML
 function renderizarTabela(listaDeLeads) {
     let html = '';
     
@@ -153,17 +153,26 @@ function renderizarTabela(listaDeLeads) {
         });
         selectStatus += `</select>`;
 
+        // Renderização da Observação
+        let htmlObs = '';
+        if (d.observacao && d.observacao.trim() !== '') {
+            // Usa text-truncate para não esticar a tabela, o texto completo aparece ao passar o mouse (title)
+            htmlObs = `<div class="small text-muted fst-italic text-truncate mt-1" style="max-width: 180px;" title="${d.observacao}">
+                          📝 ${d.observacao}
+                       </div>`;
+        }
+
         html += `
             <tr>
                 <td>${dataFormatada}</td>
                 <td><span class="fw-bold text-uppercase">${d.corretor_nome.split(' ')[0]}</span></td>
                 <td>
-                    <div class="fw-bold text-truncate" style="max-width: 140px;" title="${d.cliente}">${d.cliente}</div>
+                    <div class="fw-bold text-truncate" style="max-width: 180px;" title="${d.cliente}">${d.cliente}</div>
                     <div class="small">
                         <span class="badge ${badgeTipo}">${(d.tipo || '').toUpperCase()}</span>
                         <span class="text-muted ms-1">${d.telefone || ''}</span>
                     </div>
-                </td>
+                    ${htmlObs} </td>
                 <td><small>${d.fonte}</small></td>
                 <td>${selectStatus}</td>
                 <td>
@@ -177,9 +186,6 @@ function renderizarTabela(listaDeLeads) {
     tabela.innerHTML = html;
 }
 
-// ========================================================
-// FUNÇÕES GLOBAIS
-// ========================================================
 window.mudarStatus = async (id, novoStatus) => {
     try {
         const docRef = doc(db, "leads", id);
