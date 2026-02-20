@@ -7,7 +7,6 @@ const form = document.getElementById('form-lead');
 const tabela = document.getElementById('tabela-leads');
 const inputBusca = document.getElementById('busca-leads');
 
-// Verifica se viemos de um clique em notificação
 const urlParams = new URLSearchParams(window.location.search);
 const buscaDaUrl = urlParams.get('busca');
 
@@ -65,7 +64,7 @@ form.addEventListener('submit', async (e) => {
     const tipo = document.getElementById('tipo-lead').value; 
     const dataChegada = document.getElementById('data-chegada').value;
     const dataEntrega = document.getElementById('data-entrega').value;
-    const observacao = document.getElementById('obs-lead').value; // <-- Pega a Observação
+    const observacao = document.getElementById('obs-lead').value; 
     const statusInicial = document.getElementById('status-lead').value;
     
     const idCorretor = selectCorretor.value;
@@ -79,7 +78,7 @@ form.addEventListener('submit', async (e) => {
             tipo: tipo,
             data_chegada: dataChegada,
             data_entrega: dataEntrega,
-            observacao: observacao, // <-- Salva a observação no banco
+            observacao: observacao, 
             status: statusInicial,
             corretor_id: idCorretor,
             corretor_nome: nomeCorretor,
@@ -87,7 +86,29 @@ form.addEventListener('submit', async (e) => {
             data_status: new Date().toISOString() 
         });
         
-        alert("Lead cadastrado com sucesso!");
+        // ==========================================
+        // LÓGICA DA MENSAGEM DO WHATSAPP PADRÃO
+        // ==========================================
+        
+        // Pega apenas o primeiro nome do corretor
+        const primeiroNome = nomeCorretor.split(' ')[0];
+        
+        // Se a observação estiver vazia, coloca "Nenhuma"
+        const textoObs = observacao.trim() !== '' ? observacao : "Nenhuma observação";
+        
+        // Monta a string do jeitinho que você pediu (usando crases ` ` para pular linha)
+        const mensagem = `Oi, ${primeiroNome}! 🍋😎\nChegou uma OPORTUNIDADE pra você!\n\nCliente na pista, venda na mira 🎯\nAgora é contigo transformar lead em contrato! 💰🔥\n\nDados do lead:\nCliente: ${nomeLead}\nTel: ${telefone}\nObservações: ${textoObs}\n\nVai lá e arrebenta! 💥🍋🚀`;
+
+        // Joga a mensagem dentro da caixa de texto do Modal
+        document.getElementById('texto-mensagem-copiar').value = mensagem;
+
+        // Mostra a janelinha
+        const modalMsg = new bootstrap.Modal(document.getElementById('modal-mensagem-lead'));
+        modalMsg.show();
+
+        // ==========================================
+        
+        // Reseta o formulário por trás para o próximo cadastro
         form.reset();
         document.getElementById('data-chegada').valueAsDate = new Date();
         document.getElementById('data-entrega').valueAsDate = new Date();
@@ -104,7 +125,6 @@ function filtrarE_Renderizar() {
     const termoDeBusca = inputBusca.value.toLowerCase().trim(); 
     
     const leadsFiltrados = memoriaLeads.filter(lead => {
-        // Agora o texto da busca também lê o que está dentro das observações!
         const textoBusca = `${lead.cliente || ''} ${lead.corretor_nome || ''} ${lead.fonte || ''} ${lead.status || ''} ${lead.tipo || ''} ${lead.observacao || ''}`.toLowerCase();
         return textoBusca.includes(termoDeBusca);
     });
@@ -153,10 +173,8 @@ function renderizarTabela(listaDeLeads) {
         });
         selectStatus += `</select>`;
 
-        // Renderização da Observação
         let htmlObs = '';
         if (d.observacao && d.observacao.trim() !== '') {
-            // Usa text-truncate para não esticar a tabela, o texto completo aparece ao passar o mouse (title)
             htmlObs = `<div class="small text-muted fst-italic text-truncate mt-1" style="max-width: 180px;" title="${d.observacao}">
                           📝 ${d.observacao}
                        </div>`;
@@ -172,7 +190,8 @@ function renderizarTabela(listaDeLeads) {
                         <span class="badge ${badgeTipo}">${(d.tipo || '').toUpperCase()}</span>
                         <span class="text-muted ms-1">${d.telefone || ''}</span>
                     </div>
-                    ${htmlObs} </td>
+                    ${htmlObs}
+                </td>
                 <td><small>${d.fonte}</small></td>
                 <td>${selectStatus}</td>
                 <td>
@@ -208,4 +227,34 @@ window.deletarLead = async (id) => {
             alert("Erro ao excluir.");
         }
     }
+};
+
+// ==========================================
+// FUNÇÃO DE COPIAR TEXTO DO WHATSAPP
+// ==========================================
+window.copiarMensagemLead = () => {
+    const textarea = document.getElementById('texto-mensagem-copiar');
+    
+    // Seleciona o texto dentro da caixa (importante para funcionar no celular)
+    textarea.select();
+    textarea.setSelectionRange(0, 99999); 
+    
+    // Usa a API nativa do navegador para jogar no Ctrl+C
+    navigator.clipboard.writeText(textarea.value).then(() => {
+        // Pega o botão e muda a cor/texto dele temporariamente para dar o aviso de sucesso!
+        const btn = document.getElementById('btn-copiar-msg');
+        const textoOriginal = btn.innerHTML;
+        
+        btn.innerHTML = "✅ Mensagem Copiada!";
+        btn.classList.replace('btn-success', 'btn-dark'); // Fica preto pra destacar
+        
+        // Depois de 2 segundos, o botão volta ao normal
+        setTimeout(() => {
+            btn.innerHTML = textoOriginal;
+            btn.classList.replace('btn-dark', 'btn-success');
+        }, 2000);
+    }).catch(err => {
+        console.error('Erro ao copiar: ', err);
+        alert("Não foi possível copiar automaticamente. Selecione o texto e copie manualmente.");
+    });
 };
