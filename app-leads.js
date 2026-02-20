@@ -15,6 +15,7 @@ if (buscaDaUrl && inputBusca) {
 }
 
 let memoriaLeads = [];
+window.telefoneCorretorAtual = ""; // Variável global para o botão do WhatsApp saber pra quem enviar
 
 const STATUS_OPCOES = [
     { valor: "Distribuído", label: "🔵 Distribuído" },
@@ -26,12 +27,17 @@ const STATUS_OPCOES = [
     { valor: "Lead Inválido", label: "🔴 Lead Inválido" }
 ];
 
+// ==========================================
+// CARREGAR DADOS INICIAIS
+// ==========================================
 async function carregarCorretores() {
     onSnapshot(collection(db, "corretores"), (snapshot) => {
         let html = '<option value="">Selecione um corretor...</option>';
         snapshot.forEach(doc => {
             let d = doc.data();
-            html += `<option value="${doc.id}">${d.nome}</option>`;
+            // Agora pegamos o telefone do corretor e salvamos no botão <option> invisivelmente
+            let tel = d.telefone || '';
+            html += `<option value="${doc.id}" data-telefone="${tel}">${d.nome}</option>`;
         });
         selectCorretor.innerHTML = html;
     });
@@ -55,6 +61,9 @@ async function carregarParceiros() {
 carregarCorretores();
 carregarParceiros();
 
+// ==========================================
+// SALVAR NOVO LEAD
+// ==========================================
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -67,8 +76,10 @@ form.addEventListener('submit', async (e) => {
     const observacao = document.getElementById('obs-lead').value; 
     const statusInicial = document.getElementById('status-lead').value;
     
-    const idCorretor = selectCorretor.value;
-    const nomeCorretor = selectCorretor.options[selectCorretor.selectedIndex].text;
+    const opCorretor = selectCorretor.options[selectCorretor.selectedIndex];
+    const idCorretor = opCorretor.value;
+    const nomeCorretor = opCorretor.text;
+    const telefoneCorretor = opCorretor.getAttribute('data-telefone') || ''; // Puxa o tel do corretor
 
     try {
         await addDoc(collection(db, "leads"), {
@@ -82,18 +93,22 @@ form.addEventListener('submit', async (e) => {
             status: statusInicial,
             corretor_id: idCorretor,
             corretor_nome: nomeCorretor,
+            corretor_telefone: telefoneCorretor, // Salva o tel para o futuro
             timestamp: new Date().toISOString(),
             data_status: new Date().toISOString() 
         });
         
-        // MENSAGEM DO WHATSAPP ATUALIZADA
+        // MENSAGEM DO WHATSAPP
         const primeiroNome = nomeCorretor.split(' ')[0];
         const textoObs = observacao.trim() !== '' ? observacao : "Nenhuma observação";
-        const tipoFormatado = tipo.toUpperCase(); // Garante que fique PME ou PF maiúsculo
+        const tipoFormatado = tipo.toUpperCase(); 
         
         const mensagem = `Oi, ${primeiroNome}! 🍋😎\nChegou uma OPORTUNIDADE pra você!\n\nCliente na pista, venda na mira 🎯\nAgora é contigo transformar lead em contrato! 💰🔥\n\n*Dados:*\n*Cliente:* ${nomeLead}\n*Tel:* ${telefone}\n*Tipo:* ${tipoFormatado}\n*Observações:* ${textoObs}\n\nVai lá e arrebenta! 💥🍋🚀`;
 
         document.getElementById('texto-mensagem-copiar').value = mensagem;
+        
+        // Define o telefone para o botão do WhatsApp usar
+        window.telefoneCorretorAtual = telefoneCorretor;
 
         const modalMsg = bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-mensagem-lead'));
         modalMsg.show();
@@ -108,9 +123,11 @@ form.addEventListener('submit', async (e) => {
     }
 });
 
+// ==========================================
+// RENDERIZAR TABELA
+// ==========================================
 function filtrarE_Renderizar() {
     if(!inputBusca) return; 
-    
     const termoDeBusca = inputBusca.value.toLowerCase().trim(); 
     
     const leadsFiltrados = memoriaLeads.filter(lead => {
@@ -128,13 +145,10 @@ onSnapshot(q, (snapshot) => {
     snapshot.forEach(doc => {
         memoriaLeads.push({ id: doc.id, ...doc.data() });
     });
-    
     filtrarE_Renderizar();
 });
 
-if(inputBusca) {
-    inputBusca.addEventListener('input', filtrarE_Renderizar);
-}
+if(inputBusca) inputBusca.addEventListener('input', filtrarE_Renderizar);
 
 function renderizarTabela(listaDeLeads) {
     let html = '';
@@ -146,9 +160,7 @@ function renderizarTabela(listaDeLeads) {
     
     listaDeLeads.forEach(d => {
         let dataFormatada = "";
-        if(d.data_entrega) {
-            dataFormatada = d.data_entrega.split('-').reverse().slice(0,2).join('/');
-        }
+        if(d.data_entrega) dataFormatada = d.data_entrega.split('-').reverse().slice(0,2).join('/');
         
         let badgeTipo = d.tipo === 'pme' ? 'bg-warning text-dark' : 'bg-info text-white';
 
@@ -198,7 +210,7 @@ function renderizarTabela(listaDeLeads) {
 }
 
 // ==========================================
-// FUNÇÃO: RESGATAR MENSAGEM DE QUALQUER LEAD
+// FUNÇÕES DE AÇÕES DO LEAD
 // ==========================================
 window.abrirMensagemLead = (idLead) => {
     const lead = memoriaLeads.find(l => l.id === idLead);
@@ -211,10 +223,13 @@ window.abrirMensagemLead = (idLead) => {
     const textoObs = observacao.trim() !== '' ? observacao : "Nenhuma observação";
     const tipoFormatado = (lead.tipo || '').toUpperCase();
     
-    // MENSAGEM ATUALIZADA AQUI TAMBÉM
     const mensagem = `Oi, ${primeiroNome}! 🍋😎\nChegou uma OPORTUNIDADE pra você!\n\nCliente na pista, venda na mira 🎯\nAgora é contigo transformar lead em contrato! 💰🔥\n\n*Dados:*\n*Cliente:* ${nomeLead}\n*Tel:* ${telefone}\n*Tipo:* ${tipoFormatado}\n*Observações:* ${textoObs}\n\nVai lá e arrebenta! 💥🍋🚀`;
 
     document.getElementById('texto-mensagem-copiar').value = mensagem;
+    
+    // Define o telefone para o WhatsApp usar (Se for lead antigo que não tinha telefone salvo, tenta buscar vazio)
+    window.telefoneCorretorAtual = lead.corretor_telefone || '';
+
     const modalMsg = bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-mensagem-lead'));
     modalMsg.show();
 };
@@ -222,11 +237,7 @@ window.abrirMensagemLead = (idLead) => {
 window.mudarStatus = async (id, novoStatus) => {
     try {
         const docRef = doc(db, "leads", id);
-        await updateDoc(docRef, { 
-            status: novoStatus,
-            data_status: new Date().toISOString() 
-        });
-        console.log(`Sucesso: Lead ${id} mudou para ${novoStatus}`);
+        await updateDoc(docRef, { status: novoStatus, data_status: new Date().toISOString() });
     } catch (error) {
         console.error("Erro ao atualizar status:", error);
     }
@@ -234,34 +245,57 @@ window.mudarStatus = async (id, novoStatus) => {
 
 window.deletarLead = async (id) => {
     if(confirm("Tem certeza que deseja excluir este lead permanentemente?")) {
-        try {
-            await deleteDoc(doc(db, "leads", id));
-        } catch (error) {
-            console.error(error);
-            alert("Erro ao excluir.");
-        }
+        try { await deleteDoc(doc(db, "leads", id)); } 
+        catch (error) { console.error(error); alert("Erro ao excluir."); }
     }
 };
 
+// ==========================================
+// FUNÇÕES DE COPIAR E ENVIAR WHATSAPP
+// ==========================================
 window.copiarMensagemLead = () => {
     const textarea = document.getElementById('texto-mensagem-copiar');
-    
     textarea.select();
     textarea.setSelectionRange(0, 99999); 
     
     navigator.clipboard.writeText(textarea.value).then(() => {
         const btn = document.getElementById('btn-copiar-msg');
         const textoOriginal = btn.innerHTML;
-        
-        btn.innerHTML = "✅ Mensagem Copiada!";
-        btn.classList.replace('btn-success', 'btn-dark'); 
+        btn.innerHTML = "✅ Copiado!";
+        btn.classList.replace('btn-outline-success', 'btn-dark'); 
         
         setTimeout(() => {
             btn.innerHTML = textoOriginal;
-            btn.classList.replace('btn-dark', 'btn-success');
+            btn.classList.replace('btn-dark', 'btn-outline-success');
         }, 2000);
     }).catch(err => {
         console.error('Erro ao copiar: ', err);
-        alert("Não foi possível copiar automaticamente. Selecione o texto e copie manualmente.");
+        alert("Não foi possível copiar automaticamente.");
     });
+};
+
+window.enviarWhatsAppLead = () => {
+    const textarea = document.getElementById('texto-mensagem-copiar');
+    const textoCodificado = encodeURIComponent(textarea.value); // Formata quebras de linha pro link
+    
+    // Limpa o telefone deixando só os números
+    let tel = window.telefoneCorretorAtual.replace(/\D/g, ''); 
+    
+    let url = '';
+
+    // Se tiver telefone válido cadastrado no corretor (ex: 21999999999)
+    if (tel && tel.length >= 10) {
+        // Se a pessoa não colocou "55" (código do Brasil) no cadastro, o sistema adiciona sozinho
+        if (!tel.startsWith('55')) {
+            tel = '55' + tel;
+        }
+        url = `https://wa.me/${tel}?text=${textoCodificado}`;
+    } else {
+        // Se o corretor estiver sem telefone cadastrado, abre o WA Web pra você escolher o contato
+        alert("⚠️ O telefone deste corretor não está cadastrado no sistema.\nO WhatsApp será aberto para você selecionar o contato manualmente.");
+        url = `https://api.whatsapp.com/send?text=${textoCodificado}`;
+    }
+    
+    // Abre em uma nova aba
+    window.open(url, '_blank');
 };
