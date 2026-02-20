@@ -1,5 +1,5 @@
 import { db } from "./firebase-config.js";
-import { collection, getDocs, onSnapshot, addDoc, deleteDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, getDocs, onSnapshot, addDoc, deleteDoc, doc, query, orderBy, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const tabelaBody = document.getElementById('tabela-body');
 const cabecalhoTabela = document.getElementById('cabecalho-tabela');
@@ -35,8 +35,19 @@ window.iniciarPlantao = async () => {
 
     tabelaBody.innerHTML = `<tr><td colspan="${qtdVagas + 1}" class="text-center py-5">Buscando dados no servidor...</td></tr>`;
 
+    // 1. Busca os corretores elegíveis (com saldo da Distribuição)
+    const snapCorretores = await getDocs(collection(db, "corretores"));
+    estado.corretores = [];
+    snapCorretores.forEach(d => {
+        let dados = d.data();
+        if (dados.saldo_pme > 0 || dados.saldo_pf > 0) {
+            estado.corretores.push({ id: d.id, ...dados });
+        }
+    });
+
+    // 2. Escuta os Feriados em tempo real
     const qFeriados = query(collection(db, "feriados"), orderBy("data", "asc"));
-    onSnapshot(qFeriados, (snap) => {
+    onSnapshot(qFeriados, async (snap) => {
         estado.feriados = [];
         let htmlFeriados = '';
         
@@ -59,19 +70,11 @@ window.iniciarPlantao = async () => {
         if(estado.feriados.length === 0) htmlFeriados = '<li class="list-group-item text-muted text-center">Nenhum feriado cadastrado.</li>';
         if(listaFeriadosEl) listaFeriadosEl.innerHTML = htmlFeriados;
 
-        estado.escalaFixa = {}; 
-        atualizarVisualizacao();
+        // Depois de pegar os feriados, busca a escala salva no banco!
+        await buscarEscalaDigital();
     });
 
-    const snapCorretores = await getDocs(collection(db, "corretores"));
-    estado.corretores = [];
-    snapCorretores.forEach(d => {
-        let dados = d.data();
-        if (dados.saldo_pme > 0 || dados.saldo_pf > 0) {
-            estado.corretores.push({ id: d.id, ...dados });
-        }
-    });
-
+    // 3. Escuta os Leads para atualizar a contagem de leads de cada corretor
     onSnapshot(collection(db, "leads"), (snap) => {
         estado.leads = [];
         snap.forEach(d => estado.leads.push(d.data()));
@@ -80,9 +83,62 @@ window.iniciarPlantao = async () => {
 };
 
 // ==========================================
+// NOVO: SISTEMA DE SALVAR ESCALA NO BANCO
+// ==========================================
+async function buscarEscalaDigital() {
+    const mesRef = filtroMes.value;
+    const [ano, mes] = mesRef.split('-');
+    
+    estado.diasDoMes = getDiasUteisMes(parseInt(ano), parseInt(mes) - 1, estado.feriados);
+    estado.semanas = agruparSemanas(estado.diasDoMes);
+
+    try {
+        const docSnap = await getDoc(doc(db, "escala_digital", mesRef));
+        
+        // Se a escala já existe no banco, apenas carrega ela!
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            estado.escalaFixa[mesRef] = data.escala;
+            if(data.qtdVagas) {
+                qtdVagas = data.qtdVagas;
+                document.getElementById('contador-vagas').innerText = `${qtdVagas} Vagas`;
+            }
+        } else {
+            // Se NÃO existe, gera uma nova e SALVA NO BANCO
+            estado.escalaFixa[mesRef] = gerarLogicaRodizio(estado.diasDoMes, estado.corretores);
+            await salvarEscalaNoBanco(mesRef, estado.escalaFixa[mesRef], qtdVagas);
+        }
+        
+        if (carregamentoInicial) {
+            const hojeISO = new Date().toISOString().split('T')[0];
+            const indexSemanaAtual = estado.semanas.findIndex(semana => semana.some(dia => dia.iso === hojeISO));
+            if (indexSemanaAtual !== -1) filtroSemana.value = indexSemanaAtual;
+            carregamentoInicial = false;
+        }
+
+        atualizarVisualizacao();
+    } catch(e) { 
+        console.error("Erro ao buscar escala digital:", e); 
+    }
+}
+
+async function salvarEscalaNoBanco(mes, escala, vagas) {
+    try {
+        await setDoc(doc(db, "escala_digital", mes), {
+            mes: mes,
+            escala: escala,
+            qtdVagas: vagas,
+            atualizadoEm: new Date().toISOString()
+        });
+    } catch(error) {
+        console.error("Erro ao salvar escala no banco:", error);
+    }
+}
+
+// ==========================================
 // ADICIONAR/REMOVER VAGAS
 // ==========================================
-window.alterarVagas = (valor) => {
+window.alterarVagas = async (valor) => {
     const novaQtd = qtdVagas + valor;
     
     if (novaQtd < 1) return alert("O plantão precisa ter no mínimo 1 vaga.");
@@ -91,33 +147,30 @@ window.alterarVagas = (valor) => {
     qtdVagas = novaQtd;
     document.getElementById('contador-vagas').innerText = `${qtdVagas} Vagas`;
 
+    const mesRef = filtroMes.value;
     if (confirm(`A tabela foi ajustada para ${qtdVagas} vagas.\n\nDeseja realizar um NOVO SORTEIO para preencher a tabela corretamente?`)) {
-        estado.escalaFixa[filtroMes.value] = null;
+        estado.escalaFixa[mesRef] = gerarLogicaRodizio(estado.diasDoMes, estado.corretores);
     }
     
+    // Salva a nova configuração no banco
+    await salvarEscalaNoBanco(mesRef, estado.escalaFixa[mesRef], qtdVagas);
     atualizarVisualizacao();
 };
 
+window.refazerSorteio = async () => {
+    if(confirm("Refazer o sorteio apagará a ordem atual deste mês e os corretores trocarão de dias. Continuar?")) {
+        const mesRef = filtroMes.value;
+        // Gera e salva a nova escala no banco
+        estado.escalaFixa[mesRef] = gerarLogicaRodizio(estado.diasDoMes, estado.corretores);
+        await salvarEscalaNoBanco(mesRef, estado.escalaFixa[mesRef], qtdVagas);
+        atualizarVisualizacao();
+    }
+};
+
 // ==========================================
-// 2. RENDERIZAÇÃO E CÁLCULO DA ESCALA
+// 2. RENDERIZAÇÃO
 // ==========================================
 function atualizarVisualizacao() {
-    const [ano, mes] = filtroMes.value.split('-');
-    
-    estado.diasDoMes = getDiasUteisMes(parseInt(ano), parseInt(mes) - 1, estado.feriados);
-    estado.semanas = agruparSemanas(estado.diasDoMes);
-
-    if (carregamentoInicial) {
-        const hojeISO = new Date().toISOString().split('T')[0];
-        const indexSemanaAtual = estado.semanas.findIndex(semana => semana.some(dia => dia.iso === hojeISO));
-        if (indexSemanaAtual !== -1) filtroSemana.value = indexSemanaAtual;
-        carregamentoInicial = false;
-    }
-
-    if (!estado.escalaFixa[filtroMes.value]) {
-        estado.escalaFixa[filtroMes.value] = gerarLogicaRodizio(estado.diasDoMes, estado.corretores);
-    }
-    
     // Atualiza o Cabeçalho Dinamicamente
     if (cabecalhoTabela) {
         let htmlCabecalho = '<th style="width: 15%;">Data</th>';
@@ -153,7 +206,6 @@ function atualizarVisualizacao() {
             </td>
         `;
 
-        // SE FOR FERIADO
         if (dia.isFeriado) {
             htmlBody += `
                 <td colspan="${qtdVagas}" class="bg-light align-middle text-center" style="height: 100px;">
@@ -163,23 +215,15 @@ function atualizarVisualizacao() {
                 </td>
             `;
         } 
-        // SE FOR DIA ÚTIL
         else {
-            const escalados = escalaAtual[dia.iso] || [];
+            const escalados = escalaAtual ? (escalaAtual[dia.iso] || []) : [];
 
             for (let i = 0; i < qtdVagas; i++) {
                 let corretor = escalados[i];
 
                 if (corretor) {
-                    const leadsPME = estado.leads.filter(l => 
-                        l.corretor_id === corretor.id && l.data_entrega === dia.iso && 
-                        l.tipo === 'pme' && l.status !== 'Lead Inválido' 
-                    ).length;
-
-                    const leadsPF = estado.leads.filter(l => 
-                        l.corretor_id === corretor.id && l.data_entrega === dia.iso && 
-                        l.tipo === 'pf' && l.status !== 'Lead Inválido'
-                    ).length;
+                    const leadsPME = estado.leads.filter(l => l.corretor_id === corretor.id && l.data_entrega === dia.iso && l.tipo === 'pme' && l.status !== 'Lead Inválido').length;
+                    const leadsPF = estado.leads.filter(l => l.corretor_id === corretor.id && l.data_entrega === dia.iso && l.tipo === 'pf' && l.status !== 'Lead Inválido').length;
 
                     htmlBody += `
                         <td>
@@ -205,20 +249,15 @@ function atualizarVisualizacao() {
     tabelaBody.innerHTML = htmlBody;
 }
 
-filtroMes.addEventListener('change', atualizarVisualizacao);
+filtroMes.addEventListener('change', async () => {
+    carregamentoInicial = true;
+    await buscarEscalaDigital(); // Busca no banco ao trocar de mês
+});
 filtroSemana.addEventListener('change', atualizarVisualizacao);
 
-window.refazerSorteio = () => {
-    if(confirm("Refazer o sorteio apagará a ordem atual deste mês e os corretores trocarão de dias. Continuar?")) {
-        estado.escalaFixa[filtroMes.value] = null;
-        atualizarVisualizacao();
-    }
-};
-
 // ==========================================
-// 3. LÓGICA MATEMÁTICA E CALENDÁRIO (SUPER ROBÔ)
+// 3. LÓGICA MATEMÁTICA E CALENDÁRIO
 // ==========================================
-
 function getDiasUteisMes(ano, mesIndex, listaDeFeriados = []) {
     let date = new Date(ano, mesIndex, 1);
     let days = [];
@@ -227,12 +266,10 @@ function getDiasUteisMes(ano, mesIndex, listaDeFeriados = []) {
     while (date.getMonth() === mesIndex) {
         let diaSemana = date.getDay();
         let iso = date.toISOString().split('T')[0]; 
-        
         let feriadoEncontrado = listaDeFeriados.find(f => f.data === iso);
 
         if (diaSemana !== 0 && diaSemana !== 6) { 
             let fmt = date.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
-            
             days.push({ 
                 iso, fmt, diaSemana: nomesDias[diaSemana], isFeriado: !!feriadoEncontrado, descricaoFeriado: feriadoEncontrado ? feriadoEncontrado.descricao : "" 
             });
@@ -256,7 +293,6 @@ function agruparSemanas(diasUteis) {
     return semanas;
 }
 
-// O ROBÔ MELHORADO PARA PREENCHER TODAS AS VAGAS
 function gerarLogicaRodizio(dias, corretores) {
     if (corretores.length === 0) return {};
     let escala = {};
@@ -270,32 +306,24 @@ function gerarLogicaRodizio(dias, corretores) {
 
         let escalados = [];
         let tentativas = 0;
-        
-        // Criamos uma "urna" com os corretores para sortear
         let urnaDisponiveis = [...corretores];
 
         while (escalados.length < qtdVagas && tentativas < 200) {
-            
-            // SE A URNA ESVAZIOU (porque tem mais vagas do que gente), A GENTE ENCHE DE NOVO!
             if (urnaDisponiveis.length === 0) {
                 urnaDisponiveis = [...corretores];
             }
 
             let indexAleatorio = Math.floor(Math.random() * urnaDisponiveis.length);
             let cand = urnaDisponiveis[indexAleatorio];
-            
             let trabalhouOntem = ultimoPlantao.some(c => c.id === cand.id);
             
-            // Se a equipe for pequena, ignora a regra de não trabalhar 2 dias seguidos
             if (corretores.length <= qtdVagas * 1.5) trabalhouOntem = false;
             
-            // Se tentou colocar alguém que trabalhou ontem e ainda tem outras opções na urna, tenta outro
             if (trabalhouOntem && urnaDisponiveis.length > 1 && tentativas < 50) {
                 tentativas++;
                 continue;
             }
 
-            // Aprovado! Adiciona na escala e remove da urna
             escalados.push(cand);
             urnaDisponiveis.splice(indexAleatorio, 1);
             tentativas++;
