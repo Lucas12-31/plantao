@@ -86,29 +86,17 @@ form.addEventListener('submit', async (e) => {
             data_status: new Date().toISOString() 
         });
         
-        // ==========================================
-        // LÓGICA DA MENSAGEM DO WHATSAPP PADRÃO
-        // ==========================================
-        
-        // Pega apenas o primeiro nome do corretor
+        // MENSAGEM DO WHATSAPP PADRÃO
         const primeiroNome = nomeCorretor.split(' ')[0];
-        
-        // Se a observação estiver vazia, coloca "Nenhuma"
         const textoObs = observacao.trim() !== '' ? observacao : "Nenhuma observação";
         
-        // Monta a string do jeitinho que você pediu (usando crases ` ` para pular linha)
         const mensagem = `Oi, ${primeiroNome}! 🍋😎\nChegou uma OPORTUNIDADE pra você!\n\nCliente na pista, venda na mira 🎯\nAgora é contigo transformar lead em contrato! 💰🔥\n\nDados do lead:\nCliente: ${nomeLead}\nTel: ${telefone}\nObservações: ${textoObs}\n\nVai lá e arrebenta! 💥🍋🚀`;
 
-        // Joga a mensagem dentro da caixa de texto do Modal
         document.getElementById('texto-mensagem-copiar').value = mensagem;
 
-        // Mostra a janelinha
-        const modalMsg = new bootstrap.Modal(document.getElementById('modal-mensagem-lead'));
+        const modalMsg = bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-mensagem-lead'));
         modalMsg.show();
 
-        // ==========================================
-        
-        // Reseta o formulário por trás para o próximo cadastro
         form.reset();
         document.getElementById('data-chegada').valueAsDate = new Date();
         document.getElementById('data-entrega').valueAsDate = new Date();
@@ -195,6 +183,9 @@ function renderizarTabela(listaDeLeads) {
                 <td><small>${d.fonte}</small></td>
                 <td>${selectStatus}</td>
                 <td>
+                    <button onclick="abrirMensagemLead('${d.id}')" class="btn btn-sm btn-outline-success me-1" title="Ver Mensagem para Envio">
+                        💬
+                    </button>
                     <button onclick="deletarLead('${d.id}')" class="btn btn-sm btn-outline-danger" title="Excluir">
                         🗑️
                     </button>
@@ -204,6 +195,30 @@ function renderizarTabela(listaDeLeads) {
     });
     tabela.innerHTML = html;
 }
+
+// ==========================================
+// NOVA FUNÇÃO: RESGATAR MENSAGEM DE QUALQUER LEAD
+// ==========================================
+window.abrirMensagemLead = (idLead) => {
+    // 1. Procura o lead na memória usando o ID
+    const lead = memoriaLeads.find(l => l.id === idLead);
+    if (!lead) return alert("Lead não encontrado!");
+
+    // 2. Monta as variáveis
+    const primeiroNome = (lead.corretor_nome || '').split(' ')[0];
+    const nomeLead = lead.cliente || '';
+    const telefone = lead.telefone || '';
+    const observacao = lead.observacao || '';
+    const textoObs = observacao.trim() !== '' ? observacao : "Nenhuma observação";
+    
+    // 3. Monta o texto
+    const mensagem = `Oi, ${primeiroNome}! 🍋😎\nChegou uma OPORTUNIDADE pra você!\n\nCliente na pista, venda na mira 🎯\nAgora é contigo transformar lead em contrato! 💰🔥\n\nDados do lead:\nCliente: ${nomeLead}\nTel: ${telefone}\nObservações: ${textoObs}\n\nVai lá e arrebenta! 💥🍋🚀`;
+
+    // 4. Joga na caixa e abre o modal
+    document.getElementById('texto-mensagem-copiar').value = mensagem;
+    const modalMsg = bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-mensagem-lead'));
+    modalMsg.show();
+};
 
 window.mudarStatus = async (id, novoStatus) => {
     try {
@@ -229,26 +244,19 @@ window.deletarLead = async (id) => {
     }
 };
 
-// ==========================================
-// FUNÇÃO DE COPIAR TEXTO DO WHATSAPP
-// ==========================================
 window.copiarMensagemLead = () => {
     const textarea = document.getElementById('texto-mensagem-copiar');
     
-    // Seleciona o texto dentro da caixa (importante para funcionar no celular)
     textarea.select();
     textarea.setSelectionRange(0, 99999); 
     
-    // Usa a API nativa do navegador para jogar no Ctrl+C
     navigator.clipboard.writeText(textarea.value).then(() => {
-        // Pega o botão e muda a cor/texto dele temporariamente para dar o aviso de sucesso!
         const btn = document.getElementById('btn-copiar-msg');
         const textoOriginal = btn.innerHTML;
         
         btn.innerHTML = "✅ Mensagem Copiada!";
-        btn.classList.replace('btn-success', 'btn-dark'); // Fica preto pra destacar
+        btn.classList.replace('btn-success', 'btn-dark'); 
         
-        // Depois de 2 segundos, o botão volta ao normal
         setTimeout(() => {
             btn.innerHTML = textoOriginal;
             btn.classList.replace('btn-dark', 'btn-success');
