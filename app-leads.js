@@ -86,11 +86,12 @@ form.addEventListener('submit', async (e) => {
             data_status: new Date().toISOString() 
         });
         
-        // MENSAGEM DO WHATSAPP PADRÃO
+        // MENSAGEM DO WHATSAPP ATUALIZADA
         const primeiroNome = nomeCorretor.split(' ')[0];
         const textoObs = observacao.trim() !== '' ? observacao : "Nenhuma observação";
+        const tipoFormatado = tipo.toUpperCase(); // Garante que fique PME ou PF maiúsculo
         
-        const mensagem = `Oi, ${primeiroNome}! 🍋😎\nChegou uma OPORTUNIDADE pra você!\n\nCliente na pista, venda na mira 🎯\nAgora é contigo transformar lead em contrato! 💰🔥\n\nDados do lead:\nCliente: ${nomeLead}\nTel: ${telefone}\nObservações: ${textoObs}\n\nVai lá e arrebenta! 💥🍋🚀`;
+        const mensagem = `Oi, ${primeiroNome}! 🍋😎\nChegou uma OPORTUNIDADE pra você!\n\nCliente na pista, venda na mira 🎯\nAgora é contigo transformar lead em contrato! 💰🔥\n\n*Dados:*\n*Cliente:* ${nomeLead}\n*Tel:* ${telefone}\n*Tipo:* ${tipoFormatado}\n*Observações:* ${textoObs}\n\nVai lá e arrebenta! 💥🍋🚀`;
 
         document.getElementById('texto-mensagem-copiar').value = mensagem;
 
@@ -197,24 +198,22 @@ function renderizarTabela(listaDeLeads) {
 }
 
 // ==========================================
-// NOVA FUNÇÃO: RESGATAR MENSAGEM DE QUALQUER LEAD
+// FUNÇÃO: RESGATAR MENSAGEM DE QUALQUER LEAD
 // ==========================================
 window.abrirMensagemLead = (idLead) => {
-    // 1. Procura o lead na memória usando o ID
     const lead = memoriaLeads.find(l => l.id === idLead);
     if (!lead) return alert("Lead não encontrado!");
 
-    // 2. Monta as variáveis
     const primeiroNome = (lead.corretor_nome || '').split(' ')[0];
     const nomeLead = lead.cliente || '';
     const telefone = lead.telefone || '';
     const observacao = lead.observacao || '';
     const textoObs = observacao.trim() !== '' ? observacao : "Nenhuma observação";
+    const tipoFormatado = (lead.tipo || '').toUpperCase();
     
-    // 3. Monta o texto
-    const mensagem = `Oi, ${primeiroNome}! 🍋😎\nChegou uma OPORTUNIDADE pra você!\n\nCliente na pista, venda na mira 🎯\nAgora é contigo transformar lead em contrato! 💰🔥\n\nDados do lead:\nCliente: ${nomeLead}\nTel: ${telefone}\nObservações: ${textoObs}\n\nVai lá e arrebenta! 💥🍋🚀`;
+    // MENSAGEM ATUALIZADA AQUI TAMBÉM
+    const mensagem = `Oi, ${primeiroNome}! 🍋😎\nChegou uma OPORTUNIDADE pra você!\n\nCliente na pista, venda na mira 🎯\nAgora é contigo transformar lead em contrato! 💰🔥\n\n*Dados:*\n*Cliente:* ${nomeLead}\n*Tel:* ${telefone}\n*Tipo:* ${tipoFormatado}\n*Observações:* ${textoObs}\n\nVai lá e arrebenta! 💥🍋🚀`;
 
-    // 4. Joga na caixa e abre o modal
     document.getElementById('texto-mensagem-copiar').value = mensagem;
     const modalMsg = bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-mensagem-lead'));
     modalMsg.show();
