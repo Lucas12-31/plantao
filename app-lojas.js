@@ -123,7 +123,6 @@ function atualizarVisualizacao() {
                         badgeAtendimentos = `<span class="badge bg-success position-absolute top-0 start-100 translate-middle rounded-pill shadow" style="font-size: 0.8rem; z-index: 2;">${corretor.atendimentos}</span>`;
                     }
                     
-                    // Se houver indicação de troca, coloca uma pequena borda amarela
                     if (corretor.trocaInfo) {
                         classesCard += ' border-warning border-2';
                     }
@@ -181,7 +180,6 @@ window.abrirDetalhesPlantao = (iso, turno, index, dataFmt) => {
     document.getElementById('input-atendimentos').value = corretorAtual && corretorAtual.atendimentos ? corretorAtual.atendimentos : 0;
     document.getElementById('check-falta').checked = corretorAtual && corretorAtual.falta === true;
 
-    // NOVO: Exibe o texto da troca se existir
     const divTroca = document.getElementById('info-troca-container');
     const textoTroca = document.getElementById('texto-info-troca');
     if (corretorAtual && corretorAtual.trocaInfo) {
@@ -213,7 +211,6 @@ window.salvarDetalhesPlantao = async () => {
     let corretorOriginal = estado.escalaSalva[iso][turno][index];
     let infoTrocaExistente = null;
     
-    // Se não trocou a pessoa manualmente, mantem o registro de troca dela
     if (corretorOriginal && corretorOriginal.id === idSelecionado) {
         infoTrocaExistente = corretorOriginal.trocaInfo;
     }
@@ -254,15 +251,28 @@ window.salvarDetalhesPlantao = async () => {
 }
 
 // ==========================================
-// 4. NOVA FUNÇÃO: SISTEMA DE TROCA ENTRE 2 DIAS
+// 4. SISTEMA DE TROCA ENTRE 2 DIAS DA MESMA SEMANA
 // ==========================================
 window.abrirModalTroca = () => {
+    // 1. Pega apenas os dias da semana vigente!
+    const indiceSemana = parseInt(document.getElementById('filtro-semana').value);
+    const diasDaSemanaVisivel = estado.semanas[indiceSemana] || [];
+
     let options = '';
-    estado.diasDoMes.forEach(d => {
+    let diasValidos = 0;
+
+    diasDaSemanaVisivel.forEach(d => {
         if(!d.isFeriado) {
             options += `<option value="${d.iso}">${d.fmt} - ${d.diaSemana}</option>`;
+            diasValidos++;
         }
     });
+
+    if (diasValidos === 0) {
+        return alert("Não há dias úteis nesta semana para efetuar trocas.");
+    }
+
+    // Preenche os selects apenas com a semana visível
     document.getElementById('troca-data-1').innerHTML = options;
     document.getElementById('troca-data-2').innerHTML = options;
     
@@ -286,7 +296,6 @@ window.efetuarTroca = async () => {
         return alert("Erro: Um dos dias selecionados ainda não possui escala gerada.");
     }
 
-    // Pega os objetos originais
     let obj1 = estado.escalaSalva[d1][t1][c1];
     let obj2 = estado.escalaSalva[d2][t2][c2];
 
@@ -298,11 +307,9 @@ window.efetuarTroca = async () => {
     const labelT1 = t1 === 'manha' ? 'Manhã' : 'Tarde';
     const labelT2 = t2 === 'manha' ? 'Manhã' : 'Tarde';
 
-    // Cria cópias pra evitar bugs de referência de memória
     let novoObj1 = obj2 ? { ...obj2 } : null;
     let novoObj2 = obj1 ? { ...obj1 } : null;
 
-    // Adiciona as mensagens invertidas
     if (novoObj1) {
         novoObj1.trocaInfo = `🔄 Trocou com <b>${nome1}</b><br><small>(O original dele era ${fmtData1} - ${labelT1})</small>`;
     }
@@ -310,7 +317,6 @@ window.efetuarTroca = async () => {
         novoObj2.trocaInfo = `🔄 Trocou com <b>${nome2}</b><br><small>(O original dele era ${fmtData2} - ${labelT2})</small>`;
     }
 
-    // Efetua a substituição
     estado.escalaSalva[d1][t1][c1] = novoObj1;
     estado.escalaSalva[d2][t2][c2] = novoObj2;
 
@@ -326,6 +332,7 @@ window.efetuarTroca = async () => {
         });
 
         alert(`✅ Troca efetuada com sucesso!\n\n${nome1} assumiu a cadeira de ${fmtData2}.\n${nome2} assumiu a cadeira de ${fmtData1}.`);
+        bootstrap.Modal.getInstance(document.getElementById('modal-troca')).show(); // Fallback caso modal suma mt rápido
         bootstrap.Modal.getInstance(document.getElementById('modal-troca')).hide();
         atualizarVisualizacao();
 
@@ -336,7 +343,7 @@ window.efetuarTroca = async () => {
 };
 
 // ==========================================
-// 5. NAVEGAÇÃO ENTRE ABAS
+// 5. NAVEGAÇÃO ENTRE ABAS E FILTROS
 // ==========================================
 window.mudarLoja = (loja, event) => {
     event.preventDefault();
