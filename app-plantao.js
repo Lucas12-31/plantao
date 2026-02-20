@@ -2,6 +2,7 @@ import { db } from "./firebase-config.js";
 import { collection, getDocs, onSnapshot, addDoc, deleteDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const tabelaBody = document.getElementById('tabela-body');
+const cabecalhoTabela = document.getElementById('cabecalho-tabela');
 const filtroMes = document.getElementById('filtro-mes');
 const filtroSemana = document.getElementById('filtro-semana');
 
@@ -18,8 +19,11 @@ let estado = {
 };
 let carregamentoInicial = true;
 
+// VARIÁVEL DE CONTROLE DE VAGAS
+let qtdVagas = 3; 
+
 // ==========================================
-// 1. INICIALIZAÇÃO
+// 1. INICIALIZAÇÃO E AÇÕES
 // ==========================================
 window.iniciarPlantao = async () => {
     if (!filtroMes.value) {
@@ -29,7 +33,7 @@ window.iniciarPlantao = async () => {
         filtroMes.value = `${yyyy}-${mm}`;
     }
 
-    tabelaBody.innerHTML = '<tr><td colspan="4" class="text-center py-5">Buscando dados no servidor...</td></tr>';
+    tabelaBody.innerHTML = `<tr><td colspan="${qtdVagas + 1}" class="text-center py-5">Buscando dados no servidor...</td></tr>`;
 
     const qFeriados = query(collection(db, "feriados"), orderBy("data", "asc"));
     onSnapshot(qFeriados, (snap) => {
@@ -76,6 +80,26 @@ window.iniciarPlantao = async () => {
 };
 
 // ==========================================
+// NOVA FUNÇÃO: ADICIONAR/REMOVER VAGAS
+// ==========================================
+window.alterarVagas = (valor) => {
+    const novaQtd = qtdVagas + valor;
+    
+    if (novaQtd < 1) return alert("O plantão precisa ter no mínimo 1 vaga.");
+    if (novaQtd > 8) return alert("Limite máximo de 8 vagas atingido.");
+    
+    qtdVagas = novaQtd;
+    document.getElementById('contador-vagas').innerText = `${qtdVagas} Vagas`;
+
+    // Se o gestor confirmar, apaga a memória do mês atual e sorteia tudo de novo
+    if (confirm(`A tabela foi ajustada para ${qtdVagas} vagas.\n\nDeseja realizar um NOVO SORTEIO para preencher a tabela corretamente?`)) {
+        estado.escalaFixa[filtroMes.value] = null;
+    }
+    
+    atualizarVisualizacao();
+};
+
+// ==========================================
 // 2. RENDERIZAÇÃO E CÁLCULO DA ESCALA
 // ==========================================
 function atualizarVisualizacao() {
@@ -95,12 +119,21 @@ function atualizarVisualizacao() {
         estado.escalaFixa[filtroMes.value] = gerarLogicaRodizio(estado.diasDoMes, estado.corretores);
     }
     
+    // Atualiza o Cabeçalho Dinamicamente
+    if (cabecalhoTabela) {
+        let htmlCabecalho = '<th style="width: 15%;">Data</th>';
+        for (let i = 1; i <= qtdVagas; i++) {
+            htmlCabecalho += `<th>Vaga ${i}</th>`;
+        }
+        cabecalhoTabela.innerHTML = htmlCabecalho;
+    }
+
     const escalaAtual = estado.escalaFixa[filtroMes.value];
     const indiceSemana = parseInt(filtroSemana.value);
     const diasDaSemana = estado.semanas[indiceSemana] || [];
 
     if (diasDaSemana.length === 0) {
-        tabelaBody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">Não há dias úteis nesta semana.</td></tr>';
+        tabelaBody.innerHTML = `<tr><td colspan="${qtdVagas + 1}" class="text-center py-4 text-muted">Não há dias úteis nesta semana.</td></tr>`;
         return;
     }
 
@@ -110,8 +143,6 @@ function atualizarVisualizacao() {
         let hojeISO = new Date().toISOString().split('T')[0];
         let classHoje = (dia.iso === hojeISO) ? "bg-warning" : "bg-white";
         let textoHoje = (dia.iso === hojeISO) ? '<br><span class="badge bg-danger mt-1">HOJE</span>' : '';
-
-        // Tinta vermelha clarinha se for feriado
         let classFeriadoTd = dia.isFeriado ? "bg-danger text-white bg-opacity-75 border-danger" : classHoje;
 
         htmlBody += `<tr>`;
@@ -123,21 +154,21 @@ function atualizarVisualizacao() {
             </td>
         `;
 
-        // SE FOR FERIADO, JUNTA AS 3 COLUNAS E MOSTRA O MOTIVO
+        // SE FOR FERIADO, JUNTA TODAS AS COLUNAS (qtdVagas)
         if (dia.isFeriado) {
             htmlBody += `
-                <td colspan="3" class="bg-light align-middle text-center" style="height: 100px;">
+                <td colspan="${qtdVagas}" class="bg-light align-middle text-center" style="height: 100px;">
                     <div class="alert alert-secondary mb-0 d-inline-block shadow-sm border-secondary fw-bold fs-5 px-5 py-3">
                         🏖️ Folga / Feriado: <span class="text-danger">${dia.descricaoFeriado}</span>
                     </div>
                 </td>
             `;
         } 
-        // SE FOR DIA ÚTIL NORMAL, MOSTRA OS CORRETORES
+        // SE FOR DIA ÚTIL, GERA O NÚMERO EXATO DE VAGAS
         else {
             const escalados = escalaAtual[dia.iso] || [];
 
-            for (let i = 0; i < 3; i++) {
+            for (let i = 0; i < qtdVagas; i++) {
                 let corretor = escalados[i];
 
                 if (corretor) {
@@ -151,7 +182,6 @@ function atualizarVisualizacao() {
                         l.tipo === 'pf' && l.status !== 'Lead Inválido'
                     ).length;
 
-                    // Adicionado text-center no card-vaga e margin-top nos badges
                     htmlBody += `
                         <td>
                             <div class="card-vaga text-center h-100 d-flex flex-column justify-content-center">
@@ -199,10 +229,8 @@ function getDiasUteisMes(ano, mesIndex, listaDeFeriados = []) {
         let diaSemana = date.getDay();
         let iso = date.toISOString().split('T')[0]; 
         
-        // Verifica se a data atual é feriado
         let feriadoEncontrado = listaDeFeriados.find(f => f.data === iso);
 
-        // Se não for fim de semana, adiciona na lista de dias da semana
         if (diaSemana !== 0 && diaSemana !== 6) { 
             let fmt = date.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
             
@@ -210,8 +238,8 @@ function getDiasUteisMes(ano, mesIndex, listaDeFeriados = []) {
                 iso, 
                 fmt, 
                 diaSemana: nomesDias[diaSemana],
-                isFeriado: !!feriadoEncontrado, // Marca se é feriado (true/false)
-                descricaoFeriado: feriadoEncontrado ? feriadoEncontrado.descricao : "" // Guarda o texto
+                isFeriado: !!feriadoEncontrado, 
+                descricaoFeriado: feriadoEncontrado ? feriadoEncontrado.descricao : "" 
             });
         }
         date.setDate(date.getDate() + 1);
@@ -239,7 +267,6 @@ function gerarLogicaRodizio(dias, corretores) {
     let ultimoPlantao = [];
     
     dias.forEach(objDia => { 
-        // Se for feriado, cria a escala vazia e pula para o próximo dia
         if (objDia.isFeriado) {
             escala[objDia.iso] = [];
             return; 
@@ -248,12 +275,14 @@ function gerarLogicaRodizio(dias, corretores) {
         let escalados = [];
         let tentativas = 0;
         
-        while (escalados.length < 3 && tentativas < 100) {
+        // AGORA USA A VARIÁVEL "qtdVagas" PARA DEFINIR O LIMITE!
+        while (escalados.length < qtdVagas && tentativas < 100) {
             let cand = corretores[Math.floor(Math.random() * corretores.length)];
             let jaEsta = escalados.some(c => c.id === cand.id);
             let trabalhouOntem = ultimoPlantao.some(c => c.id === cand.id);
             
-            if (corretores.length < 6) trabalhouOntem = false;
+            // Se houver pouca gente na equipe, desativa a regra de não trabalhar 2 dias seguidos
+            if (corretores.length <= qtdVagas * 1.5) trabalhouOntem = false;
             
             if (!jaEsta && !trabalhouOntem) escalados.push(cand);
             tentativas++;
