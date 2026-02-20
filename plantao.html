@@ -7,7 +7,7 @@
     <style>
         .table-escala th, .table-escala td { vertical-align: middle; text-align: center; }
         .card-vaga { border: 1px dashed #ccc; padding: 10px; border-radius: 8px; background-color: #fcfcfc; }
-        .nome-corretor { font-weight: bold; font-size: 1.1rem; color: #d9534f; margin-bottom: 5px; }
+        .nome-corretor { font-weight: bold; font-size: 1.1rem; color: #333; margin-bottom: 5px; }
     </style>
 </head>
 <body class="bg-light">
@@ -25,9 +25,9 @@
                     <li class="nav-item"><a class="nav-link text-success fw-bold" href="producao.html">💰 Produção</a></li>
                     <li class="nav-item d-none d-lg-block text-secondary">|</li>
                     <li class="nav-item"><a class="nav-link text-warning fw-bold" href="distribuicao.html">🎲 Distribuição</a></li>
-                    <li class="nav-item"><a class="nav-link text-info fw-bold border-bottom border-info" href="plantao.html">📅 Plantão</a></li>
-                    <li class="nav-item"><a class="nav-link text-danger fw-bold" href="leads.html">🔥 Leads</a></li>
+                    <li class="nav-item"><a class="nav-link text-info fw-bold border-bottom border-info" href="plantao.html">📅 Plantão (Digital)</a></li>
                     <li class="nav-item"><a class="nav-link text-primary fw-bold" href="lojas.html">🏪 Lojas</a></li>
+                    <li class="nav-item"><a class="nav-link text-danger fw-bold" href="leads.html">🔥 Leads</a></li>
 
                     <li class="nav-item dropdown">
                         <a class="nav-link position-relative" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -66,7 +66,14 @@
                 </div>
             </div>
             
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-3 align-items-center">
+                
+                <div class="btn-group shadow-sm border rounded">
+                    <button onclick="alterarVagas(-1)" class="btn btn-light border-end text-danger fw-bold" title="Remover uma vaga">➖</button>
+                    <button class="btn btn-white fw-bold px-3" id="contador-vagas" disabled style="background-color: white; opacity: 1;">3 Vagas</button>
+                    <button onclick="alterarVagas(1)" class="btn btn-light border-start text-success fw-bold" title="Adicionar uma vaga">➕</button>
+                </div>
+
                 <button class="btn btn-outline-secondary fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modal-feriados">
                     🏖️ Feriados/Folgas
                 </button>
@@ -76,7 +83,7 @@
             </div>
         </div>
 
-        <div class="card shadow border-dark">
+        <div class="card shadow border-dark mb-5">
             <div class="card-header bg-dark text-white fw-bold fs-5">
                 📅 Escala de Plantão (Recepção de Leads)
             </div>
@@ -84,7 +91,7 @@
                 <div class="table-responsive">
                     <table class="table table-bordered table-escala mb-0">
                         <thead class="table-light">
-                            <tr>
+                            <tr id="cabecalho-tabela">
                                 <th>Data</th>
                                 <th>Vaga 1</th>
                                 <th>Vaga 2</th>
