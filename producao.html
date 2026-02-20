@@ -20,9 +20,9 @@
                     <li class="nav-item"><a class="nav-link text-success fw-bold border-bottom border-success" href="producao.html">💰 Produção</a></li>
                     <li class="nav-item d-none d-lg-block text-secondary">|</li>
                     <li class="nav-item"><a class="nav-link text-warning fw-bold" href="distribuicao.html">🎲 Distribuição</a></li>
-                    <li class="nav-item"><a class="nav-link text-info fw-bold" href="plantao.html">📅 Plantão</a></li>
-                    <li class="nav-item"><a class="nav-link text-danger fw-bold" href="leads.html">🔥 Leads</a></li>
+                    <li class="nav-item"><a class="nav-link text-info fw-bold" href="plantao.html">📅 Plantão (Digital)</a></li>
                     <li class="nav-item"><a class="nav-link text-primary fw-bold" href="lojas.html">🏪 Lojas</a></li>
+                    <li class="nav-item"><a class="nav-link text-danger fw-bold" href="leads.html">🔥 Leads</a></li>
 
                     <li class="nav-item dropdown">
                         <a class="nav-link position-relative" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -79,7 +79,7 @@
                                 </div>
                             </div>
 
-                            <button type="submit" class="btn btn-success w-100 fw-bold mt-2">➕ Adicionar à Produção</button>
+                            <button type="submit" class="btn btn-success w-100 fw-bold mt-2 shadow-sm">➕ Adicionar à Produção</button>
                         </form>
                     </div>
                 </div>
@@ -90,7 +90,7 @@
             <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                 <span>🏆 Ranking do Mês Atual (Acumulado)</span>
                 
-                <button onclick="encerrarMes()" class="btn btn-danger btn-sm border border-white">
+                <button onclick="encerrarMes()" class="btn btn-danger btn-sm border border-white fw-bold">
                     🛑 Encerrar Mês e Zerar Vendas
                 </button>
             </div>
@@ -104,6 +104,7 @@
                                 <th>Produção PF</th>
                                 <th>Total (R$)</th>
                                 <th>Pontos</th>
+                                <th style="width: 120px;">Ações</th>
                             </tr>
                         </thead>
                         <tbody id="tabela-ranking">
@@ -142,6 +143,40 @@
             </div>
         </div>
 
+    </div>
+
+    <div class="modal fade" id="modal-editar-producao" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-0">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title fw-bold">✏️ Ajuste Manual de Produção</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-light p-4">
+                    <div class="alert alert-warning small mb-4">
+                        ⚠️ <b>Aviso:</b> Esta ação sobrescreve o valor total acumulado do corretor neste mês de forma direta.
+                    </div>
+                    
+                    <input type="hidden" id="edit-prod-id">
+                    <h5 id="edit-prod-nome" class="fw-bold text-center mb-4 text-uppercase text-dark">NOME DO CORRETOR</h5>
+                    
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-muted text-uppercase mb-1">Total PME (R$):</label>
+                            <input type="number" id="edit-prod-pme" class="form-control fw-bold shadow-sm" step="0.01" min="0">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-muted text-uppercase mb-1">Total PF (R$):</label>
+                            <input type="number" id="edit-prod-pf" class="form-control fw-bold shadow-sm" step="0.01" min="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-white">
+                    <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-warning fw-bold px-4 shadow-sm" onclick="salvarEdicaoProducao()">💾 Salvar Valores</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script type="module" src="app-producao.js"></script>
