@@ -80,7 +80,7 @@ window.iniciarPlantao = async () => {
 };
 
 // ==========================================
-// NOVA FUNÇÃO: ADICIONAR/REMOVER VAGAS
+// ADICIONAR/REMOVER VAGAS
 // ==========================================
 window.alterarVagas = (valor) => {
     const novaQtd = qtdVagas + valor;
@@ -91,7 +91,6 @@ window.alterarVagas = (valor) => {
     qtdVagas = novaQtd;
     document.getElementById('contador-vagas').innerText = `${qtdVagas} Vagas`;
 
-    // Se o gestor confirmar, apaga a memória do mês atual e sorteia tudo de novo
     if (confirm(`A tabela foi ajustada para ${qtdVagas} vagas.\n\nDeseja realizar um NOVO SORTEIO para preencher a tabela corretamente?`)) {
         estado.escalaFixa[filtroMes.value] = null;
     }
@@ -154,7 +153,7 @@ function atualizarVisualizacao() {
             </td>
         `;
 
-        // SE FOR FERIADO, JUNTA TODAS AS COLUNAS (qtdVagas)
+        // SE FOR FERIADO
         if (dia.isFeriado) {
             htmlBody += `
                 <td colspan="${qtdVagas}" class="bg-light align-middle text-center" style="height: 100px;">
@@ -164,7 +163,7 @@ function atualizarVisualizacao() {
                 </td>
             `;
         } 
-        // SE FOR DIA ÚTIL, GERA O NÚMERO EXATO DE VAGAS
+        // SE FOR DIA ÚTIL
         else {
             const escalados = escalaAtual[dia.iso] || [];
 
@@ -217,7 +216,7 @@ window.refazerSorteio = () => {
 };
 
 // ==========================================
-// 3. LÓGICA MATEMÁTICA E CALENDÁRIO
+// 3. LÓGICA MATEMÁTICA E CALENDÁRIO (SUPER ROBÔ)
 // ==========================================
 
 function getDiasUteisMes(ano, mesIndex, listaDeFeriados = []) {
@@ -235,11 +234,7 @@ function getDiasUteisMes(ano, mesIndex, listaDeFeriados = []) {
             let fmt = date.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
             
             days.push({ 
-                iso, 
-                fmt, 
-                diaSemana: nomesDias[diaSemana],
-                isFeriado: !!feriadoEncontrado, 
-                descricaoFeriado: feriadoEncontrado ? feriadoEncontrado.descricao : "" 
+                iso, fmt, diaSemana: nomesDias[diaSemana], isFeriado: !!feriadoEncontrado, descricaoFeriado: feriadoEncontrado ? feriadoEncontrado.descricao : "" 
             });
         }
         date.setDate(date.getDate() + 1);
@@ -261,6 +256,7 @@ function agruparSemanas(diasUteis) {
     return semanas;
 }
 
+// O ROBÔ MELHORADO PARA PREENCHER TODAS AS VAGAS
 function gerarLogicaRodizio(dias, corretores) {
     if (corretores.length === 0) return {};
     let escala = {};
@@ -275,18 +271,36 @@ function gerarLogicaRodizio(dias, corretores) {
         let escalados = [];
         let tentativas = 0;
         
-        // AGORA USA A VARIÁVEL "qtdVagas" PARA DEFINIR O LIMITE!
-        while (escalados.length < qtdVagas && tentativas < 100) {
-            let cand = corretores[Math.floor(Math.random() * corretores.length)];
-            let jaEsta = escalados.some(c => c.id === cand.id);
+        // Criamos uma "urna" com os corretores para sortear
+        let urnaDisponiveis = [...corretores];
+
+        while (escalados.length < qtdVagas && tentativas < 200) {
+            
+            // SE A URNA ESVAZIOU (porque tem mais vagas do que gente), A GENTE ENCHE DE NOVO!
+            if (urnaDisponiveis.length === 0) {
+                urnaDisponiveis = [...corretores];
+            }
+
+            let indexAleatorio = Math.floor(Math.random() * urnaDisponiveis.length);
+            let cand = urnaDisponiveis[indexAleatorio];
+            
             let trabalhouOntem = ultimoPlantao.some(c => c.id === cand.id);
             
-            // Se houver pouca gente na equipe, desativa a regra de não trabalhar 2 dias seguidos
+            // Se a equipe for pequena, ignora a regra de não trabalhar 2 dias seguidos
             if (corretores.length <= qtdVagas * 1.5) trabalhouOntem = false;
             
-            if (!jaEsta && !trabalhouOntem) escalados.push(cand);
+            // Se tentou colocar alguém que trabalhou ontem e ainda tem outras opções na urna, tenta outro
+            if (trabalhouOntem && urnaDisponiveis.length > 1 && tentativas < 50) {
+                tentativas++;
+                continue;
+            }
+
+            // Aprovado! Adiciona na escala e remove da urna
+            escalados.push(cand);
+            urnaDisponiveis.splice(indexAleatorio, 1);
             tentativas++;
         }
+        
         escala[objDia.iso] = escalados;
         ultimoPlantao = escalados;
     });
