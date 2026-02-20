@@ -168,13 +168,16 @@
                 </div>
                 <div class="modal-body bg-light">
                     <div class="alert alert-success small mb-3">
-                        ✅ <b>Lead salvo com sucesso!</b> Copie a mensagem abaixo para enviar no WhatsApp do corretor.
+                        ✅ <b>Tudo certo!</b> Você pode enviar direto para o WhatsApp do corretor ou apenas copiar o texto.
                     </div>
-                    <textarea id="texto-mensagem-copiar" class="form-control border-success shadow-sm" rows="11" readonly style="resize: none; font-size: 0.95rem;"></textarea>
+                    <textarea id="texto-mensagem-copiar" class="form-control border-success shadow-sm" rows="12" readonly style="resize: none; font-size: 0.95rem;"></textarea>
                 </div>
-                <div class="modal-footer bg-white">
+                <div class="modal-footer bg-white d-flex justify-content-between">
                     <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">Fechar</button>
-                    <button type="button" id="btn-copiar-msg" class="btn btn-success fw-bold px-4 shadow-sm" onclick="copiarMensagemLead()">📋 Copiar Mensagem</button>
+                    <div>
+                        <button type="button" id="btn-copiar-msg" class="btn btn-outline-success fw-bold px-3 shadow-sm me-2" onclick="copiarMensagemLead()">📋 Copiar</button>
+                        <button type="button" id="btn-whatsapp-msg" class="btn btn-success fw-bold px-4 shadow-sm" onclick="enviarWhatsAppLead()">🟢 Enviar p/ WhatsApp</button>
+                    </div>
                 </div>
             </div>
         </div>
