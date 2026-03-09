@@ -41,7 +41,7 @@ onAuthStateChanged(auth, (user) => {
                     // Se for link do Menu Superior (esconde o item da lista)
                     if (link.parentElement) link.parentElement.style.display = 'none';
                 } else {
-                    // Se for o botão grande colorido da tela inicial (esconde ele mesmo)
+                    // Se for o Cartão do Dashboard (esconde a coluna inteira para não ficar buraco)
                     link.style.display = 'none';
                 }
             });
@@ -56,11 +56,12 @@ onAuthStateChanged(auth, (user) => {
         const navbar = document.querySelector('.navbar-nav');
         if (navbar && !document.getElementById('btn-sair-sistema')) {
             const liSair = document.createElement('li');
-            liSair.className = 'nav-item ms-lg-4 mt-2 mt-lg-0 d-flex align-items-center';
+            liSair.className = 'nav-item ms-lg-3 mt-2 mt-lg-0 d-flex align-items-center';
             liSair.id = 'btn-sair-sistema';
+            // O segredo está na classe "text-nowrap" para não quebrar a linha!
             liSair.innerHTML = `
-                <span class="text-white small me-3 d-none d-lg-block border-end border-secondary pe-3">Olá, <b>${nomeLogado}</b></span>
-                <button class="btn btn-sm btn-danger fw-bold px-3 shadow-sm w-100" id="btn-logout">Sair 🚪</button>
+                <span class="text-white small me-3 d-none d-lg-block border-end border-secondary pe-3 text-nowrap">Olá, <b>${nomeLogado}</b></span>
+                <button class="btn btn-sm btn-danger fw-bold px-3 shadow-sm text-nowrap" id="btn-logout">Sair 🚪</button>
             `;
             navbar.appendChild(liSair);
 
