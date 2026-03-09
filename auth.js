@@ -8,14 +8,12 @@ const paginaAtual = window.location.pathname.split('/').pop() || 'index.html';
 // O Firebase fica "ouvindo" para ver se tem alguém logado
 onAuthStateChanged(auth, (user) => {
     
-    // SE ALGUÉM ESTIVER LOGADO (Acesso Permitido)
-    if (user) {
-        const email = user.email;
-        let perfilAtivo = 'funcionario';
+    const email = user.email.toLowerCase(); // Lê o e-mail que fez o login
+        let perfilAtivo = 'funcionario'; // Por padrão, todo mundo é funcionário
         let nomeLogado = 'Administrativo';
 
-        // Descobre quem é pelo e-mail
-        if (email === 'mestre@sistemalimao.com.br') {
+        // 👑 REGRA DO MESTRE: Coloque aqui o e-mail exato do Mestre!
+        if (email === 'amanda.rossip@gmail.com') {
             perfilAtivo = 'mestre';
             nomeLogado = 'Gestão Mestre';
         }
