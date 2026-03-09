@@ -2,85 +2,164 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Sistema de Gestão</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel - Sistema Limão</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
     <script type="module" src="auth.js"></script>
+
+    <style>
+        /* FUNDO MODERNO COM PONTILHADOS SUTIS */
+        body {
+            background-color: #f8f9fa;
+            background-image: radial-gradient(#dee2e6 1px, transparent 1px);
+            background-size: 20px 20px;
+            min-height: 100vh;
+        }
+        
+        /* ESTILO DOS CARTÕES DO DASHBOARD */
+        .module-card {
+            transition: all 0.3s ease;
+            border-radius: 15px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid rgba(0,0,0,0.05) !important;
+        }
+        .module-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 25px rgba(0,0,0,0.1) !important;
+            border-color: #ffc107 !important;
+        }
+        
+        .icon-box {
+            width: 70px; 
+            height: 70px; 
+            font-size: 2rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+    </style>
 </head>
 <body>
 
-   <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow border-bottom border-secondary">
-    <div class="container">
-        <a class="navbar-brand fw-bold" href="index.html">🍋 Sistema Limão</a>
-        
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-5 shadow border-bottom border-secondary">
+        <div class="container-fluid px-4"> <a class="navbar-brand fw-bold" href="index.html">🍋 Sistema Limão</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto align-items-center gap-2" style="font-size: 0.85rem;">
+                    <li class="nav-item"><a class="nav-link text-light" href="cadastro.html">👥 Cadastro</a></li>
+                    <li class="nav-item"><a class="nav-link text-light" href="parceiros.html">🤝 Parceiros</a></li>
+                    <li class="nav-item"><a class="nav-link text-success fw-bold" href="producao.html">💰 Produção</a></li>
+                    <li class="nav-item d-none d-lg-block text-secondary">|</li>
+                    <li class="nav-item"><a class="nav-link text-warning fw-bold" href="distribuicao.html">🎲 Distribuição</a></li>
+                    <li class="nav-item"><a class="nav-link text-info fw-bold" href="plantao.html">📅 Plantão (Digital)</a></li>
+                    <li class="nav-item"><a class="nav-link text-primary fw-bold" href="lojas.html">🏪 Lojas</a></li>
+                    <li class="nav-item"><a class="nav-link text-danger fw-bold" href="leads.html">🔥 Leads</a></li>
 
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto align-items-center gap-3" style="font-size: 0.95rem;">
-                
-                <li class="nav-item"><a class="nav-link text-light" href="cadastro.html">👥 Cadastro</a></li>
-                <li class="nav-item"><a class="nav-link text-light" href="parceiros.html">🤝 Parceiros</a></li>
-                <li class="nav-item"><a class="nav-link text-success fw-bold" href="producao.html">💰 Produção</a></li>
-                <li class="nav-item d-none d-lg-block text-secondary">|</li>
-                <li class="nav-item"><a class="nav-link text-warning fw-bold" href="distribuicao.html">🎲 Distribuição</a></li>
-                <li class="nav-item"><a class="nav-link text-info fw-bold" href="plantao.html">📅 Plantão</a></li>
-                <li class="nav-item"><a class="nav-link text-danger fw-bold" href="leads.html">🔥 Leads</a></li>
-                <li class="nav-item"><a class="nav-link text-primary fw-bold" href="lojas.html">🏪 Lojas</a></li>
+                    <li class="nav-item dropdown ms-2">
+                        <a class="nav-link position-relative" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span style="font-size: 1.2rem;">🔔</span>
+                            <span id="badge-contador" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" style="font-size: 0.6rem;">0</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="navbarDropdown" style="width: 320px; max-height: 400px; overflow-y: auto;">
+                            <li><h6 class="dropdown-header">Notificações / Lembretes</h6></li>
+                            <div id="lista-notificacoes">
+                                <li><span class="dropdown-item text-muted small">Nenhuma notificação nova.</span></li>
+                            </div>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
 
-                <li class="nav-item dropdown">
-                    <a class="nav-link position-relative" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <span style="font-size: 1.2rem;">🔔</span>
-                        <span id="badge-contador" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" style="font-size: 0.6rem;">
-                            0
-                        </span>
-                    </a>
-                    <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="navbarDropdown" style="width: 320px; max-height: 400px; overflow-y: auto;">
-                        <li><h6 class="dropdown-header">Notificações / Lembretes</h6></li>
-                        <div id="lista-notificacoes">
-                            <li><span class="dropdown-item text-muted small">Nenhuma notificação nova.</span></li>
-                        </div>
-                    </ul>
-                </li>
+    <div class="container mb-5">
+        <div class="text-center mb-5">
+            <h2 class="fw-bold text-dark">Painel de Controle</h2>
+            <p class="text-muted">Selecione o módulo que deseja acessar</p>
+        </div>
 
-            </ul>
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4 justify-content-center">
+            
+            <a href="cadastro.html" class="col text-decoration-none">
+                <div class="card h-100 shadow-sm module-card">
+                    <div class="card-body text-center p-4">
+                        <div class="icon-box bg-dark text-white">👥</div>
+                        <h5 class="fw-bold text-dark">Corretores</h5>
+                        <p class="text-muted small mb-0">Gestão da equipe</p>
+                    </div>
+                </div>
+            </a>
+
+            <a href="parceiros.html" class="col text-decoration-none">
+                <div class="card h-100 shadow-sm module-card">
+                    <div class="card-body text-center p-4">
+                        <div class="icon-box bg-secondary text-white">🤝</div>
+                        <h5 class="fw-bold text-dark">Parceiros</h5>
+                        <p class="text-muted small mb-0">Fontes de captação</p>
+                    </div>
+                </div>
+            </a>
+
+            <a href="producao.html" class="col text-decoration-none">
+                <div class="card h-100 shadow-sm module-card">
+                    <div class="card-body text-center p-4">
+                        <div class="icon-box bg-success text-white">💰</div>
+                        <h5 class="fw-bold text-dark">Produção</h5>
+                        <p class="text-muted small mb-0">Vendas e metas</p>
+                    </div>
+                </div>
+            </a>
+
+            <a href="distribuicao.html" class="col text-decoration-none">
+                <div class="card h-100 shadow-sm module-card">
+                    <div class="card-body text-center p-4">
+                        <div class="icon-box bg-warning text-dark">🎲</div>
+                        <h5 class="fw-bold text-dark">Distribuição</h5>
+                        <p class="text-muted small mb-0">Roleta de Leads</p>
+                    </div>
+                </div>
+            </a>
+
+            <a href="plantao.html" class="col text-decoration-none">
+                <div class="card h-100 shadow-sm module-card">
+                    <div class="card-body text-center p-4">
+                        <div class="icon-box bg-info text-white">📅</div>
+                        <h5 class="fw-bold text-dark">Plantão</h5>
+                        <p class="text-muted small mb-0">Escala Digital</p>
+                    </div>
+                </div>
+            </a>
+
+            <a href="lojas.html" class="col text-decoration-none">
+                <div class="card h-100 shadow-sm module-card">
+                    <div class="card-body text-center p-4">
+                        <div class="icon-box bg-primary text-white">🏪</div>
+                        <h5 class="fw-bold text-dark">Lojas</h5>
+                        <p class="text-muted small mb-0">Escala Presencial</p>
+                    </div>
+                </div>
+            </a>
+
+            <a href="leads.html" class="col text-decoration-none">
+                <div class="card h-100 shadow-sm module-card">
+                    <div class="card-body text-center p-4">
+                        <div class="icon-box bg-danger text-white">🔥</div>
+                        <h5 class="fw-bold text-dark">Leads</h5>
+                        <p class="text-muted small mb-0">Gestão e Follow-up</p>
+                    </div>
+                </div>
+            </a>
+
         </div>
     </div>
-</nav>
 
-<script type="module" src="app-notificacoes.js"></script>
-
-    <div class="d-flex justify-content-center flex-wrap gap-3 mt-4">
-    
-    <a href="cadastro.html" class="btn btn-primary btn-lg shadow" style="min-width: 200px;">
-        👥 Corretores
-    </a>
-
-    <a href="parceiros.html" class="btn btn-secondary btn-lg shadow" style="min-width: 200px;">
-        🤝 Parceiros (Fontes)
-    </a>
-
-    <a href="producao.html" class="btn btn-success btn-lg shadow" style="min-width: 200px;">
-        💰 Produção
-    </a>
-
-    <a href="distribuicao.html" class="btn btn-warning btn-lg shadow" style="min-width: 200px;">
-        🎲 Distribuição
-    </a>
-
-    <a href="plantao.html" class="btn btn-info text-white btn-lg shadow" style="min-width: 200px;">
-        📅 Escala Plantão
-    </a>
-
-    <a href="leads.html" class="btn btn-danger btn-lg shadow" style="min-width: 200px;">
-        🔥 Cadastrar Leads
-    </a>
-
-    <a href="lojas.html" class="btn btn-primary btn-lg shadow" style="min-width: 200px;">
-        🏪 Lojas
-    </a>
-
-</div>
+    <script type="module" src="app-notificacoes.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
