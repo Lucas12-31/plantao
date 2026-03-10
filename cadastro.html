@@ -2,9 +2,10 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Cadastro de Equipe</title>
-    <link rel="icon" type="image/png" href="icon.png">
+    <title>Cadastro de Equipe - Sistema Limão</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="icon" type="image/png" href="icon.png">
+    
     <script type="module" src="auth.js"></script>
 </head>
 <body class="bg-light">
@@ -12,14 +13,15 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow border-bottom border-secondary">
         <div class="container-fluid px-4">
             <a class="navbar-brand fw-bold d-flex align-items-center" href="index.html">
-            <img src="icon.png" alt="Logo" width="28" height="28" class="me-2">Sistema Limão</a>
+                <img src="icon.png" alt="Logo" width="28" height="28" class="me-2">
+                Sistema Limão
+            </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto align-items-center gap-2" style="font-size: 0.85rem;">
-                    
-                    <li class="nav-item"><a class="nav-link text-light border-bottom border-success" href="cadastro.html">👥 Cadastro</a></li>
+                    <li class="nav-item"><a class="nav-link text-light fw-bold border-bottom border-light" href="cadastro.html">👥 Cadastro</a></li>
                     <li class="nav-item"><a class="nav-link text-light" href="parceiros.html">🤝 Parceiros</a></li>
                     <li class="nav-item"><a class="nav-link text-success fw-bold" href="producao.html">💰 Produção</a></li>
                     <li class="nav-item d-none d-lg-block text-secondary">|</li>
@@ -60,10 +62,15 @@
                                 <input type="text" id="nome-corretor" class="form-control" placeholder="Ex: João da Silva..." required>
                             </div>
                             
-                            <div class="mb-4">
+                            <div class="mb-3">
                                 <label class="form-label text-muted small fw-bold mb-1">Telefone / WhatsApp</label>
                                 <input type="tel" id="telefone-corretor" class="form-control" placeholder="5521999999999">
-                                <small class="text-muted" style="font-size: 0.75rem;">Para envio automático, inclua o código do país e DDD (Ex: 55219...)</small>
+                                <small class="text-muted" style="font-size: 0.75rem;">Formato ideal: 5521999999999</small>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label text-muted small fw-bold mb-1">E-mail (Para Acesso Futuro)</label>
+                                <input type="email" id="email-corretor" class="form-control" placeholder="joao@email.com">
                             </div>
 
                             <button type="submit" class="btn btn-dark w-100 fw-bold shadow-sm">➕ Salvar Corretor</button>
@@ -82,11 +89,12 @@
                             <tr>
                                 <th class="text-start ps-4">Nome do Corretor</th>
                                 <th>Telefone / WhatsApp</th>
+                                <th>E-mail</th>
                                 <th>Ações</th>
                             </tr>
                         </thead>
                         <tbody id="lista-corretores">
-                            <tr><td colspan="3" class="text-center py-4 text-muted">Carregando equipe...</td></tr>
+                            <tr><td colspan="4" class="text-center py-4 text-muted">Carregando equipe...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -110,10 +118,14 @@
                         <input type="text" id="edit-nome-corretor" class="form-control fw-bold shadow-sm" required>
                     </div>
                     
-                    <div class="mb-2">
+                    <div class="mb-3">
                         <label class="form-label fw-bold small text-muted text-uppercase">Telefone / WhatsApp:</label>
                         <input type="tel" id="edit-telefone-corretor" class="form-control fw-bold shadow-sm">
-                        <small class="text-muted" style="font-size: 0.75rem;">Formato ideal: 5521999999999</small>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label fw-bold small text-muted text-uppercase">E-mail:</label>
+                        <input type="email" id="edit-email-corretor" class="form-control fw-bold shadow-sm">
                     </div>
                 </div>
                 <div class="modal-footer bg-white">
