@@ -2,25 +2,32 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Gestão de Parceiros</title>
-    <link rel="icon" type="image/png" href="icon.png">
+    <title>Gestão de Parceiros - Sistema Limão</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="icon" type="image/png" href="icon.png">
+    
     <script type="module" src="auth.js"></script>
+
+    <style>
+        .historico-scroll { max-height: 400px; overflow-y: auto; }
+        .data-historico { font-size: 0.8rem; font-weight: bold; color: #6c757d; }
+    </style>
 </head>
 <body class="bg-light">
 
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow border-bottom border-secondary">
         <div class="container-fluid px-4">
             <a class="navbar-brand fw-bold d-flex align-items-center" href="index.html">
-            <img src="icon.png" alt="Logo" width="28" height="28" class="me-2">Sistema Limão</a>
+                <img src="icon.png" alt="Logo" width="28" height="28" class="me-2">
+                Sistema Limão
+            </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto align-items-center gap-2" style="font-size: 0.85rem;">
-                    
                     <li class="nav-item"><a class="nav-link text-light" href="cadastro.html">👥 Cadastro</a></li>
-                    <li class="nav-item"><a class="nav-link text-light border-bottom border-success" href="parceiros.html">🤝 Parceiros</a></li>
+                    <li class="nav-item"><a class="nav-link text-warning fw-bold border-bottom border-warning" href="parceiros.html">🤝 Parceiros</a></li>
                     <li class="nav-item"><a class="nav-link text-success fw-bold" href="producao.html">💰 Produção</a></li>
                     <li class="nav-item d-none d-lg-block text-secondary">|</li>
                     <li class="nav-item"><a class="nav-link text-warning fw-bold" href="distribuicao.html">🎲 Distribuição</a></li>
@@ -48,52 +55,45 @@
     <div class="container-fluid px-4">
         <div class="row">
             
-            <div class="col-md-3">
+            <div class="col-md-3 mb-4">
+                
                 <div class="card shadow border-info mb-4">
-                    <div class="card-header bg-info text-white fw-bold">
-                        Novo Parceiro / Compra
-                    </div>
-                    <div class="card-body">
-                        <form id="form-parceiro">
+                    <div class="card-body bg-white">
+                        <form id="form-compra">
                             <div class="mb-3">
                                 <label class="form-label text-muted small fw-bold mb-1">Nome da Empresa</label>
-                                <input type="text" id="nome-parceiro" class="form-control" list="lista-empresas" placeholder="Ex: Just Sell..." required>
-                                <datalist id="lista-empresas"></datalist>
+                                <input type="text" id="nome-parceiro" class="form-control" placeholder="Ex: Just Sell..." required>
                             </div>
-
                             <div class="mb-3">
                                 <label class="form-label text-muted small fw-bold mb-1">Data da Compra</label>
                                 <input type="date" id="data-compra" class="form-control" required>
                             </div>
-
                             <div class="mb-4">
                                 <label class="form-label text-muted small fw-bold mb-1">Qtd. Comprada</label>
-                                <input type="number" id="qtd-leads" class="form-control" placeholder="0" required>
+                                <input type="number" id="qtd-leads" class="form-control" min="1" value="0" required>
                             </div>
-
-                            <button type="submit" class="btn btn-info text-white w-100 fw-bold">Salvar Compra</button>
+                            <button type="submit" class="btn btn-info text-white w-100 fw-bold shadow-sm">Salvar Compra</button>
                         </form>
                     </div>
                 </div>
 
-                <div class="card shadow border-secondary mb-4">
-                    <div class="card-header bg-secondary text-white fw-bold d-flex justify-content-between">
+                <div class="card shadow border-secondary">
+                    <div class="card-header bg-secondary text-white fw-bold d-flex justify-content-between align-items-center">
                         <span>📅 Histórico de Compras</span>
+                        <button onclick="limparHistoricoCompras()" class="btn btn-sm btn-outline-light" title="Apagar todo o histórico" style="font-size: 0.75rem;">🗑️ Zerar</button>
                     </div>
-                    <div class="card-body p-0">
+                    <div class="card-body p-0 historico-scroll">
                         <ul class="list-group list-group-flush" id="lista-historico">
-                            <li class="list-group-item text-center text-muted small py-3">Carregando histórico...</li>
+                            <li class="list-group-item text-center text-muted py-4">Carregando histórico...</li>
                         </ul>
                     </div>
                 </div>
+
             </div>
 
             <div class="col-md-9">
-                <h4 class="mb-3 d-flex align-items-center gap-2">
-                    💼 Carteira de Parceiros (Estoque Atual)
-                </h4>
-                <div class="table-responsive shadow-sm rounded bg-white">
-                    <table class="table table-striped table-hover align-middle mb-0 text-center">
+                <div class="table-responsive shadow-sm rounded bg-white border">
+                    <table class="table table-hover align-middle mb-0 text-center">
                         <thead class="table-dark">
                             <tr>
                                 <th class="text-start ps-4">Empresa (Fonte)</th>
@@ -104,55 +104,16 @@
                                 <th>Ações</th>
                             </tr>
                         </thead>
-                        <tbody id="lista-parceiros">
-                            <tr><td colspan="6" class="text-center py-4">Carregando estoque...</td></tr>
+                        <tbody id="tabela-parceiros">
+                            <tr><td colspan="6" class="text-center py-5 text-muted">Carregando parceiros...</td></tr>
                         </tbody>
                     </table>
                 </div>
-                <small class="text-muted mt-2 d-block">
+                <div class="mt-2 text-muted small">
                     * <b>Dist.</b> = Leads já cadastrados. <b>Restam</b> = Seu saldo a receber. <b>Inválidos</b> são devolvidos ao seu saldo para reposição.
-                </small>
-            </div>
-
-        </div>
-    </div>
-
-    <div class="modal fade" id="modal-detalhes-historico" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow-lg">
-                <div class="modal-header bg-dark text-white">
-                    <h5 class="modal-title fw-bold" id="modal-titulo">Detalhes da Empresa</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body p-4 bg-light">
-                    <div class="row text-center g-3">
-                        <div class="col-6">
-                            <div class="p-3 border rounded bg-white shadow-sm">
-                                <h6 class="text-muted mb-1 small text-uppercase fw-bold">Comprados</h6>
-                                <h2 class="mb-0 text-primary fw-bold" id="modal-comprados">0</h2>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="p-3 border rounded bg-white shadow-sm">
-                                <h6 class="text-muted mb-1 small text-uppercase fw-bold">Distribuídos</h6>
-                                <h2 class="mb-0 text-info fw-bold" id="modal-distribuidos">0</h2>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="p-3 border rounded bg-white shadow-sm border-success">
-                                <h6 class="text-success mb-1 small text-uppercase fw-bold">Finalizados (Vendas)</h6>
-                                <h2 class="mb-0 text-success fw-bold" id="modal-finalizados">0</h2>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="p-3 border rounded bg-white shadow-sm border-danger">
-                                <h6 class="text-danger mb-1 small text-uppercase fw-bold">Inválidos</h6>
-                                <h2 class="mb-0 text-danger fw-bold" id="modal-invalidos">0</h2>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
+
         </div>
     </div>
 
