@@ -12,11 +12,13 @@ form.addEventListener('submit', async (e) => {
 
     const nome = document.getElementById('nome-corretor').value.trim();
     const telefone = document.getElementById('telefone-corretor').value.trim();
+    const email = document.getElementById('email-corretor').value.trim();
 
     try {
         await addDoc(collection(db, "corretores"), {
             nome: nome,
             telefone: telefone,
+            email: email, // NOVO: Salva o e-mail no banco
             producao_pme: 0,
             producao_pf: 0,
             saldo_pme: 0,
@@ -42,7 +44,7 @@ onSnapshot(q, (snapshot) => {
     let html = '';
     
     if (snapshot.empty) {
-        lista.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-muted">Nenhum corretor cadastrado.</td></tr>';
+        lista.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">Nenhum corretor cadastrado.</td></tr>';
         return;
     }
 
@@ -50,18 +52,19 @@ onSnapshot(q, (snapshot) => {
         const id = docSnap.id;
         const dados = docSnap.data();
         const telefone = dados.telefone || '';
+        const email = dados.email || '';
         
-        // Formatação visual se não tiver telefone
-        const telBadge = telefone 
-            ? `<span class="fw-bold text-secondary">${telefone}</span>` 
-            : `<span class="badge bg-light text-muted border">Sem número</span>`;
+        // Formatação visual se não tiver telefone/email
+        const telBadge = telefone ? `<span class="fw-bold text-secondary">${telefone}</span>` : `<span class="badge bg-light text-muted border">Sem número</span>`;
+        const emailBadge = email ? `<span class="text-muted small">${email}</span>` : `<span class="badge bg-light text-muted border">Sem e-mail</span>`;
 
         html += `
             <tr>
                 <td class="text-start ps-4 fw-bold text-uppercase text-dark">${dados.nome}</td>
                 <td class="align-middle">${telBadge}</td>
+                <td class="align-middle">${emailBadge}</td>
                 <td class="align-middle">
-                    <button onclick="abrirModalEditarCorretor('${id}', '${dados.nome}', '${telefone}')" class="btn btn-outline-warning btn-sm me-1 fw-bold shadow-sm" title="Editar Corretor">
+                    <button onclick="abrirModalEditarCorretor('${id}', '${dados.nome}', '${telefone}', '${email}')" class="btn btn-outline-warning btn-sm me-1 fw-bold shadow-sm" title="Editar Corretor">
                         ✏️ Editar
                     </button>
                     <button onclick="deletarCorretor('${id}')" class="btn btn-outline-danger btn-sm fw-bold shadow-sm" title="Excluir Corretor">
@@ -78,13 +81,12 @@ onSnapshot(q, (snapshot) => {
 // ==========================================
 // 3. EDITAR CORRETOR (MODAL)
 // ==========================================
-window.abrirModalEditarCorretor = (id, nome, telefone) => {
-    // Preenche os campos do modal
+window.abrirModalEditarCorretor = (id, nome, telefone, email) => {
     document.getElementById('edit-id-corretor').value = id;
     document.getElementById('edit-nome-corretor').value = nome;
     document.getElementById('edit-telefone-corretor').value = telefone;
+    document.getElementById('edit-email-corretor').value = email;
 
-    // Abre o Modal
     const modal = new bootstrap.Modal(document.getElementById('modal-editar-corretor'));
     modal.show();
 };
@@ -93,19 +95,20 @@ window.salvarEdicaoCorretor = async () => {
     const id = document.getElementById('edit-id-corretor').value;
     const novoNome = document.getElementById('edit-nome-corretor').value.trim();
     const novoTelefone = document.getElementById('edit-telefone-corretor').value.trim();
+    const novoEmail = document.getElementById('edit-email-corretor').value.trim();
 
     if (!novoNome) return alert("O nome do corretor não pode ficar em branco.");
 
     try {
         const corretorRef = doc(db, "corretores", id);
         
-        // Atualiza APENAS o nome e o telefone (preservando produção e leads)
+        // Atualiza nome, telefone e o novo campo de email
         await updateDoc(corretorRef, {
             nome: novoNome,
-            telefone: novoTelefone
+            telefone: novoTelefone,
+            email: novoEmail
         });
 
-        // Fecha o Modal
         bootstrap.Modal.getInstance(document.getElementById('modal-editar-corretor')).hide();
         
     } catch (error) {
