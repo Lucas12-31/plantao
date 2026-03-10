@@ -48,58 +48,66 @@
     </nav>
 
     <div class="container-fluid px-4">
-        <div class="row">
-            
-            <div class="col-md-4 mb-4">
-                <div class="card shadow border-dark">
-                    <div class="card-header bg-dark text-white fw-bold">
-                        👥 Cadastrar Novo Corretor
-                    </div>
-                    <div class="card-body bg-white">
-                        <form id="form-corretor">
-                            <div class="mb-3">
-                                <label class="form-label text-muted small fw-bold mb-1">Nome Completo</label>
-                                <input type="text" id="nome-corretor" class="form-control" placeholder="Ex: João da Silva..." required>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label text-muted small fw-bold mb-1">Telefone / WhatsApp</label>
-                                <input type="tel" id="telefone-corretor" class="form-control" placeholder="5521999999999">
-                                <small class="text-muted" style="font-size: 0.75rem;">Formato ideal: 5521999999999</small>
-                            </div>
-
-                            <div class="mb-4">
-                                <label class="form-label text-muted small fw-bold mb-1">E-mail (Para Acesso Futuro)</label>
-                                <input type="email" id="email-corretor" class="form-control" placeholder="joao@email.com">
-                            </div>
-
-                            <button type="submit" class="btn btn-dark w-100 fw-bold shadow-sm">➕ Salvar Corretor</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-8">
-                <h4 class="mb-3 text-dark fw-bold d-flex align-items-center gap-2">
+        <div class="col-12 mb-5">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="m-0 text-dark fw-bold d-flex align-items-center gap-2">
                     💼 Equipe Cadastrada
                 </h4>
-                <div class="table-responsive shadow-sm rounded bg-white">
-                    <table class="table table-striped table-hover align-middle mb-0 text-center">
-                        <thead class="table-dark">
-                            <tr>
-                                <th class="text-start ps-4">Nome do Corretor</th>
-                                <th>Telefone / WhatsApp</th>
-                                <th>E-mail</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="lista-corretores">
-                            <tr><td colspan="4" class="text-center py-4 text-muted">Carregando equipe...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+                
+                <button class="btn btn-dark fw-bold shadow-sm px-4" data-bs-toggle="modal" data-bs-target="#modal-cadastrar-corretor">
+                    ➕ Novo Corretor
+                </button>
             </div>
 
+            <div class="table-responsive shadow-sm rounded bg-white border">
+                <table class="table table-striped table-hover align-middle mb-0 text-center">
+                    <thead class="table-dark">
+                        <tr>
+                            <th class="text-start ps-4">Nome do Corretor</th>
+                            <th>WhatsApp</th>
+                            <th>E-mail</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lista-corretores">
+                        <tr><td colspan="4" class="text-center py-4 text-muted">Carregando equipe...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modal-cadastrar-corretor" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-0">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title fw-bold">➕ Cadastrar Novo Corretor</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="form-corretor">
+                    <div class="modal-body bg-light p-4">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted text-uppercase mb-1">Nome Completo</label>
+                            <input type="text" id="nome-corretor" class="form-control fw-bold shadow-sm" placeholder="Ex: João da Silva..." required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted text-uppercase mb-1">Telefone / WhatsApp</label>
+                            <input type="tel" id="telefone-corretor" class="form-control fw-bold shadow-sm" placeholder="5521999999999">
+                            <small class="text-muted" style="font-size: 0.75rem;">Formato ideal: 5521999999999</small>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label fw-bold small text-muted text-uppercase mb-1">E-mail (Para Acesso Futuro)</label>
+                            <input type="email" id="email-corretor" class="form-control fw-bold shadow-sm" placeholder="joao@email.com">
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-white">
+                        <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-dark fw-bold px-4 shadow-sm">💾 Salvar Corretor</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 
