@@ -126,7 +126,7 @@ function atualizarTabelaEstoque() {
 const qHist = query(collection(db, "historico_compras"), orderBy("data_compra", "desc"));
 
 onSnapshot(qHist, (snapshot) => {
-    estadoHistoricoCompras = []; // Salva para o modal usar
+    estadoHistoricoCompras = []; 
     
     if (snapshot.empty) {
         listaHistorico.innerHTML = '<li class="list-group-item text-center text-muted small py-3">Nenhuma compra registrada ainda.</li>';
@@ -138,13 +138,12 @@ onSnapshot(qHist, (snapshot) => {
 
     snapshot.forEach(doc => {
         const dados = doc.data();
-        estadoHistoricoCompras.push(dados); // Popula a array global
+        estadoHistoricoCompras.push(dados); 
 
         const [ano, mes, dia] = dados.data_compra.split('-');
         const chaveMes = `${mesesNome[parseInt(mes) - 1]} ${ano}`;
 
         if (!agrupadoPorMes[chaveMes]) agrupadoPorMes[chaveMes] = [];
-        // Guardamos ano e mês puro para passar para a função do Modal
         agrupadoPorMes[chaveMes].push({ ...dados, dia, anoOriginal: ano, mesOriginal: mes }); 
     });
 
@@ -155,7 +154,6 @@ onSnapshot(qHist, (snapshot) => {
                  </li>`;
         
         compras.forEach(c => {
-            // Transformei o <li> em clicável, chamando a função abrirDetalhesMes
             html += `
                 <li class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" 
                     style="cursor: pointer;" 
@@ -179,7 +177,6 @@ onSnapshot(qHist, (snapshot) => {
 // ==========================================
 window.abrirDetalhesMes = (parceiroNome, ano, mes) => {
     
-    // 1. Somar compras FEITAS neste mês/ano para este parceiro
     let compradosNoMes = 0;
     estadoHistoricoCompras.forEach(h => {
         if (h.parceiro === parceiroNome && h.data_compra.startsWith(`${ano}-${mes}`)) {
@@ -187,7 +184,6 @@ window.abrirDetalhesMes = (parceiroNome, ano, mes) => {
         }
     });
 
-    // 2. Filtrar os Leads ENTREGUES neste mês/ano oriundos deste parceiro
     let distribuidosNoMes = 0;
     let finalizadosNoMes = 0;
     let invalidosNoMes = 0;
@@ -200,7 +196,6 @@ window.abrirDetalhesMes = (parceiroNome, ano, mes) => {
         }
     });
 
-    // 3. Preencher os dados na Janelinha HTML
     const mesesNome = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
     const nomeDoMes = mesesNome[parseInt(mes) - 1];
 
@@ -210,14 +205,13 @@ window.abrirDetalhesMes = (parceiroNome, ano, mes) => {
     document.getElementById('modal-finalizados').innerText = finalizadosNoMes;
     document.getElementById('modal-invalidos').innerText = invalidosNoMes;
 
-    // 4. Exibir o Modal na tela
     const modalEl = document.getElementById('modal-detalhes-historico');
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
 };
 
 // ==========================================
-// FUNÇÕES DE EDIÇÃO E EXCLUSÃO GERAIS
+// 5. FUNÇÕES DE EDIÇÃO E EXCLUSÃO GERAIS
 // ==========================================
 window.editar = async (id, valorAtual) => {
     let novoValor = prompt(`Alterar a quantidade de leads COMPRADOS:`, valorAtual);
@@ -239,5 +233,42 @@ window.editar = async (id, valorAtual) => {
 window.deletar = async (id) => {
     if(confirm("Tem certeza que deseja excluir esta empresa da carteira?\nIsso não apagará o histórico de compras já feitas.")) {
         await deleteDoc(doc(db, "parceiros", id));
+    }
+};
+
+// ==========================================
+// 6. FUNÇÃO: ZERAR HISTÓRICO DE COMPRAS
+// ==========================================
+window.limparHistoricoCompras = async () => {
+    // Trava de segurança para não apagar sem querer
+    const confirmacao = prompt("⚠️ ATENÇÃO: Isso vai apagar TODO o histórico de compras de leads permanentemente e não pode ser desfeito.\n\nDigite a palavra ZERAR para confirmar:");
+
+    if (confirmacao === "ZERAR") {
+        try {
+            const colecaoHistorico = "historico_compras"; 
+            
+            const querySnapshot = await getDocs(collection(db, colecaoHistorico));
+            
+            if (querySnapshot.empty) {
+                return alert("O histórico já está vazio!");
+            }
+
+            // Exclui documento por documento do histórico
+            const promessasDeExclusao = [];
+            querySnapshot.forEach((docSnap) => {
+                promessasDeExclusao.push(deleteDoc(doc(db, colecaoHistorico, docSnap.id)));
+            });
+
+            // Aguarda todas as exclusões terminarem
+            await Promise.all(promessasDeExclusao);
+
+            alert("✅ Histórico zerado com sucesso! Sistema limpo para iniciar.");
+            
+        } catch (error) {
+            console.error("Erro ao zerar histórico:", error);
+            alert("Erro ao zerar o histórico. Verifique o console.");
+        }
+    } else if (confirmacao !== null) {
+        alert("Operação cancelada. A palavra 'ZERAR' não foi digitada corretamente.");
     }
 };
