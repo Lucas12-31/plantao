@@ -59,10 +59,11 @@
                 
                 <div class="card shadow border-info mb-4">
                     <div class="card-body bg-white">
-                        <form id="form-compra">
+                        <form id="form-parceiro"> <datalist id="lista-empresas"></datalist>
+
                             <div class="mb-3">
                                 <label class="form-label text-muted small fw-bold mb-1">Nome da Empresa</label>
-                                <input type="text" id="nome-parceiro" class="form-control" placeholder="Ex: Just Sell..." required>
+                                <input type="text" id="nome-parceiro" list="lista-empresas" class="form-control" placeholder="Ex: Just Sell..." required>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label text-muted small fw-bold mb-1">Data da Compra</label>
@@ -104,8 +105,7 @@
                                 <th>Ações</th>
                             </tr>
                         </thead>
-                        <tbody id="tabela-parceiros">
-                            <tr><td colspan="6" class="text-center py-5 text-muted">Carregando parceiros...</td></tr>
+                        <tbody id="lista-parceiros"> <tr><td colspan="6" class="text-center py-5 text-muted">Carregando parceiros...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -114,6 +114,40 @@
                 </div>
             </div>
 
+        </div>
+    </div>
+
+    <div class="modal fade" id="modal-detalhes-historico" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-0">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title fw-bold" id="modal-titulo">Detalhes do Mês</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-light p-4">
+                    <ul class="list-group shadow-sm">
+                        <li class="list-group-item d-flex justify-content-between align-items-center fw-bold">
+                            Leads Comprados (Mês):
+                            <span class="badge bg-primary rounded-pill fs-6" id="modal-comprados">0</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Leads Distribuídos (Mês):
+                            <span class="badge bg-secondary rounded-pill fs-6" id="modal-distribuidos">0</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Vendas Finalizadas (Mês):
+                            <span class="badge bg-success rounded-pill fs-6" id="modal-finalizados">0</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Leads Inválidos (Mês):
+                            <span class="badge bg-danger rounded-pill fs-6" id="modal-invalidos">0</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="modal-footer bg-white">
+                    <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
         </div>
     </div>
 
