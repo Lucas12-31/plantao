@@ -18,7 +18,7 @@ form.addEventListener('submit', async (e) => {
         await addDoc(collection(db, "corretores"), {
             nome: nome,
             telefone: telefone,
-            email: email, // NOVO: Salva o e-mail no banco
+            email: email, 
             producao_pme: 0,
             producao_pf: 0,
             saldo_pme: 0,
@@ -28,7 +28,12 @@ form.addEventListener('submit', async (e) => {
 
         alert("✅ Corretor cadastrado com sucesso!");
         form.reset();
-        document.getElementById('nome-corretor').focus();
+        
+        // NOVO: Fecha o Modal de Cadastro após salvar
+        const modalEl = document.getElementById('modal-cadastrar-corretor');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if(modal) modal.hide();
+
     } catch (error) {
         console.error("Erro ao cadastrar corretor:", error);
         alert("Erro ao cadastrar.");
@@ -54,7 +59,6 @@ onSnapshot(q, (snapshot) => {
         const telefone = dados.telefone || '';
         const email = dados.email || '';
         
-        // Formatação visual se não tiver telefone/email
         const telBadge = telefone ? `<span class="fw-bold text-secondary">${telefone}</span>` : `<span class="badge bg-light text-muted border">Sem número</span>`;
         const emailBadge = email ? `<span class="text-muted small">${email}</span>` : `<span class="badge bg-light text-muted border">Sem e-mail</span>`;
 
@@ -102,7 +106,6 @@ window.salvarEdicaoCorretor = async () => {
     try {
         const corretorRef = doc(db, "corretores", id);
         
-        // Atualiza nome, telefone e o novo campo de email
         await updateDoc(corretorRef, {
             nome: novoNome,
             telefone: novoTelefone,
