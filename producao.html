@@ -47,105 +47,117 @@
         </div>
     </nav>
 
-    <div class="container">
+    <div class="container-fluid px-4">
         
-        <div class="row mb-4">
-            <div class="col-md-6 mx-auto">
-                <div class="card shadow border-success">
-                    <div class="card-header bg-success text-white fw-bold">
-                        💰 Lançar Produção (Soma na Meta)
+        <div class="col-12 mb-5">
+            <div class="card shadow border-dark">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-3">
+                    <span class="fw-bold fs-5">🏆 Ranking do Mês Atual (Acumulado)</span>
+                    
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-success fw-bold shadow-sm px-4" data-bs-toggle="modal" data-bs-target="#modal-lancar-producao">
+                            ➕ Lançar Produção
+                        </button>
+                        
+                        <button onclick="encerrarMes()" class="btn btn-danger border border-white fw-bold px-3">
+                            🛑 Encerrar Mês e Zerar Vendas
+                        </button>
                     </div>
-                    <div class="card-body">
-                        <form id="form-producao">
-                            
-                            <div class="row">
-                                <div class="col-7 mb-3">
-                                    <label class="form-label text-muted small fw-bold mb-1">Corretor</label>
-                                    <select id="select-corretor" class="form-select" required>
-                                        <option value="">Carregando...</option>
-                                    </select>
-                                </div>
-                                <div class="col-5 mb-3">
-                                    <label class="form-label text-muted small fw-bold mb-1">Mês Ref.</label>
-                                    <input type="month" id="mes-referencia" class="form-control" required>
-                                </div>
-                            </div>
-                            
-                            <div class="row">
-                                <div class="col-6 mb-3">
-                                    <label class="form-label text-muted small fw-bold mb-1">Valor PME (R$)</label>
-                                    <input type="number" id="valor-pme" class="form-control" placeholder="0.00" step="0.01">
-                                </div>
-                                <div class="col-6 mb-3">
-                                    <label class="form-label text-muted small fw-bold mb-1">Valor PF (R$)</label>
-                                    <input type="number" id="valor-pf" class="form-control" placeholder="0.00" step="0.01">
-                                </div>
-                            </div>
-
-                            <button type="submit" class="btn btn-success w-100 fw-bold mt-2 shadow-sm">➕ Adicionar à Produção</button>
-                        </form>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-striped mb-0 text-center align-middle">
+                            <thead>
+                                <tr>
+                                    <th class="text-start ps-4">Corretor</th>
+                                    <th>Produção PME</th>
+                                    <th>Produção PF</th>
+                                    <th>Total (R$)</th>
+                                    <th>Pontos</th>
+                                    <th>Competência</th> <th style="width: 120px;">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela-ranking">
+                                </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="card shadow mb-5 border-dark">
-            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                <span>🏆 Ranking do Mês Atual (Acumulado)</span>
-                
-                <button onclick="encerrarMes()" class="btn btn-danger btn-sm border border-white fw-bold">
-                    🛑 Encerrar Mês e Zerar Vendas
-                </button>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-striped mb-0 text-center align-middle">
-                        <thead>
-                            <tr>
-                                <th class="text-start ps-4">Corretor</th>
-                                <th>Produção PME</th>
-                                <th>Produção PF</th>
-                                <th>Total (R$)</th>
-                                <th>Pontos</th>
-                                <th style="width: 120px;">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabela-ranking">
+        <div class="col-12 mb-5">
+            <div class="card shadow border-secondary">
+                <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                    <span>📅 Histórico de Produções Anteriores</span>
+                    <select id="select-historico" class="form-select form-select-sm w-auto fw-bold" style="min-width: 200px;">
+                        <option value="">Carregando histórico...</option>
+                    </select>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 text-center align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-start ps-4">Corretor</th>
+                                    <th>Produção PME</th>
+                                    <th>Produção PF</th>
+                                    <th>Total (R$)</th>
+                                    <th>Pontos Finais</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela-historico">
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">Selecione um ciclo acima para visualizar.</td>
+                                </tr>
                             </tbody>
-                    </table>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="card shadow mb-5 border-secondary">
-            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
-                <span>📅 Histórico de Produções Anteriores</span>
-                <select id="select-historico" class="form-select form-select-sm w-auto fw-bold" style="min-width: 200px;">
-                    <option value="">Carregando histórico...</option>
-                </select>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0 text-center align-middle">
-                        <thead class="table-light">
-                            <tr>
-                                <th class="text-start ps-4">Corretor</th>
-                                <th>Produção PME</th>
-                                <th>Produção PF</th>
-                                <th>Total (R$)</th>
-                                <th>Pontos Finais</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabela-historico">
-                            <tr>
-                                <td colspan="5" class="text-center text-muted py-4">Selecione um ciclo acima para visualizar.</td>
-                            </tr>
-                        </tbody>
-                    </table>
+    </div>
+
+    <div class="modal fade" id="modal-lancar-producao" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-0 border-top border-success border-4">
+                <div class="modal-header bg-white">
+                    <h5 class="modal-title fw-bold text-success">💰 Lançar Produção (Soma na Meta)</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
+                <form id="form-producao">
+                    <div class="modal-body bg-light p-4">
+                        <div class="row">
+                            <div class="col-7 mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Corretor</label>
+                                <select id="select-corretor" class="form-select shadow-sm" required>
+                                    <option value="">Carregando...</option>
+                                </select>
+                            </div>
+                            <div class="col-5 mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Mês Ref.</label>
+                                <input type="month" id="mes-referencia" class="form-control shadow-sm" required>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-6 mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Valor PME (R$)</label>
+                                <input type="number" id="valor-pme" class="form-control shadow-sm" placeholder="0.00" step="0.01">
+                            </div>
+                            <div class="col-6 mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Valor PF (R$)</label>
+                                <input type="number" id="valor-pf" class="form-control shadow-sm" placeholder="0.00" step="0.01">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-white">
+                        <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-success fw-bold px-4 shadow-sm">➕ Adicionar à Produção</button>
+                    </div>
+                </form>
             </div>
         </div>
-
     </div>
 
     <div class="modal fade" id="modal-editar-producao" tabindex="-1" aria-hidden="true">
