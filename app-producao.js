@@ -62,7 +62,6 @@ function renderizarRanking(lista, elementoTabela, ehHistorico = false) {
 
         let corBadge = ehHistorico ? 'bg-secondary' : 'bg-dark';
 
-        // SE FOR O MÊS ATUAL, CRIA A COLUNA DE AÇÕES
         let acoesHtml = '';
         if (!ehHistorico) {
             acoesHtml = `
@@ -94,7 +93,7 @@ function renderizarRanking(lista, elementoTabela, ehHistorico = false) {
 }
 
 // ========================================================
-// 2. LANÇAR PRODUÇÃO DO MÊS ATUAL (SOMA NORMAL)
+// 2. LANÇAR PRODUÇÃO DO MÊS ATUAL (AMBOS SIMULTÂNEOS)
 // ========================================================
 if(form) {
     form.addEventListener('submit', async (e) => {
@@ -102,31 +101,46 @@ if(form) {
 
         const id = selectCorretor.value;
         const nomeCorretor = selectCorretor.options[selectCorretor.selectedIndex].text;
-        const tipo = document.getElementById('tipo-prod').value; 
-        const valor = parseFloat(document.getElementById('valor-prod').value);
         const mesRef = document.getElementById('mes-referencia').value;
+        
+        // Pega os dois valores, se estiver vazio ele converte para 0
+        const valorPme = parseFloat(document.getElementById('valor-pme').value) || 0;
+        const valorPf = parseFloat(document.getElementById('valor-pf').value) || 0;
 
-        if (!id || !valor || !mesRef) return alert("Preencha todos os campos!");
-
-        const campoBanco = tipo === 'pme' ? 'producao_pme' : 'producao_pf';
+        if (!id || !mesRef) return alert("Preencha o corretor e o mês!");
+        if (valorPme <= 0 && valorPf <= 0) return alert("Você precisa preencher um valor maior que zero em PME ou PF!");
 
         try {
-            await addDoc(collection(db, "lancamentos_producao"), {
-                corretor_id: id,
-                corretor_nome: nomeCorretor,
-                tipo_produto: tipo,
-                valor_lancado: valor,
-                mes_competencia: mesRef, 
-                data_lancamento: new Date().toISOString()
-            });
+            // Objeto para atualizar a ficha do corretor no banco
+            const dadosAtualizacao = {};
 
-            const ref = doc(db, "corretores", id);
-            await updateDoc(ref, {
-                [campoBanco]: increment(valor)
-            });
+            // Se lançou PME, salva no histórico e prepara a soma
+            if (valorPme > 0) {
+                await addDoc(collection(db, "lancamentos_producao"), {
+                    corretor_id: id, corretor_nome: nomeCorretor, tipo_produto: 'pme',
+                    valor_lancado: valorPme, mes_competencia: mesRef, data_lancamento: new Date().toISOString()
+                });
+                dadosAtualizacao.producao_pme = increment(valorPme);
+            }
+
+            // Se lançou PF, salva no histórico e prepara a soma
+            if (valorPf > 0) {
+                await addDoc(collection(db, "lancamentos_producao"), {
+                    corretor_id: id, corretor_nome: nomeCorretor, tipo_produto: 'pf',
+                    valor_lancado: valorPf, mes_competencia: mesRef, data_lancamento: new Date().toISOString()
+                });
+                dadosAtualizacao.producao_pf = increment(valorPf);
+            }
+
+            // Atualiza o ranking do corretor de uma vez só!
+            await updateDoc(doc(db, "corretores", id), dadosAtualizacao);
             
-            alert(`✅ R$ ${valor} adicionado com sucesso para a competência ${mesRef}!`);
-            document.getElementById('valor-prod').value = ''; 
+            alert(`✅ Produção adicionada com sucesso!`);
+            
+            // Limpa os campos para o próximo lançamento
+            document.getElementById('valor-pme').value = ''; 
+            document.getElementById('valor-pf').value = ''; 
+            
         } catch (error) {
             console.error(error);
             alert("Erro ao lançar.");
@@ -135,7 +149,7 @@ if(form) {
 }
 
 // ========================================================
-// 3. EDIÇÃO MANUAL E ZERAR PRODUÇÃO (NOVAS FUNÇÕES)
+// 3. EDIÇÃO MANUAL E ZERAR PRODUÇÃO
 // ========================================================
 
 window.abrirModalEditarProducao = (id, nome, pmeAtual, pfAtual) => {
@@ -250,7 +264,6 @@ async function carregarOpcoesHistorico() {
             return;
         }
 
-        // Ordena por ordem de criação (o mais recente aparece primeiro/último dependendo da string)
         let arrayRefs = Array.from(referenciasUnicas).reverse(); 
 
         let html = '<option value="">Selecione um ciclo...</option>';
