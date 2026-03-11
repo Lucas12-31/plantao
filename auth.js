@@ -11,28 +11,24 @@ onAuthStateChanged(auth, (user) => {
     if (user) {
         const email = user.email.toLowerCase();
         
-        // 1. DEFINIÇÃO DE PERFIS (A mágica acontece aqui)
-        let perfilAtivo = 'corretor'; // Todo mundo que entra cai como corretor por padrão
+        // 1. DEFINIÇÃO DE PERFIS
+        let perfilAtivo = 'corretor'; 
         let nomeLogado = 'Corretor Associado';
 
-        // Verifica se é a Mestre
         if (email === 'amanda.rossip@gmail.com') {
             perfilAtivo = 'mestre';
             nomeLogado = 'Gestão Mestre';
-        } 
-        // Verifica se é a Equipe Administrativa
-        else if (email === 'equipelimao@gmail.com') {
+        } else if (email === 'equipelimao@gmail.com') {
             perfilAtivo = 'funcionario';
             nomeLogado = 'Administrativo';
         }
 
-        // Se estiver na tela de login logado, joga pro início
         if (paginaAtual === 'login.html') {
             window.location.replace('index.html');
             return;
         }
 
-        // 2. BLOQUEIO DE PÁGINAS (CHUTA PRO INÍCIO SE TENTAR INVADIR)
+        // 2. BLOQUEIO DE PÁGINAS
         if (perfilAtivo === 'funcionario' && paginasProibidasFuncionario.includes(paginaAtual)) {
             alert("⛔ Acesso Negado!\nSeu perfil não tem permissão para acessar esta área.");
             window.location.replace('index.html');
@@ -43,15 +39,13 @@ onAuthStateChanged(auth, (user) => {
             window.location.replace('index.html');
         }
 
-        // 3. ESCONDER BOTÕES E MENUS
+        // 3. ESCONDER BOTÕES E MENUS GERAIS
         if (perfilAtivo === 'funcionario' || perfilAtivo === 'corretor') {
             let linksParaEsconder = [];
 
             if (perfilAtivo === 'funcionario') {
-                // Equipe não vê gestão pesada
                 linksParaEsconder = document.querySelectorAll('a[href*="cadastro.html"], a[href*="parceiros.html"], a[href*="producao.html"]');
             } else if (perfilAtivo === 'corretor') {
-                // Corretor não vê nada além de plantão e lojas
                 linksParaEsconder = document.querySelectorAll('a[href*="cadastro.html"], a[href*="parceiros.html"], a[href*="producao.html"], a[href*="distribuicao.html"], a[href*="leads.html"]');
             }
             
@@ -59,17 +53,34 @@ onAuthStateChanged(auth, (user) => {
                 if (link.classList.contains('nav-link')) {
                     if (link.parentElement) link.parentElement.style.display = 'none';
                 } else {
-                    link.style.display = 'none'; // Esconde os cartões do dashboard
+                    link.style.display = 'none'; 
                 }
             });
 
-            // Tira as barrinhas de separação "|"
             document.querySelectorAll('.nav-item.text-secondary').forEach(barra => {
                 if(barra.innerText.includes('|')) barra.style.display = 'none';
             });
         }
 
-        // 4. BOTÃO DE SAIR NO MENU
+        // =========================================================
+        // 4. NOVO: MODO "SOMENTE LEITURA" PARA A ESCALA DO CORRETOR
+        // =========================================================
+        if (perfilAtivo === 'corretor') {
+            // Cria um CSS que força os botões de edição a sumirem
+            const estiloBloqueio = document.createElement('style');
+            estiloBloqueio.innerHTML = `
+                button[onclick="refazerSorteio()"], 
+                button[onclick*="alterarVagas"], 
+                #form-feriado, 
+                button[onclick*="deletarFeriado"] {
+                    display: none !important;
+                }
+            `;
+            // Injeta o CSS na página secretamente
+            document.head.appendChild(estiloBloqueio);
+        }
+
+        // 5. BOTÃO DE SAIR NO MENU
         const navbar = document.querySelector('.navbar-nav');
         if (navbar && !document.getElementById('btn-sair-sistema')) {
             const liSair = document.createElement('li');
@@ -89,9 +100,7 @@ onAuthStateChanged(auth, (user) => {
                 }
             });
         }
-    } 
-    // SE NINGUÉM ESTIVER LOGADO (Acesso Negado)
-    else {
+    } else {
         if (paginaAtual !== 'login.html') {
             window.location.replace('login.html');
         }
