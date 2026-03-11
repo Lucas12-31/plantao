@@ -62,6 +62,15 @@ function renderizarRanking(lista, elementoTabela, ehHistorico = false) {
 
         let corBadge = ehHistorico ? 'bg-secondary' : 'bg-dark';
 
+        // FORMATANDO A COMPETÊNCIA PARA EXIBIR BONITINHO (EX: 02/2026)
+        let compFormatada = "-";
+        if (c.mes_competencia) {
+            const [ano, mes] = c.mes_competencia.split('-');
+            compFormatada = `${mes}/${ano}`;
+        }
+        
+        let colunaCompetenciaHtml = ehHistorico ? '' : `<td><span class="badge bg-light text-dark border shadow-sm">${compFormatada}</span></td>`;
+
         let acoesHtml = '';
         if (!ehHistorico) {
             acoesHtml = `
@@ -79,13 +88,14 @@ function renderizarRanking(lista, elementoTabela, ehHistorico = false) {
                 <td class="text-info fw-bold">${fmtMoney(c.v_pf)}</td>
                 <td class="fw-bold text-secondary">${fmtMoney(c.totalMoney)}</td>
                 <td><span class="badge ${corBadge} shadow-sm">${Math.floor(c.pontos)} pts</span></td>
+                ${colunaCompetenciaHtml}
                 ${acoesHtml}
             </tr>
         `;
     });
     
     if(html === '') {
-        let colspan = ehHistorico ? 5 : 6;
+        let colspan = ehHistorico ? 5 : 7;
         html = `<tr><td colspan="${colspan}" class="text-center text-muted py-4">Nenhum dado encontrado.</td></tr>`;
     }
     
@@ -103,7 +113,6 @@ if(form) {
         const nomeCorretor = selectCorretor.options[selectCorretor.selectedIndex].text;
         const mesRef = document.getElementById('mes-referencia').value;
         
-        // Pega os dois valores, se estiver vazio ele converte para 0
         const valorPme = parseFloat(document.getElementById('valor-pme').value) || 0;
         const valorPf = parseFloat(document.getElementById('valor-pf').value) || 0;
 
@@ -111,10 +120,8 @@ if(form) {
         if (valorPme <= 0 && valorPf <= 0) return alert("Você precisa preencher um valor maior que zero em PME ou PF!");
 
         try {
-            // Objeto para atualizar a ficha do corretor no banco
             const dadosAtualizacao = {};
 
-            // Se lançou PME, salva no histórico e prepara a soma
             if (valorPme > 0) {
                 await addDoc(collection(db, "lancamentos_producao"), {
                     corretor_id: id, corretor_nome: nomeCorretor, tipo_produto: 'pme',
@@ -123,7 +130,6 @@ if(form) {
                 dadosAtualizacao.producao_pme = increment(valorPme);
             }
 
-            // Se lançou PF, salva no histórico e prepara a soma
             if (valorPf > 0) {
                 await addDoc(collection(db, "lancamentos_producao"), {
                     corretor_id: id, corretor_nome: nomeCorretor, tipo_produto: 'pf',
@@ -132,14 +138,21 @@ if(form) {
                 dadosAtualizacao.producao_pf = increment(valorPf);
             }
 
-            // Atualiza o ranking do corretor de uma vez só!
+            // NOVO: Adiciona a competência na ficha para aparecer na tabela
+            dadosAtualizacao.mes_competencia = mesRef;
+
             await updateDoc(doc(db, "corretores", id), dadosAtualizacao);
             
             alert(`✅ Produção adicionada com sucesso!`);
             
-            // Limpa os campos para o próximo lançamento
+            // Limpa os campos de valor para o próximo lançamento (mantém o mês e corretor para agilizar)
             document.getElementById('valor-pme').value = ''; 
             document.getElementById('valor-pf').value = ''; 
+            
+            // NOVO: Fecha o modal automaticamente
+            const modalEl = document.getElementById('modal-lancar-producao');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if(modal) modal.hide();
             
         } catch (error) {
             console.error(error);
@@ -184,7 +197,8 @@ window.zerarProducaoCorretor = async (id, nome) => {
         try {
             await updateDoc(doc(db, "corretores", id), {
                 producao_pme: 0,
-                producao_pf: 0
+                producao_pf: 0,
+                mes_competencia: "" // Zera a competência visualmente também
             });
         } catch (error) {
             console.error("Erro ao zerar:", error);
@@ -231,7 +245,8 @@ export async function iniciarNovoCiclo() {
 
             await updateDoc(doc(db, "corretores", d.id), {
                 producao_pme: 0,
-                producao_pf: 0
+                producao_pf: 0,
+                mes_competencia: "" // Limpa a competência para o próximo ciclo
             });
         }
 
