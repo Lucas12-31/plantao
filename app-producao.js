@@ -62,7 +62,6 @@ function renderizarRanking(lista, elementoTabela, ehHistorico = false) {
 
         let corBadge = ehHistorico ? 'bg-secondary' : 'bg-dark';
 
-        // FORMATANDO A COMPETÊNCIA PARA EXIBIR BONITINHO (EX: 02/2026)
         let compFormatada = "-";
         if (c.mes_competencia) {
             const [ano, mes] = c.mes_competencia.split('-');
@@ -73,9 +72,10 @@ function renderizarRanking(lista, elementoTabela, ehHistorico = false) {
 
         let acoesHtml = '';
         if (!ehHistorico) {
+            // NOVO: Passando o Mês de Competência para a função do botão Editar
             acoesHtml = `
                 <td>
-                    <button onclick="abrirModalEditarProducao('${c.id}', '${c.nome}', ${c.v_pme}, ${c.v_pf})" class="btn btn-sm btn-outline-warning shadow-sm me-1" title="Ajustar Produção Manualmente">✏️</button>
+                    <button onclick="abrirModalEditarProducao('${c.id}', '${c.nome}', ${c.v_pme}, ${c.v_pf}, '${c.mes_competencia || ''}')" class="btn btn-sm btn-outline-warning shadow-sm me-1" title="Ajustar Produção Manualmente">✏️</button>
                     <button onclick="zerarProducaoCorretor('${c.id}', '${c.nome}')" class="btn btn-sm btn-outline-danger shadow-sm" title="Zerar / Excluir Produção do Mês">🗑️</button>
                 </td>
             `;
@@ -138,18 +138,15 @@ if(form) {
                 dadosAtualizacao.producao_pf = increment(valorPf);
             }
 
-            // NOVO: Adiciona a competência na ficha para aparecer na tabela
             dadosAtualizacao.mes_competencia = mesRef;
 
             await updateDoc(doc(db, "corretores", id), dadosAtualizacao);
             
             alert(`✅ Produção adicionada com sucesso!`);
             
-            // Limpa os campos de valor para o próximo lançamento (mantém o mês e corretor para agilizar)
             document.getElementById('valor-pme').value = ''; 
             document.getElementById('valor-pf').value = ''; 
             
-            // NOVO: Fecha o modal automaticamente
             const modalEl = document.getElementById('modal-lancar-producao');
             const modal = bootstrap.Modal.getInstance(modalEl);
             if(modal) modal.hide();
@@ -165,11 +162,12 @@ if(form) {
 // 3. EDIÇÃO MANUAL E ZERAR PRODUÇÃO
 // ========================================================
 
-window.abrirModalEditarProducao = (id, nome, pmeAtual, pfAtual) => {
+window.abrirModalEditarProducao = (id, nome, pmeAtual, pfAtual, mesAtual) => {
     document.getElementById('edit-prod-id').value = id;
     document.getElementById('edit-prod-nome').innerText = nome;
     document.getElementById('edit-prod-pme').value = pmeAtual;
     document.getElementById('edit-prod-pf').value = pfAtual;
+    document.getElementById('edit-prod-mes').value = mesAtual; // NOVO: Puxa o mês
     
     new bootstrap.Modal(document.getElementById('modal-editar-producao')).show();
 };
@@ -178,11 +176,13 @@ window.salvarEdicaoProducao = async () => {
     const id = document.getElementById('edit-prod-id').value;
     const novoPme = parseFloat(document.getElementById('edit-prod-pme').value) || 0;
     const novoPf = parseFloat(document.getElementById('edit-prod-pf').value) || 0;
+    const novoMes = document.getElementById('edit-prod-mes').value; // NOVO: Pega o mês editado
 
     try {
         await updateDoc(doc(db, "corretores", id), {
             producao_pme: novoPme,
-            producao_pf: novoPf
+            producao_pf: novoPf,
+            mes_competencia: novoMes // NOVO: Salva o mês no banco
         });
         
         bootstrap.Modal.getInstance(document.getElementById('modal-editar-producao')).hide();
@@ -198,7 +198,7 @@ window.zerarProducaoCorretor = async (id, nome) => {
             await updateDoc(doc(db, "corretores", id), {
                 producao_pme: 0,
                 producao_pf: 0,
-                mes_competencia: "" // Zera a competência visualmente também
+                mes_competencia: "" 
             });
         } catch (error) {
             console.error("Erro ao zerar:", error);
@@ -208,7 +208,7 @@ window.zerarProducaoCorretor = async (id, nome) => {
 };
 
 // ========================================================
-// 4. FUNÇÃO DE FECHAMENTO (SALVA HISTÓRICO E ZERA GERAL)
+// 4. FUNÇÃO DE FECHAMENTO E HISTÓRICO... (Mantida igual)
 // ========================================================
 export async function iniciarNovoCiclo() {
     const confirmacao = confirm(
@@ -246,7 +246,7 @@ export async function iniciarNovoCiclo() {
             await updateDoc(doc(db, "corretores", d.id), {
                 producao_pme: 0,
                 producao_pf: 0,
-                mes_competencia: "" // Limpa a competência para o próximo ciclo
+                mes_competencia: "" 
             });
         }
 
@@ -259,15 +259,10 @@ export async function iniciarNovoCiclo() {
     }
 }
 
-// ========================================================
-// 5. LER E EXIBIR HISTÓRICO ANTERIOR
-// ========================================================
 async function carregarOpcoesHistorico() {
     if(!selectHistorico) return;
-
     try {
         const snap = await getDocs(collection(db, "historico_fechamentos"));
-        
         const referenciasUnicas = new Set();
         snap.forEach(doc => {
             const ref = doc.data().referencia;
@@ -280,12 +275,8 @@ async function carregarOpcoesHistorico() {
         }
 
         let arrayRefs = Array.from(referenciasUnicas).reverse(); 
-
         let html = '<option value="">Selecione um ciclo...</option>';
-        arrayRefs.forEach(ref => {
-            html += `<option value="${ref}">${ref}</option>`;
-        });
-        
+        arrayRefs.forEach(ref => { html += `<option value="${ref}">${ref}</option>`; });
         selectHistorico.innerHTML = html;
     } catch (error) {
         console.error("Erro ao carregar histórico:", error);
@@ -295,7 +286,6 @@ async function carregarOpcoesHistorico() {
 if(selectHistorico) {
     selectHistorico.addEventListener('change', async (e) => {
         const cicloEscolhido = e.target.value;
-        
         if (!cicloEscolhido) {
             tabelaHistorico.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Selecione um ciclo acima para visualizar.</td></tr>';
             return;
@@ -306,9 +296,7 @@ if(selectHistorico) {
         try {
             const q = query(collection(db, "historico_fechamentos"), where("referencia", "==", cicloEscolhido));
             const snap = await getDocs(q);
-            
             let corretoresAntigos = [];
-            
             snap.forEach(doc => {
                 let d = doc.data();
                 corretoresAntigos.push({
@@ -319,7 +307,6 @@ if(selectHistorico) {
             });
 
             renderizarRanking(corretoresAntigos, tabelaHistorico, true);
-
         } catch (error) {
             console.error("Erro ao carregar tabela do histórico:", error);
             tabelaHistorico.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">Erro ao buscar dados.</td></tr>';
