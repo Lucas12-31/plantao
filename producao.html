@@ -74,7 +74,8 @@
                                     <th>Produção PF</th>
                                     <th>Total (R$)</th>
                                     <th>Pontos</th>
-                                    <th>Competência</th> <th style="width: 120px;">Ações</th>
+                                    <th>Competência</th>
+                                    <th style="width: 120px;">Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="tabela-ranking">
@@ -169,7 +170,7 @@
                 </div>
                 <div class="modal-body bg-light p-4">
                     <div class="alert alert-warning small mb-4">
-                        ⚠️ <b>Aviso:</b> Esta ação sobrescreve o valor total acumulado do corretor neste mês de forma direta.
+                        ⚠️ <b>Aviso:</b> Esta ação sobrescreve os valores. Use para correções.
                     </div>
                     
                     <input type="hidden" id="edit-prod-id">
@@ -184,11 +185,15 @@
                             <label class="form-label fw-bold small text-muted text-uppercase mb-1">Total PF (R$):</label>
                             <input type="number" id="edit-prod-pf" class="form-control fw-bold shadow-sm" step="0.01" min="0">
                         </div>
+                        <div class="col-12 mt-3">
+                            <label class="form-label fw-bold small text-muted text-uppercase mb-1">Competência (Mês/Ano):</label>
+                            <input type="month" id="edit-prod-mes" class="form-control fw-bold shadow-sm">
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer bg-white">
                     <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-warning fw-bold px-4 shadow-sm" onclick="salvarEdicaoProducao()">💾 Salvar Valores</button>
+                    <button type="button" class="btn btn-warning fw-bold px-4 shadow-sm" onclick="salvarEdicaoProducao()">💾 Salvar Correções</button>
                 </div>
             </div>
         </div>
