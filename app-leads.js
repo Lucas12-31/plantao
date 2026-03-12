@@ -7,6 +7,10 @@ const form = document.getElementById('form-lead');
 const tabela = document.getElementById('tabela-leads');
 const inputBusca = document.getElementById('busca-leads');
 
+// Pegando os selects do modal de edição
+const editSelectCorretor = document.getElementById('edit-select-corretor');
+const editSelectFonte = document.getElementById('edit-fonte-lead');
+
 const urlParams = new URLSearchParams(window.location.search);
 const buscaDaUrl = urlParams.get('busca');
 
@@ -15,7 +19,7 @@ if (buscaDaUrl && inputBusca) {
 }
 
 let memoriaLeads = [];
-window.telefoneCorretorAtual = ""; // Variável global para o botão do WhatsApp saber pra quem enviar
+window.telefoneCorretorAtual = ""; 
 
 const STATUS_OPCOES = [
     { valor: "Distribuído", label: "🔵 Distribuído" },
@@ -35,11 +39,11 @@ async function carregarCorretores() {
         let html = '<option value="">Selecione um corretor...</option>';
         snapshot.forEach(doc => {
             let d = doc.data();
-            // Agora pegamos o telefone do corretor e salvamos no botão <option> invisivelmente
             let tel = d.telefone || '';
             html += `<option value="${doc.id}" data-telefone="${tel}">${d.nome}</option>`;
         });
         selectCorretor.innerHTML = html;
+        if(editSelectCorretor) editSelectCorretor.innerHTML = html; // Popula o modal de edição também
     });
 }
 
@@ -55,6 +59,7 @@ async function carregarParceiros() {
             html += '<option value="Outros">Outros / Manual</option>';
         }
         selectFonte.innerHTML = html;
+        if(editSelectFonte) editSelectFonte.innerHTML = html; // Popula o modal de edição também
     });
 }
 
@@ -79,7 +84,7 @@ form.addEventListener('submit', async (e) => {
     const opCorretor = selectCorretor.options[selectCorretor.selectedIndex];
     const idCorretor = opCorretor.value;
     const nomeCorretor = opCorretor.text;
-    const telefoneCorretor = opCorretor.getAttribute('data-telefone') || ''; // Puxa o tel do corretor
+    const telefoneCorretor = opCorretor.getAttribute('data-telefone') || ''; 
 
     try {
         await addDoc(collection(db, "leads"), {
@@ -93,12 +98,11 @@ form.addEventListener('submit', async (e) => {
             status: statusInicial,
             corretor_id: idCorretor,
             corretor_nome: nomeCorretor,
-            corretor_telefone: telefoneCorretor, // Salva o tel para o futuro
+            corretor_telefone: telefoneCorretor, 
             timestamp: new Date().toISOString(),
             data_status: new Date().toISOString() 
         });
         
-        // MENSAGEM DO WHATSAPP
         const primeiroNome = nomeCorretor.split(' ')[0];
         const textoObs = observacao.trim() !== '' ? observacao : "Nenhuma observação";
         const tipoFormatado = tipo.toUpperCase(); 
@@ -107,7 +111,6 @@ form.addEventListener('submit', async (e) => {
 
         document.getElementById('texto-mensagem-copiar').value = mensagem;
         
-        // Define o telefone para o botão do WhatsApp usar
         window.telefoneCorretorAtual = telefoneCorretor;
 
         const modalMsg = bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-mensagem-lead'));
@@ -181,6 +184,7 @@ function renderizarTabela(listaDeLeads) {
                        </div>`;
         }
 
+        // NOVO: Adicionado o botão de Editar (Lápis) na coluna de Ações
         html += `
             <tr>
                 <td>${dataFormatada}</td>
@@ -196,12 +200,9 @@ function renderizarTabela(listaDeLeads) {
                 <td><small>${d.fonte}</small></td>
                 <td>${selectStatus}</td>
                 <td>
-                    <button onclick="abrirMensagemLead('${d.id}')" class="btn btn-sm btn-outline-success me-1" title="Ver Mensagem para Envio">
-                        💬
-                    </button>
-                    <button onclick="deletarLead('${d.id}')" class="btn btn-sm btn-outline-danger" title="Excluir">
-                        🗑️
-                    </button>
+                    <button onclick="abrirMensagemLead('${d.id}')" class="btn btn-sm btn-outline-success p-1 px-2 me-1 shadow-sm" title="Ver Mensagem para Envio">💬</button>
+                    <button onclick="abrirModalEditarLead('${d.id}')" class="btn btn-sm btn-outline-warning p-1 px-2 me-1 shadow-sm" title="Editar Lead">✏️</button>
+                    <button onclick="deletarLead('${d.id}')" class="btn btn-sm btn-outline-danger p-1 px-2 shadow-sm" title="Excluir">🗑️</button>
                 </td>
             </tr>
         `;
@@ -210,7 +211,7 @@ function renderizarTabela(listaDeLeads) {
 }
 
 // ==========================================
-// FUNÇÕES DE AÇÕES DO LEAD
+// FUNÇÕES DE AÇÕES DO LEAD E EDIÇÃO
 // ==========================================
 window.abrirMensagemLead = (idLead) => {
     const lead = memoriaLeads.find(l => l.id === idLead);
@@ -226,8 +227,6 @@ window.abrirMensagemLead = (idLead) => {
     const mensagem = `Oi, ${primeiroNome}! 🍋😎\nChegou uma OPORTUNIDADE pra você!\n\nCliente na pista, venda na mira 🎯\nAgora é contigo transformar lead em contrato! 💰🔥\n\n*Dados:*\n*Cliente:* ${nomeLead}\n*Tel:* ${telefone}\n*Tipo:* ${tipoFormatado}\n*Observações:* ${textoObs}\n\nVai lá e arrebenta! 💥🍋🚀`;
 
     document.getElementById('texto-mensagem-copiar').value = mensagem;
-    
-    // Define o telefone para o WhatsApp usar (Se for lead antigo que não tinha telefone salvo, tenta buscar vazio)
     window.telefoneCorretorAtual = lead.corretor_telefone || '';
 
     const modalMsg = bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-mensagem-lead'));
@@ -247,6 +246,63 @@ window.deletarLead = async (id) => {
     if(confirm("Tem certeza que deseja excluir este lead permanentemente?")) {
         try { await deleteDoc(doc(db, "leads", id)); } 
         catch (error) { console.error(error); alert("Erro ao excluir."); }
+    }
+};
+
+// NOVO: Função para preencher e abrir o Modal de Edição
+window.abrirModalEditarLead = (idLead) => {
+    const lead = memoriaLeads.find(l => l.id === idLead);
+    if (!lead) return alert("Lead não encontrado!");
+
+    document.getElementById('edit-id-lead').value = lead.id;
+    document.getElementById('edit-nome-lead').value = lead.cliente || '';
+    document.getElementById('edit-telefone-lead').value = lead.telefone || '';
+    document.getElementById('edit-tipo-lead').value = lead.tipo || 'pme';
+    document.getElementById('edit-fonte-lead').value = lead.fonte || '';
+    document.getElementById('edit-select-corretor').value = lead.corretor_id || '';
+    document.getElementById('edit-obs-lead').value = lead.observacao || '';
+
+    const modalEdit = new bootstrap.Modal(document.getElementById('modal-editar-lead'));
+    modalEdit.show();
+};
+
+// NOVO: Função para salvar a Edição no Firebase
+window.salvarEdicaoLead = async () => {
+    const idLead = document.getElementById('edit-id-lead').value;
+    const novoNome = document.getElementById('edit-nome-lead').value.trim();
+    const novoTelefone = document.getElementById('edit-telefone-lead').value.trim();
+    const novoTipo = document.getElementById('edit-tipo-lead').value;
+    const novaFonte = document.getElementById('edit-fonte-lead').value;
+    const novaObs = document.getElementById('edit-obs-lead').value.trim();
+    
+    // Pegar dados do novo corretor selecionado
+    const comboCorretor = document.getElementById('edit-select-corretor');
+    const novoIdCorretor = comboCorretor.value;
+    const opCorretor = comboCorretor.options[comboCorretor.selectedIndex];
+    const novoNomeCorretor = opCorretor.text;
+    const novoTelCorretor = opCorretor.getAttribute('data-telefone') || '';
+
+    if (!novoNome) return alert("O nome do cliente não pode estar vazio.");
+    if (!novoIdCorretor) return alert("Por favor, selecione um corretor responsável.");
+
+    try {
+        const leadRef = doc(db, "leads", idLead);
+        await updateDoc(leadRef, {
+            cliente: novoNome,
+            telefone: novoTelefone,
+            tipo: novoTipo,
+            fonte: novaFonte,
+            observacao: novaObs,
+            corretor_id: novoIdCorretor,
+            corretor_nome: novoNomeCorretor,
+            corretor_telefone: novoTelCorretor
+        });
+
+        bootstrap.Modal.getInstance(document.getElementById('modal-editar-lead')).hide();
+        
+    } catch (error) {
+        console.error("Erro ao salvar edição:", error);
+        alert("Erro ao atualizar os dados do lead.");
     }
 };
 
@@ -276,26 +332,20 @@ window.copiarMensagemLead = () => {
 
 window.enviarWhatsAppLead = () => {
     const textarea = document.getElementById('texto-mensagem-copiar');
-    const textoCodificado = encodeURIComponent(textarea.value); // Formata quebras de linha pro link
+    const textoCodificado = encodeURIComponent(textarea.value);
     
-    // Limpa o telefone deixando só os números
     let tel = window.telefoneCorretorAtual.replace(/\D/g, ''); 
-    
     let url = '';
 
-    // Se tiver telefone válido cadastrado no corretor (ex: 21999999999)
     if (tel && tel.length >= 10) {
-        // Se a pessoa não colocou "55" (código do Brasil) no cadastro, o sistema adiciona sozinho
         if (!tel.startsWith('55')) {
             tel = '55' + tel;
         }
         url = `https://wa.me/${tel}?text=${textoCodificado}`;
     } else {
-        // Se o corretor estiver sem telefone cadastrado, abre o WA Web pra você escolher o contato
         alert("⚠️ O telefone deste corretor não está cadastrado no sistema.\nO WhatsApp será aberto para você selecionar o contato manualmente.");
         url = `https://api.whatsapp.com/send?text=${textoCodificado}`;
     }
     
-    // Abre em uma nova aba
     window.open(url, '_blank');
 };
