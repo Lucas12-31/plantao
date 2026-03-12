@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Cadastro de Leads</title>
+    <title>Cadastro de Leads - Sistema Limão</title>
     <link rel="icon" type="image/png" href="icon.png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
@@ -30,7 +30,7 @@
                     <li class="nav-item"><a class="nav-link text-warning fw-bold" href="distribuicao.html">🎲 Distribuição</a></li>
                     <li class="nav-item"><a class="nav-link text-info fw-bold" href="plantao.html">📅 Plantão (Digital)</a></li>
                     <li class="nav-item"><a class="nav-link text-primary fw-bold" href="lojas.html">🏪 Lojas</a></li>
-                    <li class="nav-item"><a class="nav-link text-danger fw-bold border-bottom border-success" href="leads.html">🔥 Leads</a></li>
+                    <li class="nav-item"><a class="nav-link text-danger fw-bold border-bottom border-danger" href="leads.html">🔥 Leads</a></li>
 
                     <li class="nav-item dropdown ms-2">
                         <a class="nav-link position-relative" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -50,66 +50,110 @@
     </nav>
 
     <div class="container-fluid px-4">
-        <div class="row">
-            <div class="col-md-3">
-                <div class="card shadow border-danger">
-                    <div class="card-header bg-danger text-white">
-                        <strong>Novo Lead</strong>
-                    </div>
-                    <div class="card-body">
-                        <form id="form-lead">
-                            
-                            <div class="mb-3">
-                                <label>Nome (Cliente/Empresa)</label>
-                                <input type="text" id="nome-lead" class="form-control" required>
-                            </div>
+        
+        <div class="col-12 mb-5">
+            
+            <div class="d-flex justify-content-between align-items-center mb-3 bg-white p-3 rounded shadow-sm border">
+                <h4 class="m-0 text-danger fw-bold d-flex align-items-center gap-2">
+                    🔥 Base de Leads
+                </h4>
+                
+                <div class="d-flex gap-3 w-50 justify-content-end align-items-center">
+                    <input type="text" id="busca-leads" class="form-control border-secondary" placeholder="🔍 Buscar por corretor, cliente, obs ou status...">
+                    
+                    <button class="btn btn-danger fw-bold shadow-sm px-4 text-nowrap" data-bs-toggle="modal" data-bs-target="#modal-novo-lead">
+                        ➕ Novo Lead
+                    </button>
+                </div>
+            </div>
 
-                            <div class="mb-3">
-                                <label>Telefone / WhatsApp</label>
-                                <input type="tel" id="telefone-lead" class="form-control" placeholder="(xx) xxxxx-xxxx">
-                            </div>
+            <div class="legenda-box mb-3 shadow-sm">
+                <strong class="d-block mb-1 text-dark">📝 Gabarito de Status:</strong>
+                <span class="legenda-item">🔵 <b>Distribuído:</b> Enviado para Corretor</span>
+                <span class="legenda-item">🟡 <b>Em negociação:</b> Entrou em contato</span>
+                <span class="legenda-item">🟠 <b>Declinado:</b> Recusou proposta</span>
+                <span class="legenda-item">🟣 <b>Retornar depois:</b> Pediu contato futuro</span>
+                <span class="legenda-item">🐬 <b>Proposta Gerada:</b> Fechou com Corretor</span>
+                <span class="legenda-item">✅ <b>Finalizado:</b> Proposta Implantada</span>
+                <span class="legenda-item text-danger">🔴 <b>Lead Inválido:</b> Tel. Incorreto/Não pediu (Gera Reposição)</span>
+            </div>
+            
+            <div class="table-responsive shadow rounded bg-white">
+                <table class="table table-striped table-hover align-middle mb-0">
+                    <thead class="table-dark text-center">
+                        <tr>
+                            <th class="text-start ps-3">Data</th>
+                            <th>Corretor</th>
+                            <th class="text-start">Cliente</th>
+                            <th>Fonte</th>
+                            <th style="width: 220px;">Follow Up / Status</th>
+                            <th style="width: 130px;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela-leads" class="text-center">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
-                            <div class="mb-3">
-                                <label>Fonte (Parceiro)</label>
-                                <select id="fonte-lead" class="form-select" required>
+    <div class="modal fade" id="modal-novo-lead" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content shadow-lg border-0 border-top border-danger border-4">
+                <div class="modal-header bg-white">
+                    <h5 class="modal-title fw-bold text-danger">🔥 Cadastrar Novo Lead</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="form-lead">
+                    <div class="modal-body bg-light p-4">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Nome (Cliente/Empresa)</label>
+                                <input type="text" id="nome-lead" class="form-control shadow-sm" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Telefone / WhatsApp</label>
+                                <input type="tel" id="telefone-lead" class="form-control shadow-sm" placeholder="(xx) xxxxx-xxxx">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Fonte (Parceiro)</label>
+                                <select id="fonte-lead" class="form-select shadow-sm" required>
                                     <option value="">Carregando...</option>
                                 </select>
                             </div>
-
-                            <div class="row">
-                                <div class="col-6 mb-3">
-                                    <label>Tipo</label>
-                                    <select id="tipo-lead" class="form-select" required>
-                                        <option value="pme">PME</option>
-                                        <option value="pf">PF</option>
-                                    </select>
-                                </div>
-                                <div class="col-6 mb-3">
-                                    <label>Chegada</label>
-                                    <input type="date" id="data-chegada" class="form-control" required>
-                                </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Tipo</label>
+                                <select id="tipo-lead" class="form-select shadow-sm" required>
+                                    <option value="pme">PME</option>
+                                    <option value="pf">PF</option>
+                                </select>
                             </div>
+                        </div>
 
-                            <div class="mb-3">
-                                <label>Data Entrega (Plantão)</label>
-                                <input type="date" id="data-entrega" class="form-control" required>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Chegada</label>
+                                <input type="date" id="data-chegada" class="form-control shadow-sm" required>
                             </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Data Entrega (Plantão)</label>
+                                <input type="date" id="data-entrega" class="form-control shadow-sm" required>
+                            </div>
+                        </div>
 
-                            <div class="mb-3">
-                                <label>Corretor</label>
-                                <select id="select-corretor" class="form-select" required>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Corretor Responsável</label>
+                                <select id="select-corretor" class="form-select shadow-sm" required>
                                     <option value="">Carregando...</option>
                                 </select>
                             </div>
-                            
-                            <div class="mb-3">
-                                <label>Observações</label>
-                                <textarea id="obs-lead" class="form-control" rows="2" placeholder="Ex: Só atende após as 18h..."></textarea>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label>Status Inicial</label>
-                                <select id="status-lead" class="form-select bg-light">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Status Inicial</label>
+                                <select id="status-lead" class="form-select bg-white shadow-sm">
                                     <option value="Distribuído" selected>🔵 Distribuído</option>
                                     <option value="Em negociação">🟡 Em negociação</option>
                                     <option value="Declinado">🟠 Declinado</option>
@@ -119,46 +163,18 @@
                                     <option value="Lead Inválido">🔴 Lead Inválido</option>
                                 </select>
                             </div>
-
-                            <button type="submit" class="btn btn-danger w-100 fw-bold">Salvar Lead</button>
-                        </form>
+                        </div>
+                        
+                        <div class="mb-2">
+                            <label class="form-label text-muted small fw-bold mb-1">Observações</label>
+                            <textarea id="obs-lead" class="form-control shadow-sm" rows="2" placeholder="Ex: Só atende após as 18h..."></textarea>
+                        </div>
                     </div>
-                </div>
-            </div>
-
-            <div class="col-md-9">
-                <div class="d-flex justify-content-between align-items-center mb-3 bg-white p-3 rounded shadow-sm border">
-                    <h4 class="m-0 text-danger">Base de Leads</h4>
-                    <input type="text" id="busca-leads" class="form-control w-50 border-secondary" placeholder="🔍 Buscar por corretor, cliente, obs ou status...">
-                </div>
-
-                <div class="legenda-box mb-3 shadow-sm">
-                    <strong class="d-block mb-1 text-dark">📝 Gabarito de Status:</strong>
-                    <span class="legenda-item">🔵 <b>Distribuído:</b> Enviado para Corretor</span>
-                    <span class="legenda-item">🟡 <b>Em negociação:</b> Entrou em contato</span>
-                    <span class="legenda-item">🟠 <b>Declinado:</b> Recusou proposta</span>
-                    <span class="legenda-item">🟣 <b>Retornar depois:</b> Pediu contato futuro</span>
-                    <span class="legenda-item">🐬 <b>Proposta Gerada:</b> Fechou com Corretor</span>
-                    <span class="legenda-item">✅ <b>Finalizado:</b> Proposta Implantada</span>
-                    <span class="legenda-item text-danger">🔴 <b>Lead Inválido:</b> Tel. Incorreto/Não pediu (Gera Reposição)</span>
-                </div>
-                
-                <div class="table-responsive shadow rounded bg-white">
-                    <table class="table table-striped table-hover align-middle mb-0">
-                        <thead class="table-dark">
-                            <tr>
-                                <th>Data</th>
-                                <th>Corretor</th>
-                                <th>Cliente</th>
-                                <th>Fonte</th>
-                                <th style="width: 220px;">Follow Up / Status</th>
-                                <th style="width: 130px;">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabela-leads">
-                            </tbody>
-                    </table>
-                </div>
+                    <div class="modal-footer bg-white">
+                        <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-danger fw-bold px-4 shadow-sm">🔥 Salvar Lead</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -188,7 +204,7 @@
     </div>
 
     <div class="modal fade" id="modal-editar-lead" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content shadow-lg border-0 border-top border-warning border-4">
                 <div class="modal-header bg-white">
                     <h5 class="modal-title fw-bold text-dark">✏️ Editar Lead</h5>
@@ -198,28 +214,29 @@
                     <div class="modal-body bg-light p-4">
                         <input type="hidden" id="edit-id-lead">
                         
-                        <div class="mb-3">
-                            <label class="form-label text-muted small fw-bold mb-1">Nome do Cliente/Empresa</label>
-                            <input type="text" id="edit-nome-lead" class="form-control shadow-sm" required>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label text-muted small fw-bold mb-1">Telefone / WhatsApp</label>
-                            <input type="tel" id="edit-telefone-lead" class="form-control shadow-sm">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Nome do Cliente/Empresa</label>
+                                <input type="text" id="edit-nome-lead" class="form-control shadow-sm" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Telefone / WhatsApp</label>
+                                <input type="tel" id="edit-telefone-lead" class="form-control shadow-sm">
+                            </div>
                         </div>
 
                         <div class="row">
-                            <div class="col-6 mb-3">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label text-muted small fw-bold mb-1">Fonte (Parceiro)</label>
+                                <select id="edit-fonte-lead" class="form-select shadow-sm" required>
+                                    <option value="">Carregando...</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label text-muted small fw-bold mb-1">Tipo</label>
                                 <select id="edit-tipo-lead" class="form-select shadow-sm" required>
                                     <option value="pme">PME</option>
                                     <option value="pf">PF</option>
-                                </select>
-                            </div>
-                            <div class="col-6 mb-3">
-                                <label class="form-label text-muted small fw-bold mb-1">Fonte (Parceiro)</label>
-                                <select id="edit-fonte-lead" class="form-select shadow-sm" required>
-                                    <option value="">Carregando...</option>
                                 </select>
                             </div>
                         </div>
@@ -231,7 +248,7 @@
                             </select>
                         </div>
                         
-                        <div class="mb-3">
+                        <div class="mb-2">
                             <label class="form-label text-muted small fw-bold mb-1">Observações</label>
                             <textarea id="edit-obs-lead" class="form-control shadow-sm" rows="3"></textarea>
                         </div>
