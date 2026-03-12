@@ -43,7 +43,7 @@ async function carregarCorretores() {
             html += `<option value="${doc.id}" data-telefone="${tel}">${d.nome}</option>`;
         });
         selectCorretor.innerHTML = html;
-        if(editSelectCorretor) editSelectCorretor.innerHTML = html; // Popula o modal de edição também
+        if(editSelectCorretor) editSelectCorretor.innerHTML = html; 
     });
 }
 
@@ -59,7 +59,7 @@ async function carregarParceiros() {
             html += '<option value="Outros">Outros / Manual</option>';
         }
         selectFonte.innerHTML = html;
-        if(editSelectFonte) editSelectFonte.innerHTML = html; // Popula o modal de edição também
+        if(editSelectFonte) editSelectFonte.innerHTML = html; 
     });
 }
 
@@ -110,9 +110,14 @@ form.addEventListener('submit', async (e) => {
         const mensagem = `Oi, ${primeiroNome}! 🍋😎\nChegou uma OPORTUNIDADE pra você!\n\nCliente na pista, venda na mira 🎯\nAgora é contigo transformar lead em contrato! 💰🔥\n\n*Dados:*\n*Cliente:* ${nomeLead}\n*Tel:* ${telefone}\n*Tipo:* ${tipoFormatado}\n*Observações:* ${textoObs}\n\nVai lá e arrebenta! 💥🍋🚀`;
 
         document.getElementById('texto-mensagem-copiar').value = mensagem;
-        
         window.telefoneCorretorAtual = telefoneCorretor;
 
+        // FECHA O MODAL DE CADASTRO
+        const modalNovoLeadEl = document.getElementById('modal-novo-lead');
+        const modalNovoLead = bootstrap.Modal.getInstance(modalNovoLeadEl);
+        if(modalNovoLead) modalNovoLead.hide();
+
+        // ABRE O MODAL DO WHATSAPP
         const modalMsg = bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-mensagem-lead'));
         modalMsg.show();
 
@@ -167,9 +172,9 @@ function renderizarTabela(listaDeLeads) {
         
         let badgeTipo = d.tipo === 'pme' ? 'bg-warning text-dark' : 'bg-info text-white';
 
-        let selectStatus = `<select class="form-select form-select-sm border-secondary fw-bold" 
+        let selectStatus = `<select class="form-select form-select-sm border-secondary fw-bold mx-auto" 
                               onchange="mudarStatus('${d.id}', this.value)" 
-                              style="font-size: 0.85rem;">`;
+                              style="font-size: 0.85rem; max-width: 200px;">`;
         
         STATUS_OPCOES.forEach(opcao => {
             let isSelected = (d.status === opcao.valor) ? "selected" : "";
@@ -179,17 +184,16 @@ function renderizarTabela(listaDeLeads) {
 
         let htmlObs = '';
         if (d.observacao && d.observacao.trim() !== '') {
-            htmlObs = `<div class="small text-muted fst-italic text-truncate mt-1" style="max-width: 180px;" title="${d.observacao}">
+            htmlObs = `<div class="small text-muted fst-italic text-truncate mt-1 text-start" style="max-width: 180px;" title="${d.observacao}">
                           📝 ${d.observacao}
                        </div>`;
         }
 
-        // NOVO: Adicionado o botão de Editar (Lápis) na coluna de Ações
         html += `
             <tr>
-                <td>${dataFormatada}</td>
-                <td><span class="fw-bold text-uppercase">${d.corretor_nome.split(' ')[0]}</span></td>
-                <td>
+                <td class="text-start ps-3 align-middle">${dataFormatada}</td>
+                <td class="align-middle"><span class="fw-bold text-uppercase">${d.corretor_nome.split(' ')[0]}</span></td>
+                <td class="text-start align-middle">
                     <div class="fw-bold text-truncate" style="max-width: 180px;" title="${d.cliente}">${d.cliente}</div>
                     <div class="small">
                         <span class="badge ${badgeTipo}">${(d.tipo || '').toUpperCase()}</span>
@@ -197,9 +201,9 @@ function renderizarTabela(listaDeLeads) {
                     </div>
                     ${htmlObs}
                 </td>
-                <td><small>${d.fonte}</small></td>
-                <td>${selectStatus}</td>
-                <td>
+                <td class="align-middle"><small>${d.fonte}</small></td>
+                <td class="align-middle">${selectStatus}</td>
+                <td class="align-middle">
                     <button onclick="abrirMensagemLead('${d.id}')" class="btn btn-sm btn-outline-success p-1 px-2 me-1 shadow-sm" title="Ver Mensagem para Envio">💬</button>
                     <button onclick="abrirModalEditarLead('${d.id}')" class="btn btn-sm btn-outline-warning p-1 px-2 me-1 shadow-sm" title="Editar Lead">✏️</button>
                     <button onclick="deletarLead('${d.id}')" class="btn btn-sm btn-outline-danger p-1 px-2 shadow-sm" title="Excluir">🗑️</button>
@@ -249,7 +253,6 @@ window.deletarLead = async (id) => {
     }
 };
 
-// NOVO: Função para preencher e abrir o Modal de Edição
 window.abrirModalEditarLead = (idLead) => {
     const lead = memoriaLeads.find(l => l.id === idLead);
     if (!lead) return alert("Lead não encontrado!");
@@ -266,7 +269,6 @@ window.abrirModalEditarLead = (idLead) => {
     modalEdit.show();
 };
 
-// NOVO: Função para salvar a Edição no Firebase
 window.salvarEdicaoLead = async () => {
     const idLead = document.getElementById('edit-id-lead').value;
     const novoNome = document.getElementById('edit-nome-lead').value.trim();
@@ -275,7 +277,6 @@ window.salvarEdicaoLead = async () => {
     const novaFonte = document.getElementById('edit-fonte-lead').value;
     const novaObs = document.getElementById('edit-obs-lead').value.trim();
     
-    // Pegar dados do novo corretor selecionado
     const comboCorretor = document.getElementById('edit-select-corretor');
     const novoIdCorretor = comboCorretor.value;
     const opCorretor = comboCorretor.options[comboCorretor.selectedIndex];
