@@ -7,7 +7,6 @@ const form = document.getElementById('form-lead');
 const tabela = document.getElementById('tabela-leads');
 const inputBusca = document.getElementById('busca-leads');
 
-// Pegando os selects do modal de edição
 const editSelectCorretor = document.getElementById('edit-select-corretor');
 const editSelectFonte = document.getElementById('edit-fonte-lead');
 
@@ -112,12 +111,10 @@ form.addEventListener('submit', async (e) => {
         document.getElementById('texto-mensagem-copiar').value = mensagem;
         window.telefoneCorretorAtual = telefoneCorretor;
 
-        // FECHA O MODAL DE CADASTRO
         const modalNovoLeadEl = document.getElementById('modal-novo-lead');
         const modalNovoLead = bootstrap.Modal.getInstance(modalNovoLeadEl);
         if(modalNovoLead) modalNovoLead.hide();
 
-        // ABRE O MODAL DO WHATSAPP
         const modalMsg = bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-mensagem-lead'));
         modalMsg.show();
 
@@ -184,29 +181,36 @@ function renderizarTabela(listaDeLeads) {
 
         let htmlObs = '';
         if (d.observacao && d.observacao.trim() !== '') {
-            htmlObs = `<div class="small text-muted fst-italic text-truncate mt-1 text-start" style="max-width: 180px;" title="${d.observacao}">
+            htmlObs = `<div class="small text-muted fst-italic mt-1 text-start text-wrap" style="max-width: 250px;">
                           📝 ${d.observacao}
                        </div>`;
         }
 
         html += `
             <tr>
-                <td class="text-start ps-3 align-middle">${dataFormatada}</td>
-                <td class="align-middle"><span class="fw-bold text-uppercase">${d.corretor_nome.split(' ')[0]}</span></td>
+                <td class="text-start ps-3 align-middle text-nowrap">${dataFormatada}</td>
+                
+                <td class="align-middle text-nowrap"><span class="fw-bold text-uppercase">${d.corretor_nome.split(' ')[0]}</span></td>
+                
                 <td class="text-start align-middle">
-                    <div class="fw-bold text-truncate" style="max-width: 180px;" title="${d.cliente}">${d.cliente}</div>
-                    <div class="small">
+                    <div class="fw-bold text-wrap" style="min-width: 150px;">${d.cliente}</div>
+                    <div class="small mt-1 d-flex align-items-center flex-wrap gap-1">
                         <span class="badge ${badgeTipo}">${(d.tipo || '').toUpperCase()}</span>
-                        <span class="text-muted ms-1">${d.telefone || ''}</span>
+                        <span class="text-muted text-nowrap">${d.telefone || ''}</span>
                     </div>
                     ${htmlObs}
                 </td>
-                <td class="align-middle"><small>${d.fonte}</small></td>
+                
+                <td class="align-middle text-nowrap"><small>${d.fonte}</small></td>
+                
                 <td class="align-middle">${selectStatus}</td>
+                
                 <td class="align-middle">
-                    <button onclick="abrirMensagemLead('${d.id}')" class="btn btn-sm btn-outline-success p-1 px-2 me-1 shadow-sm" title="Ver Mensagem para Envio">💬</button>
-                    <button onclick="abrirModalEditarLead('${d.id}')" class="btn btn-sm btn-outline-warning p-1 px-2 me-1 shadow-sm" title="Editar Lead">✏️</button>
-                    <button onclick="deletarLead('${d.id}')" class="btn btn-sm btn-outline-danger p-1 px-2 shadow-sm" title="Excluir">🗑️</button>
+                    <div class="d-flex flex-nowrap justify-content-center gap-1">
+                        <button onclick="abrirMensagemLead('${d.id}')" class="btn btn-sm btn-outline-success p-1 px-2 shadow-sm" title="Ver Mensagem para Envio">💬</button>
+                        <button onclick="abrirModalEditarLead('${d.id}')" class="btn btn-sm btn-outline-warning p-1 px-2 shadow-sm" title="Editar Lead">✏️</button>
+                        <button onclick="deletarLead('${d.id}')" class="btn btn-sm btn-outline-danger p-1 px-2 shadow-sm" title="Excluir">🗑️</button>
+                    </div>
                 </td>
             </tr>
         `;
