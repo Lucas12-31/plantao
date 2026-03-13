@@ -1,5 +1,5 @@
 import { db } from "./firebase-config.js";
-import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, increment, getDocs, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const selectCorretor = document.getElementById('select-corretor');
 const selectFonte = document.getElementById('fonte-lead');
@@ -13,9 +13,7 @@ const editSelectFonte = document.getElementById('edit-fonte-lead');
 const urlParams = new URLSearchParams(window.location.search);
 const buscaDaUrl = urlParams.get('busca');
 
-if (buscaDaUrl && inputBusca) {
-    inputBusca.value = buscaDaUrl;
-}
+if (buscaDaUrl && inputBusca) { inputBusca.value = buscaDaUrl; }
 
 let memoriaLeads = [];
 window.telefoneCorretorAtual = ""; 
@@ -31,6 +29,22 @@ const STATUS_OPCOES = [
 ];
 
 // ==========================================
+// FUNÇÃO INTELIGENTE: ATUALIZA O PARCEIRO
+// ==========================================
+async function ajustarContadorParceiro(nomeFonte, tipoLead, valorParaSomar) {
+    if (!nomeFonte || nomeFonte === "Outros") return; // Se for manual/outros, não faz nada
+    try {
+        const q = query(collection(db, "parceiros"), where("nome", "==", nomeFonte));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+            const parceiroId = snap.docs[0].id;
+            const campo = (tipoLead === 'pme') ? 'distribuidos_pme' : 'distribuidos_pf';
+            await updateDoc(doc(db, "parceiros", parceiroId), { [campo]: increment(valorParaSomar) });
+        }
+    } catch (e) { console.error("Erro ao integrar parceiro:", e); }
+}
+
+// ==========================================
 // CARREGAR DADOS INICIAIS
 // ==========================================
 async function carregarCorretores() {
@@ -38,8 +52,7 @@ async function carregarCorretores() {
         let html = '<option value="">Selecione um corretor...</option>';
         snapshot.forEach(doc => {
             let d = doc.data();
-            let tel = d.telefone || '';
-            html += `<option value="${doc.id}" data-telefone="${tel}">${d.nome}</option>`;
+            html += `<option value="${doc.id}" data-telefone="${d.telefone || ''}">${d.nome}</option>`;
         });
         selectCorretor.innerHTML = html;
         if(editSelectCorretor) editSelectCorretor.innerHTML = html; 
@@ -51,10 +64,7 @@ async function carregarParceiros() {
         let html = '<option value="">Selecione a fonte...</option>';
         if (snapshot.empty) html += '<option value="Outros">Nenhum parceiro</option>';
         else {
-            snapshot.forEach(doc => {
-                let d = doc.data();
-                html += `<option value="${d.nome}">${d.nome}</option>`;
-            });
+            snapshot.forEach(doc => { html += `<option value="${doc.data().nome}">${doc.data().nome}</option>`; });
             html += '<option value="Outros">Outros / Manual</option>';
         }
         selectFonte.innerHTML = html;
@@ -66,7 +76,7 @@ carregarCorretores();
 carregarParceiros();
 
 // ==========================================
-// SALVAR NOVO LEAD (INCREMENTA O CONTADOR)
+// SALVAR NOVO LEAD
 // ==========================================
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -86,6 +96,7 @@ form.addEventListener('submit', async (e) => {
     const telefoneCorretor = opCorretor.getAttribute('data-telefone') || ''; 
 
     try {
+        // 1. Salva o Lead
         await addDoc(collection(db, "leads"), {
             cliente: nomeLead, telefone: telefone, fonte: fonte, tipo: tipo, data_chegada: dataChegada,
             data_entrega: dataEntrega, observacao: observacao, status: statusInicial,
@@ -93,25 +104,23 @@ form.addEventListener('submit', async (e) => {
             timestamp: new Date().toISOString(), data_status: new Date().toISOString() 
         });
         
-        const corretorRef = doc(db, "corretores", idCorretor);
-        const campoIncremento = (tipo === 'pme') ? 'leads_recebidos_pme' : 'leads_recebidos_pf';
-        await updateDoc(corretorRef, { [campoIncremento]: increment(1) });
+        // 2. Integração: +1 Lead na aba de Produção
+        const campoProducao = (tipo === 'pme') ? 'leads_recebidos_pme' : 'leads_recebidos_pf';
+        await updateDoc(doc(db, "corretores", idCorretor), { [campoProducao]: increment(1) });
+
+        // 3. Integração: +1 Lead Distribuído na aba Parceiros
+        await ajustarContadorParceiro(fonte, tipo, 1);
 
         const primeiroNome = nomeCorretor.split(' ')[0];
         const textoObs = observacao.trim() !== '' ? observacao : "Nenhuma observação";
-        const tipoFormatado = tipo.toUpperCase(); 
         
-        const mensagem = `Oi, ${primeiroNome}! 🍋😎\nChegou uma OPORTUNIDADE pra você!\n\nCliente na pista, venda na mira 🎯\nAgora é contigo transformar lead em contrato! 💰🔥\n\n*Dados:*\n*Cliente:* ${nomeLead}\n*Tel:* ${telefone}\n*Tipo:* ${tipoFormatado}\n*Observações:* ${textoObs}\n\nVai lá e arrebenta! 💥🍋🚀`;
+        const mensagem = `Oi, ${primeiroNome}! 🍋😎\nChegou uma OPORTUNIDADE pra você!\n\nCliente na pista, venda na mira 🎯\nAgora é contigo transformar lead em contrato! 💰🔥\n\n*Dados:*\n*Cliente:* ${nomeLead}\n*Tel:* ${telefone}\n*Tipo:* ${tipo.toUpperCase()}\n*Observações:* ${textoObs}\n\nVai lá e arrebenta! 💥🍋🚀`;
 
         document.getElementById('texto-mensagem-copiar').value = mensagem;
         window.telefoneCorretorAtual = telefoneCorretor;
 
-        const modalNovoLeadEl = document.getElementById('modal-novo-lead');
-        const modalNovoLead = bootstrap.Modal.getInstance(modalNovoLeadEl);
-        if(modalNovoLead) modalNovoLead.hide();
-
-        const modalMsg = bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-mensagem-lead'));
-        modalMsg.show();
+        bootstrap.Modal.getInstance(document.getElementById('modal-novo-lead'))?.hide();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-mensagem-lead')).show();
 
         form.reset();
         document.getElementById('data-chegada').valueAsDate = new Date();
@@ -121,20 +130,18 @@ form.addEventListener('submit', async (e) => {
 });
 
 // ==========================================
-// RENDERIZAR TABELA COM NOVA ORDEM
+// RENDERIZAR TABELA DE LEADS
 // ==========================================
 function filtrarE_Renderizar() {
     if(!inputBusca) return; 
-    const termoDeBusca = inputBusca.value.toLowerCase().trim(); 
-    const leadsFiltrados = memoriaLeads.filter(lead => {
-        const textoBusca = `${lead.cliente || ''} ${lead.corretor_nome || ''} ${lead.fonte || ''} ${lead.status || ''} ${lead.tipo || ''} ${lead.observacao || ''}`.toLowerCase();
-        return textoBusca.includes(termoDeBusca);
+    const termo = inputBusca.value.toLowerCase().trim(); 
+    const filtrados = memoriaLeads.filter(lead => {
+        return `${lead.cliente || ''} ${lead.corretor_nome || ''} ${lead.fonte || ''} ${lead.status || ''} ${lead.tipo || ''} ${lead.observacao || ''}`.toLowerCase().includes(termo);
     });
-    renderizarTabela(leadsFiltrados);
+    renderizarTabela(filtrados);
 }
 
 const q = query(collection(db, "leads"), orderBy("timestamp", "desc")); 
-
 onSnapshot(q, (snapshot) => {
     memoriaLeads = []; 
     snapshot.forEach(doc => { memoriaLeads.push({ id: doc.id, ...doc.data() }); });
@@ -150,50 +157,34 @@ function renderizarTabela(listaDeLeads) {
     }
     
     listaDeLeads.forEach(d => {
-        let dataFormatada = d.data_entrega ? d.data_entrega.split('-').reverse().slice(0,2).join('/') : "";
+        let dataFmt = d.data_entrega ? d.data_entrega.split('-').reverse().slice(0,2).join('/') : "";
         let badgeTipo = d.tipo === 'pme' ? 'bg-warning text-dark' : 'bg-info text-white';
 
         let selectStatus = `<select class="form-select form-select-sm border-secondary fw-bold mx-auto" onchange="mudarStatus('${d.id}', this.value)" style="font-size: 0.85rem; max-width: 160px;">`;
         STATUS_OPCOES.forEach(opcao => {
-            let isSelected = (d.status === opcao.valor) ? "selected" : "";
-            selectStatus += `<option value="${opcao.valor}" ${isSelected}>${opcao.label}</option>`;
+            selectStatus += `<option value="${opcao.valor}" ${d.status === opcao.valor ? "selected" : ""}>${opcao.label}</option>`;
         });
         selectStatus += `</select>`;
 
-        // Trata o nome do corretor para exibir Primeiro Nome e Sobrenome
         let partesNome = (d.corretor_nome || '').split(' ');
-        let nomeExibicao = partesNome[0];
-        if (partesNome.length > 1) {
-            nomeExibicao += ' ' + partesNome[1];
-        }
+        let nomeExibicao = partesNome[0] + (partesNome.length > 1 ? ' ' + partesNome[1] : '');
 
-        // Trata a coluna de Observação (Botão 👁️)
-        let btnObs = '<span class="text-muted">-</span>';
-        if (d.observacao && d.observacao.trim() !== '') {
-            btnObs = `<button onclick="abrirModalObs('${d.id}')" class="btn btn-sm btn-outline-secondary shadow-sm px-2" title="Ler Observações">👁️ Ler</button>`;
-        }
+        let btnObs = d.observacao && d.observacao.trim() !== '' 
+            ? `<button onclick="abrirModalObs('${d.id}')" class="btn btn-sm btn-outline-secondary shadow-sm px-2" title="Ler">👁️ Ler</button>` 
+            : '<span class="text-muted">-</span>';
 
         html += `
             <tr>
-                <td class="text-start ps-3 align-middle text-nowrap">${dataFormatada}</td>
-                
+                <td class="text-start ps-3 align-middle text-nowrap">${dataFmt}</td>
                 <td class="align-middle text-nowrap"><small class="fw-bold text-secondary">${d.fonte || '-'}</small></td>
-                
                 <td class="align-middle text-nowrap"><span class="fw-bold text-uppercase">${nomeExibicao}</span></td>
-                
                 <td class="align-middle"><span class="badge ${badgeTipo} px-2 py-1 shadow-sm border border-secondary">${(d.tipo || '').toUpperCase()}</span></td>
-                
                 <td class="text-start align-middle">
                     <div class="fw-bold text-wrap" style="min-width: 150px;">${d.cliente}</div>
-                    <div class="small mt-1 text-muted text-nowrap">
-                        📞 ${d.telefone || 'Sem telefone'}
-                    </div>
+                    <div class="small mt-1 text-muted text-nowrap">📞 ${d.telefone || 'Sem telefone'}</div>
                 </td>
-                
                 <td class="align-middle">${btnObs}</td>
-
                 <td class="align-middle">${selectStatus}</td>
-                
                 <td class="align-middle">
                     <div class="d-flex flex-nowrap justify-content-center gap-1">
                         <button onclick="abrirMensagemLead('${d.id}')" class="btn btn-sm btn-outline-success p-1 px-2 shadow-sm" title="Mensagem">💬</button>
@@ -208,19 +199,14 @@ function renderizarTabela(listaDeLeads) {
 }
 
 // ==========================================
-// FUNÇÕES DE AÇÕES DO LEAD E EDIÇÃO
+// AÇÕES DO LEAD
 // ==========================================
 window.abrirMensagemLead = (idLead) => {
     const lead = memoriaLeads.find(l => l.id === idLead);
     if (!lead) return;
     const primeiroNome = (lead.corretor_nome || '').split(' ')[0];
-    const nomeLead = lead.cliente || '';
-    const telefone = lead.telefone || '';
     const textoObs = lead.observacao && lead.observacao.trim() !== '' ? lead.observacao : "Nenhuma observação";
-    const tipoFormatado = (lead.tipo || '').toUpperCase();
-    
-    const mensagem = `Oi, ${primeiroNome}! 🍋😎\nChegou uma OPORTUNIDADE pra você!\n\nCliente na pista, venda na mira 🎯\nAgora é contigo transformar lead em contrato! 💰🔥\n\n*Dados:*\n*Cliente:* ${nomeLead}\n*Tel:* ${telefone}\n*Tipo:* ${tipoFormatado}\n*Observações:* ${textoObs}\n\nVai lá e arrebenta! 💥🍋🚀`;
-
+    const mensagem = `Oi, ${primeiroNome}! 🍋😎\nChegou uma OPORTUNIDADE pra você!\n\nCliente na pista, venda na mira 🎯\nAgora é contigo transformar lead em contrato! 💰🔥\n\n*Dados:*\n*Cliente:* ${lead.cliente}\n*Tel:* ${lead.telefone}\n*Tipo:* ${(lead.tipo || '').toUpperCase()}\n*Observações:* ${textoObs}\n\nVai lá e arrebenta! 💥🍋🚀`;
     document.getElementById('texto-mensagem-copiar').value = mensagem;
     window.telefoneCorretorAtual = lead.corretor_telefone || '';
     bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-mensagem-lead')).show();
@@ -232,16 +218,20 @@ window.mudarStatus = async (id, novoStatus) => {
 };
 
 window.deletarLead = async (id) => {
-    if(confirm("Deseja excluir este lead? O contador do corretor será atualizado.")) {
+    if(confirm("Deseja excluir este lead? Todos os contadores serão atualizados automaticamente.")) {
         try { 
             const lead = memoriaLeads.find(l => l.id === id);
-            if(lead && lead.corretor_id) {
-                const campo = (lead.tipo === 'pme') ? 'leads_recebidos_pme' : 'leads_recebidos_pf';
-                await updateDoc(doc(db, "corretores", lead.corretor_id), { [campo]: increment(-1) });
+            if(lead) {
+                // Retira do corretor
+                if(lead.corretor_id) {
+                    const cProd = (lead.tipo === 'pme') ? 'leads_recebidos_pme' : 'leads_recebidos_pf';
+                    await updateDoc(doc(db, "corretores", lead.corretor_id), { [cProd]: increment(-1) });
+                }
+                // Retira do Parceiro
+                await ajustarContadorParceiro(lead.fonte, lead.tipo, -1);
             }
             await deleteDoc(doc(db, "leads", id)); 
-        } 
-        catch (error) { console.error(error); }
+        } catch (error) { console.error(error); }
     }
 };
 
@@ -276,13 +266,22 @@ window.salvarEdicaoLead = async () => {
     try {
         const leadAntigo = memoriaLeads.find(l => l.id === idLead);
         
-        if (leadAntigo && (leadAntigo.corretor_id !== novoIdCorretor || leadAntigo.tipo !== novoTipo)) {
-            if (leadAntigo.corretor_id) {
-                const campoAntigo = (leadAntigo.tipo === 'pme') ? 'leads_recebidos_pme' : 'leads_recebidos_pf';
-                await updateDoc(doc(db, "corretores", leadAntigo.corretor_id), { [campoAntigo]: increment(-1) });
+        if (leadAntigo) {
+            // Se mudou o corretor ou o tipo (Ajuste aba Produção)
+            if (leadAntigo.corretor_id !== novoIdCorretor || leadAntigo.tipo !== novoTipo) {
+                if (leadAntigo.corretor_id) {
+                    const campoAntigo = (leadAntigo.tipo === 'pme') ? 'leads_recebidos_pme' : 'leads_recebidos_pf';
+                    await updateDoc(doc(db, "corretores", leadAntigo.corretor_id), { [campoAntigo]: increment(-1) });
+                }
+                const campoNovo = (novoTipo === 'pme') ? 'leads_recebidos_pme' : 'leads_recebidos_pf';
+                await updateDoc(doc(db, "corretores", novoIdCorretor), { [campoNovo]: increment(1) });
             }
-            const campoNovo = (novoTipo === 'pme') ? 'leads_recebidos_pme' : 'leads_recebidos_pf';
-            await updateDoc(doc(db, "corretores", novoIdCorretor), { [campoNovo]: increment(1) });
+
+            // Se mudou a Fonte parceira ou o tipo (Ajuste aba Parceiros)
+            if (leadAntigo.fonte !== novaFonte || leadAntigo.tipo !== novoTipo) {
+                await ajustarContadorParceiro(leadAntigo.fonte, leadAntigo.tipo, -1);
+                await ajustarContadorParceiro(novaFonte, novoTipo, 1);
+            }
         }
 
         await updateDoc(doc(db, "leads", idLead), {
@@ -294,7 +293,6 @@ window.salvarEdicaoLead = async () => {
     } catch (error) { console.error(error); alert("Erro ao editar."); }
 };
 
-// NOVO: Função que abre o modal de ler as observações
 window.abrirModalObs = (idLead) => {
     const lead = memoriaLeads.find(l => l.id === idLead);
     if (!lead) return;
@@ -302,9 +300,6 @@ window.abrirModalObs = (idLead) => {
     new bootstrap.Modal(document.getElementById('modal-ver-obs')).show();
 };
 
-// ==========================================
-// FUNÇÕES DE COPIAR E ENVIAR WHATSAPP
-// ==========================================
 window.copiarMensagemLead = () => {
     const textarea = document.getElementById('texto-mensagem-copiar');
     textarea.select();
