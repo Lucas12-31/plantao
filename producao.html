@@ -166,9 +166,53 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg border-0">
                 <div class="modal-header bg-warning text-dark">
-                    <h5 class="modal-title fw-bold">✏️ Ajuste Manual de Produção</h5>
+                    <h5 class="modal-title fw-bold">✏️ Ajuste Manual do Corretor</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
+                <div class="modal-body bg-light p-4">
+                    <div class="alert alert-warning small mb-4">
+                        ⚠️ <b>Aviso:</b> Esta ação sobrescreve os valores. Use para correções ou ajustes de sistema.
+                    </div>
+                    
+                    <input type="hidden" id="edit-prod-id">
+                    <h5 id="edit-prod-nome" class="fw-bold text-center mb-4 text-uppercase text-dark">NOME DO CORRETOR</h5>
+                    
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-muted text-uppercase mb-1">Total PME (R$):</label>
+                            <input type="number" id="edit-prod-pme" class="form-control fw-bold shadow-sm" step="0.01" min="0">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-muted text-uppercase mb-1">Total PF (R$):</label>
+                            <input type="number" id="edit-prod-pf" class="form-control fw-bold shadow-sm" step="0.01" min="0">
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mt-2">
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-info text-uppercase mb-1">Leads Rec. PME:</label>
+                            <input type="number" id="edit-rec-pme" class="form-control fw-bold border-info shadow-sm" min="0">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-primary text-uppercase mb-1">Leads Rec. PF:</label>
+                            <input type="number" id="edit-rec-pf" class="form-control fw-bold border-primary shadow-sm" min="0">
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mt-2">
+                        <div class="col-12">
+                            <label class="form-label fw-bold small text-muted text-uppercase mb-1">Competência (Mês/Ano):</label>
+                            <input type="month" id="edit-prod-mes" class="form-control fw-bold shadow-sm">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-white">
+                    <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-warning fw-bold px-4 shadow-sm" onclick="salvarEdicaoProducao()">💾 Salvar Correções</button>
+                </div>
+            </div>
+        </div>
+    </div>
                 <div class="modal-body bg-light p-4">
                     <div class="alert alert-warning small mb-4">
                         ⚠️ <b>Aviso:</b> Esta ação sobrescreve os valores. Use para correções.
