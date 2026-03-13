@@ -58,7 +58,6 @@
                 
                 <div class="d-flex gap-3 w-50 justify-content-end align-items-center">
                     <input type="text" id="busca-leads" class="form-control border-secondary" placeholder="🔍 Buscar por corretor, cliente, obs ou status...">
-                    
                     <button class="btn btn-danger fw-bold shadow-sm px-4 text-nowrap" data-bs-toggle="modal" data-bs-target="#modal-novo-lead">
                         ➕ Novo Lead
                     </button>
@@ -81,10 +80,12 @@
                     <thead class="table-dark text-center">
                         <tr>
                             <th class="text-start ps-3" style="width: 80px;">Data</th>
-                            <th style="width: 120px;">Corretor</th>
+                            <th style="width: 120px;">Fonte</th>
+                            <th style="width: 180px;">Corretor</th>
+                            <th style="width: 80px;">Tipo</th>
                             <th class="text-start">Cliente</th>
-                            <th style="width: 150px;">Fonte</th>
-                            <th style="width: 200px;">Follow Up / Status</th>
+                            <th style="width: 80px;">Obs</th>
+                            <th style="width: 180px;">Follow Up / Status</th>
                             <th style="width: 140px;">Ações</th>
                         </tr>
                     </thead>
@@ -137,7 +138,7 @@
                                 <input type="date" id="data-chegada" class="form-control shadow-sm" required>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label text-muted small fw-bold mb-1">Data Entrega (Plantão)</label>
+                                <label class="form-label text-muted small fw-bold mb-1">Data Entrega (Distribuição)</label>
                                 <input type="date" id="data-entrega" class="form-control shadow-sm" required>
                             </div>
                         </div>
@@ -256,6 +257,23 @@
                         <button type="button" class="btn btn-warning fw-bold px-4 shadow-sm" onclick="salvarEdicaoLead()">💾 Salvar Alterações</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modal-ver-obs" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-0 border-top border-secondary border-4">
+                <div class="modal-header bg-white">
+                    <h5 class="modal-title fw-bold text-dark">📝 Observações do Lead</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-light p-4">
+                    <p id="texto-ver-obs" class="mb-0 text-wrap text-break fw-bold text-secondary"></p>
+                </div>
+                <div class="modal-footer bg-white">
+                    <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Fechar</button>
+                </div>
             </div>
         </div>
     </div>
