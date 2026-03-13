@@ -1,5 +1,4 @@
 import { db } from "./firebase-config.js";
-// NOVO: Adicionado o 'increment' na linha abaixo
 import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const selectCorretor = document.getElementById('select-corretor');
@@ -87,7 +86,6 @@ form.addEventListener('submit', async (e) => {
     const telefoneCorretor = opCorretor.getAttribute('data-telefone') || ''; 
 
     try {
-        // 1. Salva o Lead na Base
         await addDoc(collection(db, "leads"), {
             cliente: nomeLead, telefone: telefone, fonte: fonte, tipo: tipo, data_chegada: dataChegada,
             data_entrega: dataEntrega, observacao: observacao, status: statusInicial,
@@ -95,7 +93,6 @@ form.addEventListener('submit', async (e) => {
             timestamp: new Date().toISOString(), data_status: new Date().toISOString() 
         });
         
-        // 2. MÁGICA: Incrementa +1 no contador de Leads Recebidos daquele corretor lá na Produção
         const corretorRef = doc(db, "corretores", idCorretor);
         const campoIncremento = (tipo === 'pme') ? 'leads_recebidos_pme' : 'leads_recebidos_pf';
         await updateDoc(corretorRef, { [campoIncremento]: increment(1) });
@@ -124,7 +121,7 @@ form.addEventListener('submit', async (e) => {
 });
 
 // ==========================================
-// RENDERIZAR TABELA
+// RENDERIZAR TABELA COM NOVA ORDEM
 // ==========================================
 function filtrarE_Renderizar() {
     if(!inputBusca) return; 
@@ -149,36 +146,54 @@ if(inputBusca) inputBusca.addEventListener('input', filtrarE_Renderizar);
 function renderizarTabela(listaDeLeads) {
     let html = '';
     if (listaDeLeads.length === 0) {
-        tabela.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">Nenhum lead encontrado.</td></tr>'; return;
+        tabela.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">Nenhum lead encontrado.</td></tr>'; return;
     }
     
     listaDeLeads.forEach(d => {
         let dataFormatada = d.data_entrega ? d.data_entrega.split('-').reverse().slice(0,2).join('/') : "";
         let badgeTipo = d.tipo === 'pme' ? 'bg-warning text-dark' : 'bg-info text-white';
 
-        let selectStatus = `<select class="form-select form-select-sm border-secondary fw-bold mx-auto" onchange="mudarStatus('${d.id}', this.value)" style="font-size: 0.85rem; max-width: 200px;">`;
+        let selectStatus = `<select class="form-select form-select-sm border-secondary fw-bold mx-auto" onchange="mudarStatus('${d.id}', this.value)" style="font-size: 0.85rem; max-width: 160px;">`;
         STATUS_OPCOES.forEach(opcao => {
             let isSelected = (d.status === opcao.valor) ? "selected" : "";
             selectStatus += `<option value="${opcao.valor}" ${isSelected}>${opcao.label}</option>`;
         });
         selectStatus += `</select>`;
 
-        let htmlObs = d.observacao && d.observacao.trim() !== '' ? `<div class="small text-muted fst-italic mt-1 text-start text-wrap" style="max-width: 250px;">📝 ${d.observacao}</div>` : '';
+        // Trata o nome do corretor para exibir Primeiro Nome e Sobrenome
+        let partesNome = (d.corretor_nome || '').split(' ');
+        let nomeExibicao = partesNome[0];
+        if (partesNome.length > 1) {
+            nomeExibicao += ' ' + partesNome[1];
+        }
+
+        // Trata a coluna de Observação (Botão 👁️)
+        let btnObs = '<span class="text-muted">-</span>';
+        if (d.observacao && d.observacao.trim() !== '') {
+            btnObs = `<button onclick="abrirModalObs('${d.id}')" class="btn btn-sm btn-outline-secondary shadow-sm px-2" title="Ler Observações">👁️ Ler</button>`;
+        }
 
         html += `
             <tr>
                 <td class="text-start ps-3 align-middle text-nowrap">${dataFormatada}</td>
-                <td class="align-middle text-nowrap"><span class="fw-bold text-uppercase">${d.corretor_nome.split(' ')[0]}</span></td>
+                
+                <td class="align-middle text-nowrap"><small class="fw-bold text-secondary">${d.fonte || '-'}</small></td>
+                
+                <td class="align-middle text-nowrap"><span class="fw-bold text-uppercase">${nomeExibicao}</span></td>
+                
+                <td class="align-middle"><span class="badge ${badgeTipo} px-2 py-1 shadow-sm border border-secondary">${(d.tipo || '').toUpperCase()}</span></td>
+                
                 <td class="text-start align-middle">
                     <div class="fw-bold text-wrap" style="min-width: 150px;">${d.cliente}</div>
-                    <div class="small mt-1 d-flex align-items-center flex-wrap gap-1">
-                        <span class="badge ${badgeTipo}">${(d.tipo || '').toUpperCase()}</span>
-                        <span class="text-muted text-nowrap">${d.telefone || ''}</span>
+                    <div class="small mt-1 text-muted text-nowrap">
+                        📞 ${d.telefone || 'Sem telefone'}
                     </div>
-                    ${htmlObs}
                 </td>
-                <td class="align-middle text-nowrap"><small>${d.fonte}</small></td>
+                
+                <td class="align-middle">${btnObs}</td>
+
                 <td class="align-middle">${selectStatus}</td>
+                
                 <td class="align-middle">
                     <div class="d-flex flex-nowrap justify-content-center gap-1">
                         <button onclick="abrirMensagemLead('${d.id}')" class="btn btn-sm btn-outline-success p-1 px-2 shadow-sm" title="Mensagem">💬</button>
@@ -216,7 +231,6 @@ window.mudarStatus = async (id, novoStatus) => {
     catch (error) { console.error(error); }
 };
 
-// DELETAR (REDUZ O CONTADOR DO CORRETOR)
 window.deletarLead = async (id) => {
     if(confirm("Deseja excluir este lead? O contador do corretor será atualizado.")) {
         try { 
@@ -244,7 +258,6 @@ window.abrirModalEditarLead = (idLead) => {
     new bootstrap.Modal(document.getElementById('modal-editar-lead')).show();
 };
 
-// EDITAR (AJUSTA OS CONTADORES SE MUDAR DE CORRETOR OU DE TIPO DE LEAD)
 window.salvarEdicaoLead = async () => {
     const idLead = document.getElementById('edit-id-lead').value;
     const novoNome = document.getElementById('edit-nome-lead').value.trim();
@@ -263,19 +276,15 @@ window.salvarEdicaoLead = async () => {
     try {
         const leadAntigo = memoriaLeads.find(l => l.id === idLead);
         
-        // Verifica se mudou o dono do lead ou mudou de PF para PME (para arrumar os contadores)
         if (leadAntigo && (leadAntigo.corretor_id !== novoIdCorretor || leadAntigo.tipo !== novoTipo)) {
-            // Tira -1 do contador antigo
             if (leadAntigo.corretor_id) {
                 const campoAntigo = (leadAntigo.tipo === 'pme') ? 'leads_recebidos_pme' : 'leads_recebidos_pf';
                 await updateDoc(doc(db, "corretores", leadAntigo.corretor_id), { [campoAntigo]: increment(-1) });
             }
-            // Adiciona +1 no contador novo
             const campoNovo = (novoTipo === 'pme') ? 'leads_recebidos_pme' : 'leads_recebidos_pf';
             await updateDoc(doc(db, "corretores", novoIdCorretor), { [campoNovo]: increment(1) });
         }
 
-        // Salva as alterações na base de leads
         await updateDoc(doc(db, "leads", idLead), {
             cliente: novoNome, telefone: novoTelefone, tipo: novoTipo, fonte: novaFonte, observacao: novaObs,
             corretor_id: novoIdCorretor, corretor_nome: novoNomeCorretor, corretor_telefone: novoTelCorretor
@@ -285,6 +294,17 @@ window.salvarEdicaoLead = async () => {
     } catch (error) { console.error(error); alert("Erro ao editar."); }
 };
 
+// NOVO: Função que abre o modal de ler as observações
+window.abrirModalObs = (idLead) => {
+    const lead = memoriaLeads.find(l => l.id === idLead);
+    if (!lead) return;
+    document.getElementById('texto-ver-obs').innerText = lead.observacao || 'Nenhuma observação.';
+    new bootstrap.Modal(document.getElementById('modal-ver-obs')).show();
+};
+
+// ==========================================
+// FUNÇÕES DE COPIAR E ENVIAR WHATSAPP
+// ==========================================
 window.copiarMensagemLead = () => {
     const textarea = document.getElementById('texto-mensagem-copiar');
     textarea.select();
