@@ -1,8 +1,8 @@
 import { db } from "./firebase-config.js";
-import { collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, getDocs, query, where, increment, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy, getDocs, where, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const form = document.getElementById('form-parceiro');
-const lista = document.getElementById('lista-parceiros');
+const listaParceiros = document.getElementById('lista-parceiros');
 const listaHistorico = document.getElementById('lista-historico');
 const datalistEmpresas = document.getElementById('lista-empresas');
 
@@ -10,265 +10,160 @@ if(document.getElementById('data-compra')) {
     document.getElementById('data-compra').valueAsDate = new Date();
 }
 
-// Variáveis globais para armazenar os dados e usar no Modal
-let estadoParceiros = [];
-let estadoLeads = [];
-let estadoHistoricoCompras = [];
-
 // ==========================================
-// 1. SALVAR NOVA COMPRA
+// 1. CARREGAR TABELA DE PARCEIROS
 // ==========================================
-form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const nome = document.getElementById('nome-parceiro').value.trim();
-    const dataCompra = document.getElementById('data-compra').value;
-    const qtd = parseInt(document.getElementById('qtd-leads').value);
-
-    try {
-        await addDoc(collection(db, "historico_compras"), {
-            parceiro: nome,
-            data_compra: dataCompra,
-            qtd_comprada: qtd,
-            timestamp: new Date().toISOString()
-        });
-
-        const q = query(collection(db, "parceiros"), where("nome", "==", nome));
-        const snapshot = await getDocs(q);
-
-        if (!snapshot.empty) {
-            const docId = snapshot.docs[0].id;
-            await updateDoc(doc(db, "parceiros", docId), {
-                leads_comprados: increment(qtd)
-            });
-        } else {
-            await addDoc(collection(db, "parceiros"), {
-                nome: nome,
-                leads_comprados: qtd,
-                data_cadastro: new Date().toISOString()
-            });
-        }
-
-        alert("Compra registrada e estoque atualizado com sucesso!");
-        form.reset();
-        document.getElementById('data-compra').valueAsDate = new Date();
-    } catch (error) {
-        console.error("Erro ao salvar compra:", error);
-        alert("Erro ao salvar.");
-    }
-});
-
-// ==========================================
-// 2. LÓGICA DE ESTOQUE (TEMPO REAL)
-// ==========================================
-onSnapshot(collection(db, "parceiros"), (snap) => {
-    estadoParceiros = [];
-    snap.forEach(d => estadoParceiros.push({ id: d.id, ...d.data() }));
-    atualizarTabelaEstoque();
-});
-
-onSnapshot(collection(db, "leads"), (snap) => {
-    estadoLeads = [];
-    snap.forEach(d => estadoLeads.push(d.data()));
-    atualizarTabelaEstoque();
-});
-
-function atualizarTabelaEstoque() {
+onSnapshot(collection(db, "parceiros"), (snapshot) => {
     let html = '';
-    let datalistHtml = '';
+    let options = '';
     
-    if (estadoParceiros.length === 0) {
-        lista.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">Nenhum parceiro cadastrado.</td></tr>';
-        datalistEmpresas.innerHTML = '';
+    if (snapshot.empty) {
+        listaParceiros.innerHTML = '<tr><td colspan="8" class="text-center py-5 text-muted">Nenhum parceiro cadastrado.</td></tr>';
         return;
     }
 
-    estadoParceiros.forEach(p => {
-        const nomeParceiro = p.nome;
-        const id = p.id;
-        const comprados = parseInt(p.leads_comprados) || 0;
+    snapshot.forEach(docSnap => {
+        const id = docSnap.id;
+        const d = docSnap.data();
+        options += `<option value="${d.nome}">`;
 
-        datalistHtml += `<option value="${nomeParceiro}">`;
-
-        const leadsDestaFonte = estadoLeads.filter(l => l.fonte === nomeParceiro);
-        const distribuidosTotal = leadsDestaFonte.length;
-        const invalidos = leadsDestaFonte.filter(l => l.status === 'Lead Inválido').length;
-
-        const consumoReal = distribuidosTotal - invalidos;
-        const faltam = comprados - consumoReal;
-
-        let classeSaldo = "text-success fw-bold";
-        if (faltam <= 0) classeSaldo = "text-danger fw-bold";
-        else if (faltam < (comprados * 0.1)) classeSaldo = "text-warning fw-bold";
+        let comprados = parseInt(d.comprados) || 0;
+        let distPme = parseInt(d.distribuidos_pme) || 0;
+        let distPf = parseInt(d.distribuidos_pf) || 0;
+        let invalidos = parseInt(d.invalidos) || 0;
+        
+        // MATEMÁTICA DA TABELA
+        let distTotal = distPme + distPf;
+        let restam = (comprados - distTotal) + invalidos; 
+        
+        let corRestam = restam > 0 ? 'text-success' : (restam < 0 ? 'text-danger' : 'text-secondary');
 
         html += `
             <tr>
-                <td class="text-start ps-4 fw-bold text-uppercase">${nomeParceiro}</td>
-                <td class="fs-5">${comprados}</td>
-                <td class="fs-5">${distribuidosTotal}</td>
-                <td class="${classeSaldo} fs-5">${faltam}</td>
-                <td><span class="badge bg-danger rounded-pill fs-6 px-3 py-2">${invalidos}</span></td>
+                <td class="text-start ps-4 fw-bold text-uppercase">${d.nome}</td>
+                <td class="fw-bold">${comprados}</td>
+                <td class="text-info fw-bold">${distPme}</td>
+                <td class="text-primary fw-bold">${distPf}</td>
+                <td class="fw-bold text-dark">${distTotal}</td>
+                <td class="fw-bold ${corRestam}">${restam}</td>
+                <td class="fw-bold text-danger">${invalidos}</td>
                 <td>
-                    <button onclick="editar('${id}', '${comprados}')" class="btn btn-outline-warning btn-sm me-1" title="Editar Comprados">✏️</button>
-                    <button onclick="deletar('${id}')" class="btn btn-outline-danger btn-sm" title="Excluir Empresa">🗑️</button>
+                    <button onclick="abrirModalEditarParceiro('${id}', '${d.nome}', ${comprados}, ${distPme}, ${distPf}, ${invalidos})" class="btn btn-sm btn-outline-warning p-1 px-2 shadow-sm me-1" title="Editar">✏️</button>
+                    <button onclick="deletarParceiro('${id}')" class="btn btn-sm btn-outline-danger p-1 px-2 shadow-sm" title="Excluir Parceiro">🗑️</button>
                 </td>
             </tr>
         `;
     });
-
-    lista.innerHTML = html;
-    datalistEmpresas.innerHTML = datalistHtml;
-}
-
-// ==========================================
-// 3. LISTAR HISTÓRICO MENSAL (ESQUERDA)
-// ==========================================
-const qHist = query(collection(db, "historico_compras"), orderBy("data_compra", "desc"));
-
-onSnapshot(qHist, (snapshot) => {
-    estadoHistoricoCompras = []; 
     
-    if (snapshot.empty) {
-        listaHistorico.innerHTML = '<li class="list-group-item text-center text-muted small py-3">Nenhuma compra registrada ainda.</li>';
-        return;
-    }
-
-    const mesesNome = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-    let agrupadoPorMes = {};
-
-    snapshot.forEach(doc => {
-        const dados = doc.data();
-        estadoHistoricoCompras.push(dados); 
-
-        const [ano, mes, dia] = dados.data_compra.split('-');
-        const chaveMes = `${mesesNome[parseInt(mes) - 1]} ${ano}`;
-
-        if (!agrupadoPorMes[chaveMes]) agrupadoPorMes[chaveMes] = [];
-        agrupadoPorMes[chaveMes].push({ ...dados, dia, anoOriginal: ano, mesOriginal: mes }); 
-    });
-
-    let html = '';
-    for (const [mesAno, compras] of Object.entries(agrupadoPorMes)) {
-        html += `<li class="list-group-item bg-light fw-bold text-secondary text-uppercase border-bottom-0" style="font-size: 0.8rem;">
-                    📆 ${mesAno}
-                 </li>`;
-        
-        compras.forEach(c => {
-            html += `
-                <li class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" 
-                    style="cursor: pointer;" 
-                    onclick="abrirDetalhesMes('${c.parceiro}', '${c.anoOriginal}', '${c.mesOriginal}')"
-                    title="Clique para ver o resumo completo deste mês">
-                    <div>
-                        <span class="badge bg-secondary me-2">${c.dia}</span>
-                        <span class="fw-bold text-dark">${c.parceiro}</span>
-                    </div>
-                    <span class="badge bg-success rounded-pill px-2 py-1">+ ${c.qtd_comprada} leads</span>
-                </li>
-            `;
-        });
-    }
-
-    listaHistorico.innerHTML = html;
+    listaParceiros.innerHTML = html;
+    if(datalistEmpresas) datalistEmpresas.innerHTML = options;
 });
 
 // ==========================================
-// 4. FUNÇÃO DO MODAL (RAIO-X DO MÊS)
+// 2. SALVAR NOVA COMPRA
 // ==========================================
-window.abrirDetalhesMes = (parceiroNome, ano, mes) => {
-    
-    let compradosNoMes = 0;
-    estadoHistoricoCompras.forEach(h => {
-        if (h.parceiro === parceiroNome && h.data_compra.startsWith(`${ano}-${mes}`)) {
-            compradosNoMes += parseInt(h.qtd_comprada) || 0;
-        }
+if(form) {
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const nome = document.getElementById('nome-parceiro').value.trim().toUpperCase();
+        const data = document.getElementById('data-compra').value;
+        const qtd = parseInt(document.getElementById('qtd-leads').value) || 0;
+
+        if (!nome || qtd <= 0) return alert("Preencha o nome e uma quantidade maior que zero.");
+
+        try {
+            // 1. Salva no histórico
+            let dataFormatada = data.split('-').reverse().join('/');
+            await addDoc(collection(db, "historico_compras"), {
+                empresa: nome, data: data, data_formatada: dataFormatada, qtd: qtd, timestamp: new Date().toISOString()
+            });
+
+            // 2. Procura se o parceiro já existe para somar
+            const q = query(collection(db, "parceiros"), where("nome", "==", nome));
+            const snap = await getDocs(q);
+
+            if (!snap.empty) {
+                await updateDoc(doc(db, "parceiros", snap.docs[0].id), { comprados: increment(qtd) });
+            } else {
+                await addDoc(collection(db, "parceiros"), {
+                    nome: nome, comprados: qtd, distribuidos_pme: 0, distribuidos_pf: 0, invalidos: 0
+                });
+            }
+
+            form.reset();
+            document.getElementById('data-compra').valueAsDate = new Date();
+            alert("✅ Compra registrada com sucesso!");
+        } catch (error) { console.error(error); alert("Erro ao salvar."); }
     });
+}
 
-    let distribuidosNoMes = 0;
-    let finalizadosNoMes = 0;
-    let invalidosNoMes = 0;
-
-    estadoLeads.forEach(lead => {
-        if (lead.fonte === parceiroNome && lead.data_entrega && lead.data_entrega.startsWith(`${ano}-${mes}`)) {
-            distribuidosNoMes++;
-            if (lead.status === 'Finalizado') finalizadosNoMes++;
-            if (lead.status === 'Lead Inválido') invalidosNoMes++;
-        }
-    });
-
-    const mesesNome = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-    const nomeDoMes = mesesNome[parseInt(mes) - 1];
-
-    document.getElementById('modal-titulo').innerText = `${parceiroNome} - ${nomeDoMes}/${ano}`;
-    document.getElementById('modal-comprados').innerText = compradosNoMes;
-    document.getElementById('modal-distribuidos').innerText = distribuidosNoMes;
-    document.getElementById('modal-finalizados').innerText = finalizadosNoMes;
-    document.getElementById('modal-invalidos').innerText = invalidosNoMes;
-
-    const modalEl = document.getElementById('modal-detalhes-historico');
-    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-    modal.show();
+// ==========================================
+// 3. EDIÇÃO MANUAL (MODAL) E EXCLUSÃO
+// ==========================================
+window.abrirModalEditarParceiro = (id, nome, comp, dpme, dpf, inv) => {
+    document.getElementById('edit-parceiro-id').value = id;
+    document.getElementById('edit-parceiro-nome').innerText = nome;
+    document.getElementById('edit-parceiro-comprados').value = comp;
+    document.getElementById('edit-parceiro-pme').value = dpme;
+    document.getElementById('edit-parceiro-pf').value = dpf;
+    document.getElementById('edit-parceiro-invalidos').value = inv;
+    new bootstrap.Modal(document.getElementById('modal-editar-parceiro')).show();
 };
 
-// ==========================================
-// 5. FUNÇÕES DE EDIÇÃO E EXCLUSÃO GERAIS
-// ==========================================
-window.editar = async (id, valorAtual) => {
-    let novoValor = prompt(`Alterar a quantidade de leads COMPRADOS:`, valorAtual);
-    if (novoValor === null || novoValor.trim() === "") return;
-
-    novoValor = parseInt(novoValor);
-    if (isNaN(novoValor)) return alert("Por favor, digite um número válido!");
+window.salvarEdicaoParceiro = async () => {
+    const id = document.getElementById('edit-parceiro-id').value;
+    const comp = parseInt(document.getElementById('edit-parceiro-comprados').value) || 0;
+    const dpme = parseInt(document.getElementById('edit-parceiro-pme').value) || 0;
+    const dpf = parseInt(document.getElementById('edit-parceiro-pf').value) || 0;
+    const inv = parseInt(document.getElementById('edit-parceiro-invalidos').value) || 0;
 
     try {
         await updateDoc(doc(db, "parceiros", id), {
-            leads_comprados: novoValor
+            comprados: comp, distribuidos_pme: dpme, distribuidos_pf: dpf, invalidos: inv
         });
-    } catch (error) {
-        console.error(error);
-        alert("Erro ao atualizar o valor.");
-    }
+        bootstrap.Modal.getInstance(document.getElementById('modal-editar-parceiro')).hide();
+    } catch(e) { console.error(e); alert("Erro ao salvar."); }
 };
 
-window.deletar = async (id) => {
-    if(confirm("Tem certeza que deseja excluir esta empresa da carteira?\nIsso não apagará o histórico de compras já feitas.")) {
-        await deleteDoc(doc(db, "parceiros", id));
+window.deletarParceiro = async (id) => {
+    if(confirm("⚠️ ATENÇÃO: Deseja realmente excluir este parceiro?\nIsso não apagará os leads que já foram distribuídos, mas apagará a empresa da lista.")) {
+        try { await deleteDoc(doc(db, "parceiros", id)); } 
+        catch (e) { console.error(e); alert("Erro ao excluir."); }
     }
 };
 
 // ==========================================
-// 6. FUNÇÃO: ZERAR HISTÓRICO DE COMPRAS
+// 4. CARREGAR E ZERAR HISTÓRICO
 // ==========================================
+const qHist = query(collection(db, "historico_compras"), orderBy("timestamp", "desc"));
+onSnapshot(qHist, (snapshot) => {
+    let html = '';
+    if (snapshot.empty) {
+        if(listaHistorico) listaHistorico.innerHTML = '<li class="list-group-item text-center text-muted py-4">Nenhum histórico.</li>';
+        return;
+    }
+    snapshot.forEach(doc => {
+        let d = doc.data();
+        let diaMes = d.data_formatada ? d.data_formatada.substring(0,5) : '';
+        html += `
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="badge bg-secondary me-2">${diaMes}</span>
+                    <span class="fw-bold text-dark" style="font-size: 0.85rem;">${d.empresa}</span>
+                </div>
+                <span class="badge bg-success rounded-pill">+ ${d.qtd} leads</span>
+            </li>
+        `;
+    });
+    if(listaHistorico) listaHistorico.innerHTML = html;
+});
+
 window.limparHistoricoCompras = async () => {
-    // Trava de segurança para não apagar sem querer
-    const confirmacao = prompt("⚠️ ATENÇÃO: Isso vai apagar TODO o histórico de compras de leads permanentemente e não pode ser desfeito.\n\nDigite a palavra ZERAR para confirmar:");
-
-    if (confirmacao === "ZERAR") {
+    if(confirm("Tem certeza que deseja APAGAR TODO o histórico de compras? Os totais da tabela não serão alterados.")) {
         try {
-            const colecaoHistorico = "historico_compras"; 
-            
-            const querySnapshot = await getDocs(collection(db, colecaoHistorico));
-            
-            if (querySnapshot.empty) {
-                return alert("O histórico já está vazio!");
-            }
-
-            // Exclui documento por documento do histórico
-            const promessasDeExclusao = [];
-            querySnapshot.forEach((docSnap) => {
-                promessasDeExclusao.push(deleteDoc(doc(db, colecaoHistorico, docSnap.id)));
-            });
-
-            // Aguarda todas as exclusões terminarem
-            await Promise.all(promessasDeExclusao);
-
-            alert("✅ Histórico zerado com sucesso! Sistema limpo para iniciar.");
-            
-        } catch (error) {
-            console.error("Erro ao zerar histórico:", error);
-            alert("Erro ao zerar o histórico. Verifique o console.");
-        }
-    } else if (confirmacao !== null) {
-        alert("Operação cancelada. A palavra 'ZERAR' não foi digitada corretamente.");
+            const snap = await getDocs(collection(db, "historico_compras"));
+            snap.forEach(d => { deleteDoc(doc(db, "historico_compras", d.id)); });
+        } catch (e) { console.error(e); }
     }
 };
