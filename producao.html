@@ -25,7 +25,6 @@
                     <li class="nav-item"><a class="nav-link text-light" href="parceiros.html">🤝 Parceiros</a></li>
                     <li class="nav-item"><a class="nav-link text-success fw-bold border-bottom border-success" href="producao.html">💰 Produção</a></li>
                     <li class="nav-item d-none d-lg-block text-secondary">|</li>
-                    <li class="nav-item"><a class="nav-link text-warning fw-bold" href="distribuicao.html">🎲 Distribuição</a></li>
                     <li class="nav-item"><a class="nav-link text-info fw-bold" href="plantao.html">📅 Plantão (Digital)</a></li>
                     <li class="nav-item"><a class="nav-link text-primary fw-bold" href="lojas.html">🏪 Lojas</a></li>
                     <li class="nav-item"><a class="nav-link text-danger fw-bold" href="leads.html">🔥 Leads</a></li>
@@ -52,7 +51,7 @@
         <div class="col-12 mb-5">
             <div class="card shadow border-dark">
                 <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-3">
-                    <span class="fw-bold fs-5">🏆 Ranking do Mês Atual (Acumulado)</span>
+                    <span class="fw-bold fs-5">🏆 Ranking e Metas (Mês Atual)</span>
                     
                     <div class="d-flex gap-2">
                         <button class="btn btn-success fw-bold shadow-sm px-4" data-bs-toggle="modal" data-bs-target="#modal-lancar-producao">
@@ -74,8 +73,9 @@
                                     <th>Produção PF</th>
                                     <th>Total (R$)</th>
                                     <th>Pontos</th>
+                                    <th class="bg-warning text-dark">Leads PME (Ganhos)</th>
                                     <th>Competência</th>
-                                    <th style="width: 120px;">Ações</th>
+                                    <th style="width: 150px;">Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="tabela-ranking">
@@ -89,7 +89,7 @@
         <div class="col-12 mb-5">
             <div class="card shadow border-secondary">
                 <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
-                    <span>📅 Histórico de Produções Anteriores</span>
+                    <span>📅 Histórico de Fechamentos Anteriores</span>
                     <select id="select-historico" class="form-select form-select-sm w-auto fw-bold" style="min-width: 200px;">
                         <option value="">Carregando histórico...</option>
                     </select>
@@ -123,7 +123,7 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg border-0 border-top border-success border-4">
                 <div class="modal-header bg-white">
-                    <h5 class="modal-title fw-bold text-success">💰 Lançar Produção (Soma na Meta)</h5>
+                    <h5 class="modal-title fw-bold text-success">💰 Lançar Produção</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form id="form-producao">
@@ -154,7 +154,7 @@
                     </div>
                     <div class="modal-footer bg-white">
                         <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-success fw-bold px-4 shadow-sm">➕ Adicionar à Produção</button>
+                        <button type="submit" class="btn btn-success fw-bold px-4 shadow-sm">➕ Adicionar e Calcular Meta</button>
                     </div>
                 </form>
             </div>
