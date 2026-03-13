@@ -57,7 +57,8 @@
                 
                 <div class="card shadow border-info mb-4">
                     <div class="card-body bg-white">
-                        <form id="form-parceiro"> <datalist id="lista-empresas"></datalist>
+                        <form id="form-parceiro">
+                            <datalist id="lista-empresas"></datalist>
 
                             <div class="mb-3">
                                 <label class="form-label text-muted small fw-bold mb-1">Nome da Empresa</label>
@@ -87,7 +88,6 @@
                         </ul>
                     </div>
                 </div>
-
             </div>
 
             <div class="col-md-9">
@@ -97,53 +97,60 @@
                             <tr>
                                 <th class="text-start ps-4">Empresa (Fonte)</th>
                                 <th>Comprados</th>
-                                <th>Dist.</th>
+                                <th class="text-info">Dist. PME</th>
+                                <th class="text-primary">Dist. PF</th>
+                                <th>Dist. Total</th>
                                 <th>Restam</th>
                                 <th>Inválidos</th>
                                 <th>Ações</th>
                             </tr>
                         </thead>
-                        <tbody id="lista-parceiros"> <tr><td colspan="6" class="text-center py-5 text-muted">Carregando parceiros...</td></tr>
+                        <tbody id="lista-parceiros">
+                            <tr><td colspan="8" class="text-center py-5 text-muted">Carregando parceiros...</td></tr>
                         </tbody>
                     </table>
                 </div>
                 <div class="mt-2 text-muted small">
-                    * <b>Dist.</b> = Leads já cadastrados. <b>Restam</b> = Seu saldo a receber. <b>Inválidos</b> são devolvidos ao seu saldo para reposição.
+                    * <b>Dist. Total</b> = PME + PF. <b>Restam</b> = Comprados - Dist. Total + Inválidos. <b>Inválidos</b> retornam como saldo.
                 </div>
             </div>
 
         </div>
     </div>
 
-    <div class="modal fade" id="modal-detalhes-historico" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="modal-editar-parceiro" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg border-0">
-                <div class="modal-header bg-info text-white">
-                    <h5 class="modal-title fw-bold" id="modal-titulo">Detalhes do Mês</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title fw-bold">✏️ Editar Valores da Empresa</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body bg-light p-4">
-                    <ul class="list-group shadow-sm">
-                        <li class="list-group-item d-flex justify-content-between align-items-center fw-bold">
-                            Leads Comprados (Mês):
-                            <span class="badge bg-primary rounded-pill fs-6" id="modal-comprados">0</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            Leads Distribuídos (Mês):
-                            <span class="badge bg-secondary rounded-pill fs-6" id="modal-distribuidos">0</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            Vendas Finalizadas (Mês):
-                            <span class="badge bg-success rounded-pill fs-6" id="modal-finalizados">0</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            Leads Inválidos (Mês):
-                            <span class="badge bg-danger rounded-pill fs-6" id="modal-invalidos">0</span>
-                        </li>
-                    </ul>
+                    <input type="hidden" id="edit-parceiro-id">
+                    <h5 id="edit-parceiro-nome" class="fw-bold text-center mb-4 text-uppercase text-dark">NOME DA EMPRESA</h5>
+                    
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label fw-bold small text-muted text-uppercase mb-1">Total Comprados:</label>
+                            <input type="number" id="edit-parceiro-comprados" class="form-control fw-bold shadow-sm" min="0">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-info text-uppercase mb-1">Distribuídos PME:</label>
+                            <input type="number" id="edit-parceiro-pme" class="form-control fw-bold border-info shadow-sm" min="0">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold small text-primary text-uppercase mb-1">Distribuídos PF:</label>
+                            <input type="number" id="edit-parceiro-pf" class="form-control fw-bold border-primary shadow-sm" min="0">
+                        </div>
+                        <div class="col-12 mt-3">
+                            <label class="form-label fw-bold small text-danger text-uppercase mb-1">Leads Inválidos (Devolvidos):</label>
+                            <input type="number" id="edit-parceiro-invalidos" class="form-control fw-bold border-danger shadow-sm" min="0">
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer bg-white">
-                    <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-warning fw-bold px-4 shadow-sm" onclick="salvarEdicaoParceiro()">💾 Salvar Correções</button>
                 </div>
             </div>
         </div>
