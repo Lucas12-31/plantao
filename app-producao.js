@@ -16,9 +16,6 @@ if(inputMes) {
 const selectHistorico = document.getElementById('select-historico');
 const tabelaHistorico = document.getElementById('tabela-historico');
 
-// ========================================================
-// 1. CARREGAR E RENDERIZAR O MÊS ATUAL
-// ========================================================
 onSnapshot(collection(db, "corretores"), (snapshot) => {
     let htmlOptions = '<option value="">Selecione...</option>';
     let corretores = [];
@@ -74,14 +71,13 @@ function renderizarRanking(lista, elementoTabela, ehHistorico = false) {
             compFormatada = `${mes}/${ano}`;
         }
         
-        // COLUNAS DE LEADS (META, RECEBIDOS PME E RECEBIDOS PF)
         let leadsGanhosHtml = ehHistorico ? '' : `<td class="bg-warning fw-bold fs-5 border-start border-white">${c.leadsPmeCalculados}</td>`;
         if (!ehHistorico && !c.isAtivo) {
             leadsGanhosHtml = `<td class="bg-light text-danger fw-bold border-start border-white"><small>Suspenso</small></td>`;
         }
 
-        let leadsRecPme = c.leads_recebidos_pme || 0;
-        let leadsRecPf = c.leads_recebidos_pf || 0;
+        let leadsRecPme = parseInt(c.leads_recebidos_pme) || 0;
+        let leadsRecPf = parseInt(c.leads_recebidos_pf) || 0;
         
         let recPmeHtml = ehHistorico ? '' : `<td class="bg-info text-white fw-bold fs-5">${leadsRecPme}</td>`;
         let recPfHtml = ehHistorico ? '' : `<td class="bg-primary text-white fw-bold fs-5 border-end border-white">${leadsRecPf}</td>`;
@@ -94,12 +90,13 @@ function renderizarRanking(lista, elementoTabela, ehHistorico = false) {
                 ? `<button onclick="toggleElegibilidade('${c.id}', '${c.nome}', true, ${c.v_pme}, ${c.v_pf})" class="btn btn-sm btn-outline-success p-1 px-2 shadow-sm me-1" title="Corretor Ativo. Clique para Suspender">🟢</button>`
                 : `<button onclick="toggleElegibilidade('${c.id}', '${c.nome}', false, ${c.v_pme}, ${c.v_pf})" class="btn btn-sm btn-outline-danger p-1 px-2 shadow-sm me-1" title="Corretor Suspenso. Clique para Ativar">🔴</button>`;
 
+            // NOVO: Passando os valores de leads recebidos para a função do lápis
             acoesHtml = `
                 <td>
                     <div class="d-flex flex-nowrap justify-content-center">
                         ${btnStatus}
-                        <button onclick="abrirModalEditarProducao('${c.id}', '${c.nome}', ${c.v_pme}, ${c.v_pf}, '${c.mes_competencia || ''}')" class="btn btn-sm btn-outline-warning p-1 px-2 shadow-sm me-1" title="Ajustar Produção">✏️</button>
-                        <button onclick="zerarProducaoCorretor('${c.id}', '${c.nome}')" class="btn btn-sm btn-outline-dark p-1 px-2 shadow-sm" title="Zerar Produção">🗑️</button>
+                        <button onclick="abrirModalEditarProducao('${c.id}', '${c.nome}', ${c.v_pme}, ${c.v_pf}, '${c.mes_competencia || ''}', ${leadsRecPme}, ${leadsRecPf})" class="btn btn-sm btn-outline-warning p-1 px-2 shadow-sm me-1" title="Ajustar Valores">✏️</button>
+                        <button onclick="zerarProducaoCorretor('${c.id}', '${c.nome}')" class="btn btn-sm btn-outline-dark p-1 px-2 shadow-sm" title="Zerar Tudo">🗑️</button>
                     </div>
                 </td>
             `;
@@ -187,20 +184,26 @@ if(form) {
     });
 }
 
-window.abrirModalEditarProducao = (id, nome, pmeAtual, pfAtual, mesAtual) => {
+// NOVO: A função agora aceita recPme e recPf e joga nos inputs da janelinha
+window.abrirModalEditarProducao = (id, nome, pmeAtual, pfAtual, mesAtual, recPme, recPf) => {
     document.getElementById('edit-prod-id').value = id;
     document.getElementById('edit-prod-nome').innerText = nome;
     document.getElementById('edit-prod-pme').value = pmeAtual;
     document.getElementById('edit-prod-pf').value = pfAtual;
     document.getElementById('edit-prod-mes').value = mesAtual;
+    document.getElementById('edit-rec-pme').value = recPme;
+    document.getElementById('edit-rec-pf').value = recPf;
     new bootstrap.Modal(document.getElementById('modal-editar-producao')).show();
 };
 
+// NOVO: A função agora capta o que você digitou de leads recebidos e manda pro banco
 window.salvarEdicaoProducao = async () => {
     const id = document.getElementById('edit-prod-id').value;
     const novoPme = parseFloat(document.getElementById('edit-prod-pme').value) || 0;
     const novoPf = parseFloat(document.getElementById('edit-prod-pf').value) || 0;
     const novoMes = document.getElementById('edit-prod-mes').value;
+    const novoRecPme = parseInt(document.getElementById('edit-rec-pme').value) || 0;
+    const novoRecPf = parseInt(document.getElementById('edit-rec-pf').value) || 0;
 
     try {
         const docSnap = await getDoc(doc(db, "corretores", id));
@@ -213,7 +216,12 @@ window.salvarEdicaoProducao = async () => {
         }
 
         await updateDoc(doc(db, "corretores", id), {
-            producao_pme: novoPme, producao_pf: novoPf, mes_competencia: novoMes, leads_ganhos_pme: leadsGanhos
+            producao_pme: novoPme, 
+            producao_pf: novoPf, 
+            mes_competencia: novoMes, 
+            leads_ganhos_pme: leadsGanhos,
+            leads_recebidos_pme: novoRecPme,
+            leads_recebidos_pf: novoRecPf
         });
         bootstrap.Modal.getInstance(document.getElementById('modal-editar-producao')).hide();
     } catch (error) { console.error(error); alert("Erro ao atualizar a produção."); }
@@ -268,7 +276,6 @@ export async function iniciarNovoCiclo() {
                     corretor: dados.nome, producao_final_pme: dados.producao_pme, producao_final_pf: dados.producao_pf
                 });
             }
-            // ZERA TUDO INCLUSIVE OS CONTADORES DE LEADS
             await updateDoc(doc(db, "corretores", d.id), {
                 producao_pme: 0, producao_pf: 0, leads_ganhos_pme: 0, leads_recebidos_pme: 0, leads_recebidos_pf: 0, mes_competencia: "" 
             });
