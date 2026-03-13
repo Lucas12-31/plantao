@@ -1,5 +1,6 @@
 import { db } from "./firebase-config.js";
-import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+// NOVO: Adicionado o 'increment' na linha abaixo
+import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const selectCorretor = document.getElementById('select-corretor');
 const selectFonte = document.getElementById('fonte-lead');
@@ -66,7 +67,7 @@ carregarCorretores();
 carregarParceiros();
 
 // ==========================================
-// SALVAR NOVO LEAD
+// SALVAR NOVO LEAD (INCREMENTA O CONTADOR)
 // ==========================================
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -86,22 +87,19 @@ form.addEventListener('submit', async (e) => {
     const telefoneCorretor = opCorretor.getAttribute('data-telefone') || ''; 
 
     try {
+        // 1. Salva o Lead na Base
         await addDoc(collection(db, "leads"), {
-            cliente: nomeLead,
-            telefone: telefone,
-            fonte: fonte,
-            tipo: tipo,
-            data_chegada: dataChegada,
-            data_entrega: dataEntrega,
-            observacao: observacao, 
-            status: statusInicial,
-            corretor_id: idCorretor,
-            corretor_nome: nomeCorretor,
-            corretor_telefone: telefoneCorretor, 
-            timestamp: new Date().toISOString(),
-            data_status: new Date().toISOString() 
+            cliente: nomeLead, telefone: telefone, fonte: fonte, tipo: tipo, data_chegada: dataChegada,
+            data_entrega: dataEntrega, observacao: observacao, status: statusInicial,
+            corretor_id: idCorretor, corretor_nome: nomeCorretor, corretor_telefone: telefoneCorretor, 
+            timestamp: new Date().toISOString(), data_status: new Date().toISOString() 
         });
         
+        // 2. MÁGICA: Incrementa +1 no contador de Leads Recebidos daquele corretor lá na Produção
+        const corretorRef = doc(db, "corretores", idCorretor);
+        const campoIncremento = (tipo === 'pme') ? 'leads_recebidos_pme' : 'leads_recebidos_pf';
+        await updateDoc(corretorRef, { [campoIncremento]: increment(1) });
+
         const primeiroNome = nomeCorretor.split(' ')[0];
         const textoObs = observacao.trim() !== '' ? observacao : "Nenhuma observação";
         const tipoFormatado = tipo.toUpperCase(); 
@@ -122,10 +120,7 @@ form.addEventListener('submit', async (e) => {
         document.getElementById('data-chegada').valueAsDate = new Date();
         document.getElementById('data-entrega').valueAsDate = new Date();
         document.getElementById('status-lead').value = "Distribuído"; 
-    } catch (error) {
-        console.error(error);
-        alert("Erro ao salvar.");
-    }
+    } catch (error) { console.error(error); alert("Erro ao salvar."); }
 });
 
 // ==========================================
@@ -134,12 +129,10 @@ form.addEventListener('submit', async (e) => {
 function filtrarE_Renderizar() {
     if(!inputBusca) return; 
     const termoDeBusca = inputBusca.value.toLowerCase().trim(); 
-    
     const leadsFiltrados = memoriaLeads.filter(lead => {
         const textoBusca = `${lead.cliente || ''} ${lead.corretor_nome || ''} ${lead.fonte || ''} ${lead.status || ''} ${lead.tipo || ''} ${lead.observacao || ''}`.toLowerCase();
         return textoBusca.includes(termoDeBusca);
     });
-
     renderizarTabela(leadsFiltrados);
 }
 
@@ -147,9 +140,7 @@ const q = query(collection(db, "leads"), orderBy("timestamp", "desc"));
 
 onSnapshot(q, (snapshot) => {
     memoriaLeads = []; 
-    snapshot.forEach(doc => {
-        memoriaLeads.push({ id: doc.id, ...doc.data() });
-    });
+    snapshot.forEach(doc => { memoriaLeads.push({ id: doc.id, ...doc.data() }); });
     filtrarE_Renderizar();
 });
 
@@ -157,41 +148,27 @@ if(inputBusca) inputBusca.addEventListener('input', filtrarE_Renderizar);
 
 function renderizarTabela(listaDeLeads) {
     let html = '';
-    
     if (listaDeLeads.length === 0) {
-        tabela.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">Nenhum lead encontrado.</td></tr>';
-        return;
+        tabela.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">Nenhum lead encontrado.</td></tr>'; return;
     }
     
     listaDeLeads.forEach(d => {
-        let dataFormatada = "";
-        if(d.data_entrega) dataFormatada = d.data_entrega.split('-').reverse().slice(0,2).join('/');
-        
+        let dataFormatada = d.data_entrega ? d.data_entrega.split('-').reverse().slice(0,2).join('/') : "";
         let badgeTipo = d.tipo === 'pme' ? 'bg-warning text-dark' : 'bg-info text-white';
 
-        let selectStatus = `<select class="form-select form-select-sm border-secondary fw-bold mx-auto" 
-                              onchange="mudarStatus('${d.id}', this.value)" 
-                              style="font-size: 0.85rem; max-width: 200px;">`;
-        
+        let selectStatus = `<select class="form-select form-select-sm border-secondary fw-bold mx-auto" onchange="mudarStatus('${d.id}', this.value)" style="font-size: 0.85rem; max-width: 200px;">`;
         STATUS_OPCOES.forEach(opcao => {
             let isSelected = (d.status === opcao.valor) ? "selected" : "";
             selectStatus += `<option value="${opcao.valor}" ${isSelected}>${opcao.label}</option>`;
         });
         selectStatus += `</select>`;
 
-        let htmlObs = '';
-        if (d.observacao && d.observacao.trim() !== '') {
-            htmlObs = `<div class="small text-muted fst-italic mt-1 text-start text-wrap" style="max-width: 250px;">
-                          📝 ${d.observacao}
-                       </div>`;
-        }
+        let htmlObs = d.observacao && d.observacao.trim() !== '' ? `<div class="small text-muted fst-italic mt-1 text-start text-wrap" style="max-width: 250px;">📝 ${d.observacao}</div>` : '';
 
         html += `
             <tr>
                 <td class="text-start ps-3 align-middle text-nowrap">${dataFormatada}</td>
-                
                 <td class="align-middle text-nowrap"><span class="fw-bold text-uppercase">${d.corretor_nome.split(' ')[0]}</span></td>
-                
                 <td class="text-start align-middle">
                     <div class="fw-bold text-wrap" style="min-width: 150px;">${d.cliente}</div>
                     <div class="small mt-1 d-flex align-items-center flex-wrap gap-1">
@@ -200,15 +177,12 @@ function renderizarTabela(listaDeLeads) {
                     </div>
                     ${htmlObs}
                 </td>
-                
                 <td class="align-middle text-nowrap"><small>${d.fonte}</small></td>
-                
                 <td class="align-middle">${selectStatus}</td>
-                
                 <td class="align-middle">
                     <div class="d-flex flex-nowrap justify-content-center gap-1">
-                        <button onclick="abrirMensagemLead('${d.id}')" class="btn btn-sm btn-outline-success p-1 px-2 shadow-sm" title="Ver Mensagem para Envio">💬</button>
-                        <button onclick="abrirModalEditarLead('${d.id}')" class="btn btn-sm btn-outline-warning p-1 px-2 shadow-sm" title="Editar Lead">✏️</button>
+                        <button onclick="abrirMensagemLead('${d.id}')" class="btn btn-sm btn-outline-success p-1 px-2 shadow-sm" title="Mensagem">💬</button>
+                        <button onclick="abrirModalEditarLead('${d.id}')" class="btn btn-sm btn-outline-warning p-1 px-2 shadow-sm" title="Editar">✏️</button>
                         <button onclick="deletarLead('${d.id}')" class="btn btn-sm btn-outline-danger p-1 px-2 shadow-sm" title="Excluir">🗑️</button>
                     </div>
                 </td>
@@ -223,44 +197,43 @@ function renderizarTabela(listaDeLeads) {
 // ==========================================
 window.abrirMensagemLead = (idLead) => {
     const lead = memoriaLeads.find(l => l.id === idLead);
-    if (!lead) return alert("Lead não encontrado!");
-
+    if (!lead) return;
     const primeiroNome = (lead.corretor_nome || '').split(' ')[0];
     const nomeLead = lead.cliente || '';
     const telefone = lead.telefone || '';
-    const observacao = lead.observacao || '';
-    const textoObs = observacao.trim() !== '' ? observacao : "Nenhuma observação";
+    const textoObs = lead.observacao && lead.observacao.trim() !== '' ? lead.observacao : "Nenhuma observação";
     const tipoFormatado = (lead.tipo || '').toUpperCase();
     
     const mensagem = `Oi, ${primeiroNome}! 🍋😎\nChegou uma OPORTUNIDADE pra você!\n\nCliente na pista, venda na mira 🎯\nAgora é contigo transformar lead em contrato! 💰🔥\n\n*Dados:*\n*Cliente:* ${nomeLead}\n*Tel:* ${telefone}\n*Tipo:* ${tipoFormatado}\n*Observações:* ${textoObs}\n\nVai lá e arrebenta! 💥🍋🚀`;
 
     document.getElementById('texto-mensagem-copiar').value = mensagem;
     window.telefoneCorretorAtual = lead.corretor_telefone || '';
-
-    const modalMsg = bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-mensagem-lead'));
-    modalMsg.show();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modal-mensagem-lead')).show();
 };
 
 window.mudarStatus = async (id, novoStatus) => {
-    try {
-        const docRef = doc(db, "leads", id);
-        await updateDoc(docRef, { status: novoStatus, data_status: new Date().toISOString() });
-    } catch (error) {
-        console.error("Erro ao atualizar status:", error);
-    }
+    try { await updateDoc(doc(db, "leads", id), { status: novoStatus, data_status: new Date().toISOString() }); } 
+    catch (error) { console.error(error); }
 };
 
+// DELETAR (REDUZ O CONTADOR DO CORRETOR)
 window.deletarLead = async (id) => {
-    if(confirm("Tem certeza que deseja excluir este lead permanentemente?")) {
-        try { await deleteDoc(doc(db, "leads", id)); } 
-        catch (error) { console.error(error); alert("Erro ao excluir."); }
+    if(confirm("Deseja excluir este lead? O contador do corretor será atualizado.")) {
+        try { 
+            const lead = memoriaLeads.find(l => l.id === id);
+            if(lead && lead.corretor_id) {
+                const campo = (lead.tipo === 'pme') ? 'leads_recebidos_pme' : 'leads_recebidos_pf';
+                await updateDoc(doc(db, "corretores", lead.corretor_id), { [campo]: increment(-1) });
+            }
+            await deleteDoc(doc(db, "leads", id)); 
+        } 
+        catch (error) { console.error(error); }
     }
 };
 
 window.abrirModalEditarLead = (idLead) => {
     const lead = memoriaLeads.find(l => l.id === idLead);
-    if (!lead) return alert("Lead não encontrado!");
-
+    if (!lead) return;
     document.getElementById('edit-id-lead').value = lead.id;
     document.getElementById('edit-nome-lead').value = lead.cliente || '';
     document.getElementById('edit-telefone-lead').value = lead.telefone || '';
@@ -268,11 +241,10 @@ window.abrirModalEditarLead = (idLead) => {
     document.getElementById('edit-fonte-lead').value = lead.fonte || '';
     document.getElementById('edit-select-corretor').value = lead.corretor_id || '';
     document.getElementById('edit-obs-lead').value = lead.observacao || '';
-
-    const modalEdit = new bootstrap.Modal(document.getElementById('modal-editar-lead'));
-    modalEdit.show();
+    new bootstrap.Modal(document.getElementById('modal-editar-lead')).show();
 };
 
+// EDITAR (AJUSTA OS CONTADORES SE MUDAR DE CORRETOR OU DE TIPO DE LEAD)
 window.salvarEdicaoLead = async () => {
     const idLead = document.getElementById('edit-id-lead').value;
     const novoNome = document.getElementById('edit-nome-lead').value.trim();
@@ -283,74 +255,54 @@ window.salvarEdicaoLead = async () => {
     
     const comboCorretor = document.getElementById('edit-select-corretor');
     const novoIdCorretor = comboCorretor.value;
-    const opCorretor = comboCorretor.options[comboCorretor.selectedIndex];
-    const novoNomeCorretor = opCorretor.text;
-    const novoTelCorretor = opCorretor.getAttribute('data-telefone') || '';
+    const novoNomeCorretor = comboCorretor.options[comboCorretor.selectedIndex].text;
+    const novoTelCorretor = comboCorretor.options[comboCorretor.selectedIndex].getAttribute('data-telefone') || '';
 
-    if (!novoNome) return alert("O nome do cliente não pode estar vazio.");
-    if (!novoIdCorretor) return alert("Por favor, selecione um corretor responsável.");
+    if (!novoNome || !novoIdCorretor) return alert("Preencha o nome e o corretor.");
 
     try {
-        const leadRef = doc(db, "leads", idLead);
-        await updateDoc(leadRef, {
-            cliente: novoNome,
-            telefone: novoTelefone,
-            tipo: novoTipo,
-            fonte: novaFonte,
-            observacao: novaObs,
-            corretor_id: novoIdCorretor,
-            corretor_nome: novoNomeCorretor,
-            corretor_telefone: novoTelCorretor
+        const leadAntigo = memoriaLeads.find(l => l.id === idLead);
+        
+        // Verifica se mudou o dono do lead ou mudou de PF para PME (para arrumar os contadores)
+        if (leadAntigo && (leadAntigo.corretor_id !== novoIdCorretor || leadAntigo.tipo !== novoTipo)) {
+            // Tira -1 do contador antigo
+            if (leadAntigo.corretor_id) {
+                const campoAntigo = (leadAntigo.tipo === 'pme') ? 'leads_recebidos_pme' : 'leads_recebidos_pf';
+                await updateDoc(doc(db, "corretores", leadAntigo.corretor_id), { [campoAntigo]: increment(-1) });
+            }
+            // Adiciona +1 no contador novo
+            const campoNovo = (novoTipo === 'pme') ? 'leads_recebidos_pme' : 'leads_recebidos_pf';
+            await updateDoc(doc(db, "corretores", novoIdCorretor), { [campoNovo]: increment(1) });
+        }
+
+        // Salva as alterações na base de leads
+        await updateDoc(doc(db, "leads", idLead), {
+            cliente: novoNome, telefone: novoTelefone, tipo: novoTipo, fonte: novaFonte, observacao: novaObs,
+            corretor_id: novoIdCorretor, corretor_nome: novoNomeCorretor, corretor_telefone: novoTelCorretor
         });
 
         bootstrap.Modal.getInstance(document.getElementById('modal-editar-lead')).hide();
-        
-    } catch (error) {
-        console.error("Erro ao salvar edição:", error);
-        alert("Erro ao atualizar os dados do lead.");
-    }
+    } catch (error) { console.error(error); alert("Erro ao editar."); }
 };
 
-// ==========================================
-// FUNÇÕES DE COPIAR E ENVIAR WHATSAPP
-// ==========================================
 window.copiarMensagemLead = () => {
     const textarea = document.getElementById('texto-mensagem-copiar');
     textarea.select();
     textarea.setSelectionRange(0, 99999); 
-    
     navigator.clipboard.writeText(textarea.value).then(() => {
         const btn = document.getElementById('btn-copiar-msg');
         const textoOriginal = btn.innerHTML;
         btn.innerHTML = "✅ Copiado!";
         btn.classList.replace('btn-outline-success', 'btn-dark'); 
-        
-        setTimeout(() => {
-            btn.innerHTML = textoOriginal;
-            btn.classList.replace('btn-dark', 'btn-outline-success');
-        }, 2000);
-    }).catch(err => {
-        console.error('Erro ao copiar: ', err);
-        alert("Não foi possível copiar automaticamente.");
+        setTimeout(() => { btn.innerHTML = textoOriginal; btn.classList.replace('btn-dark', 'btn-outline-success'); }, 2000);
     });
 };
 
 window.enviarWhatsAppLead = () => {
     const textarea = document.getElementById('texto-mensagem-copiar');
-    const textoCodificado = encodeURIComponent(textarea.value);
-    
     let tel = window.telefoneCorretorAtual.replace(/\D/g, ''); 
-    let url = '';
-
-    if (tel && tel.length >= 10) {
-        if (!tel.startsWith('55')) {
-            tel = '55' + tel;
-        }
-        url = `https://wa.me/${tel}?text=${textoCodificado}`;
-    } else {
-        alert("⚠️ O telefone deste corretor não está cadastrado no sistema.\nO WhatsApp será aberto para você selecionar o contato manualmente.");
-        url = `https://api.whatsapp.com/send?text=${textoCodificado}`;
-    }
-    
+    let url = (tel && tel.length >= 10) 
+        ? `https://wa.me/${tel.startsWith('55') ? tel : '55'+tel}?text=${encodeURIComponent(textarea.value)}`
+        : `https://api.whatsapp.com/send?text=${encodeURIComponent(textarea.value)}`;
     window.open(url, '_blank');
 };
