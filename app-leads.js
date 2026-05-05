@@ -16,6 +16,7 @@ const buscaDaUrl = urlParams.get('busca');
 if (buscaDaUrl && inputBusca) { inputBusca.value = buscaDaUrl; }
 
 let memoriaLeads = [];
+let memoriaCorretores = []; // NOVO: Guarda os dados dos corretores para a IA pensar
 window.telefoneCorretorAtual = ""; 
 
 const STATUS_OPCOES = [
@@ -32,7 +33,7 @@ const STATUS_OPCOES = [
 // FUNÇÃO INTELIGENTE: ATUALIZA O PARCEIRO
 // ==========================================
 async function ajustarContadorParceiro(nomeFonte, tipoLead, valorParaSomar) {
-    if (!nomeFonte || nomeFonte === "Outros") return; // Se for manual/outros, não faz nada
+    if (!nomeFonte || nomeFonte === "Outros") return; 
     try {
         const q = query(collection(db, "parceiros"), where("nome", "==", nomeFonte));
         const snap = await getDocs(q);
@@ -45,17 +46,89 @@ async function ajustarContadorParceiro(nomeFonte, tipoLead, valorParaSomar) {
 }
 
 // ==========================================
+// CÉREBRO DE SUGESTÃO DE CORRETORES (A NOVA MÁGICA)
+// ==========================================
+function atualizarDropdownCorretores(tipoAlvo, selectElement, valorParaManter = null) {
+    if (!selectElement) return;
+
+    // 1. Pega só quem tá ativo
+    let ativos = memoriaCorretores.filter(c => c.elegivel !== false);
+
+    // 2. Calcula os Gaps e Tempos de cada um
+    ativos.forEach(c => {
+        // Acha a última vez que o corretor recebeu esse tipo de lead
+        const leadsDoCorretor = memoriaLeads.filter(l => l.corretor_id === c.id && l.tipo === tipoAlvo);
+        c.ultimo_recebido = leadsDoCorretor.length > 0 ? new Date(leadsDoCorretor[0].timestamp).getTime() : 0;
+
+        // Calcula a Fome (Gap)
+        if (tipoAlvo === 'pme') {
+            let ganhos = parseInt(c.leads_ganhos_pme) || 0;
+            let recebidos = parseInt(c.leads_recebidos_pme) || 0;
+            c.gap = ganhos - recebidos;
+        } else {
+            // PF: Fome baseada na produção penalizando os leads já recebidos
+            let pts = ((parseFloat(c.producao_pme) || 0) * 2) + (parseFloat(c.producao_pf) || 0);
+            let recebidosPF = parseInt(c.leads_recebidos_pf) || 0;
+            c.gap = pts - (recebidosPF * 4000); // Ex: Cada PF recebido tira 4000 pts de prioridade dele na fila
+        }
+    });
+
+    // 3. Ordena os mais famintos e que esperaram mais tempo
+    ativos.sort((a, b) => {
+        if (b.gap !== a.gap) return b.gap - a.gap; // Maior Gap vem primeiro
+        return a.ultimo_recebido - b.ultimo_recebido; // Quem esperou mais (data menor) vem primeiro
+    });
+
+    // 4. Separa o Top 3 e organiza o resto alfabeticamente
+    const top3 = ativos.slice(0, 3);
+    const resto = [...ativos].sort((a,b) => a.nome.localeCompare(b.nome));
+
+    // 5. Constrói o HTML do Select
+    let html = '<option value="">Selecione um corretor...</option>';
+
+    if (top3.length > 0) {
+        html += '<optgroup label="⭐ Sugestões do Sistema">';
+        top3.forEach(c => {
+            let motivo = tipoAlvo === 'pme' ? `(Faltam ${c.gap > 0 ? c.gap : 0} Meta)` : `(Prioridade Pts)`;
+            html += `<option value="${c.id}" data-telefone="${c.telefone || ''}">⭐ ${c.nome.split(' ')[0]} ${motivo}</option>`;
+        });
+        html += '</optgroup>';
+    }
+
+    html += '<optgroup label="👥 Todos os Corretores">';
+    resto.forEach(c => {
+        html += `<option value="${c.id}" data-telefone="${c.telefone || ''}">${c.nome}</option>`;
+    });
+    html += '</optgroup>';
+
+    selectElement.innerHTML = html;
+
+    if (valorParaManter) {
+        selectElement.value = valorParaManter;
+    }
+}
+
+// ATUALIZA A LISTA SEMPRE QUE O TIPO DE LEAD MUDAR NO FORMULÁRIO
+document.getElementById('tipo-lead').addEventListener('change', (e) => {
+    atualizarDropdownCorretores(e.target.value, selectCorretor);
+});
+if(document.getElementById('edit-tipo-lead')) {
+    document.getElementById('edit-tipo-lead').addEventListener('change', (e) => {
+        atualizarDropdownCorretores(e.target.value, editSelectCorretor, editSelectCorretor.value);
+    });
+}
+
+// ==========================================
 // CARREGAR DADOS INICIAIS
 // ==========================================
 async function carregarCorretores() {
     onSnapshot(collection(db, "corretores"), (snapshot) => {
-        let html = '<option value="">Selecione um corretor...</option>';
-        snapshot.forEach(doc => {
-            let d = doc.data();
-            html += `<option value="${doc.id}" data-telefone="${d.telefone || ''}">${d.nome}</option>`;
-        });
-        selectCorretor.innerHTML = html;
-        if(editSelectCorretor) editSelectCorretor.innerHTML = html; 
+        memoriaCorretores = [];
+        snapshot.forEach(doc => { memoriaCorretores.push({ id: doc.id, ...doc.data() }); });
+        
+        // Alimenta a lista pela primeira vez
+        atualizarDropdownCorretores(document.getElementById('tipo-lead').value, selectCorretor);
+        if(editSelectCorretor) atualizarDropdownCorretores(document.getElementById('edit-tipo-lead').value, editSelectCorretor);
     });
 }
 
@@ -92,11 +165,10 @@ form.addEventListener('submit', async (e) => {
     
     const opCorretor = selectCorretor.options[selectCorretor.selectedIndex];
     const idCorretor = opCorretor.value;
-    const nomeCorretor = opCorretor.text;
+    const nomeCorretor = opCorretor.text.replace('⭐ ', '').split(' (')[0]; // Limpa as estrelas na hora de salvar
     const telefoneCorretor = opCorretor.getAttribute('data-telefone') || ''; 
 
     try {
-        // 1. Salva o Lead
         await addDoc(collection(db, "leads"), {
             cliente: nomeLead, telefone: telefone, fonte: fonte, tipo: tipo, data_chegada: dataChegada,
             data_entrega: dataEntrega, observacao: observacao, status: statusInicial,
@@ -104,11 +176,8 @@ form.addEventListener('submit', async (e) => {
             timestamp: new Date().toISOString(), data_status: new Date().toISOString() 
         });
         
-        // 2. Integração: +1 Lead na aba de Produção
         const campoProducao = (tipo === 'pme') ? 'leads_recebidos_pme' : 'leads_recebidos_pf';
         await updateDoc(doc(db, "corretores", idCorretor), { [campoProducao]: increment(1) });
-
-        // 3. Integração: +1 Lead Distribuído na aba Parceiros
         await ajustarContadorParceiro(fonte, tipo, 1);
 
         const primeiroNome = nomeCorretor.split(' ')[0];
@@ -145,6 +214,10 @@ const q = query(collection(db, "leads"), orderBy("timestamp", "desc"));
 onSnapshot(q, (snapshot) => {
     memoriaLeads = []; 
     snapshot.forEach(doc => { memoriaLeads.push({ id: doc.id, ...doc.data() }); });
+    
+    // Atualiza o ranking de sugestões toda vez que a base de leads muda
+    atualizarDropdownCorretores(document.getElementById('tipo-lead').value, selectCorretor);
+    
     filtrarE_Renderizar();
 });
 
@@ -222,12 +295,10 @@ window.deletarLead = async (id) => {
         try { 
             const lead = memoriaLeads.find(l => l.id === id);
             if(lead) {
-                // Retira do corretor
                 if(lead.corretor_id) {
                     const cProd = (lead.tipo === 'pme') ? 'leads_recebidos_pme' : 'leads_recebidos_pf';
                     await updateDoc(doc(db, "corretores", lead.corretor_id), { [cProd]: increment(-1) });
                 }
-                // Retira do Parceiro
                 await ajustarContadorParceiro(lead.fonte, lead.tipo, -1);
             }
             await deleteDoc(doc(db, "leads", id)); 
@@ -243,7 +314,10 @@ window.abrirModalEditarLead = (idLead) => {
     document.getElementById('edit-telefone-lead').value = lead.telefone || '';
     document.getElementById('edit-tipo-lead').value = lead.tipo || 'pme';
     document.getElementById('edit-fonte-lead').value = lead.fonte || '';
-    document.getElementById('edit-select-corretor').value = lead.corretor_id || '';
+    
+    // Atualiza o select de corretor para focar no tipo selecionado na edição
+    atualizarDropdownCorretores(lead.tipo, editSelectCorretor, lead.corretor_id);
+    
     document.getElementById('edit-obs-lead').value = lead.observacao || '';
     new bootstrap.Modal(document.getElementById('modal-editar-lead')).show();
 };
@@ -258,7 +332,7 @@ window.salvarEdicaoLead = async () => {
     
     const comboCorretor = document.getElementById('edit-select-corretor');
     const novoIdCorretor = comboCorretor.value;
-    const novoNomeCorretor = comboCorretor.options[comboCorretor.selectedIndex].text;
+    const novoNomeCorretor = comboCorretor.options[comboCorretor.selectedIndex].text.replace('⭐ ', '').split(' (')[0];
     const novoTelCorretor = comboCorretor.options[comboCorretor.selectedIndex].getAttribute('data-telefone') || '';
 
     if (!novoNome || !novoIdCorretor) return alert("Preencha o nome e o corretor.");
@@ -267,7 +341,6 @@ window.salvarEdicaoLead = async () => {
         const leadAntigo = memoriaLeads.find(l => l.id === idLead);
         
         if (leadAntigo) {
-            // Se mudou o corretor ou o tipo (Ajuste aba Produção)
             if (leadAntigo.corretor_id !== novoIdCorretor || leadAntigo.tipo !== novoTipo) {
                 if (leadAntigo.corretor_id) {
                     const campoAntigo = (leadAntigo.tipo === 'pme') ? 'leads_recebidos_pme' : 'leads_recebidos_pf';
@@ -277,7 +350,6 @@ window.salvarEdicaoLead = async () => {
                 await updateDoc(doc(db, "corretores", novoIdCorretor), { [campoNovo]: increment(1) });
             }
 
-            // Se mudou a Fonte parceira ou o tipo (Ajuste aba Parceiros)
             if (leadAntigo.fonte !== novaFonte || leadAntigo.tipo !== novoTipo) {
                 await ajustarContadorParceiro(leadAntigo.fonte, leadAntigo.tipo, -1);
                 await ajustarContadorParceiro(novaFonte, novoTipo, 1);
