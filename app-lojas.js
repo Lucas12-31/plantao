@@ -30,10 +30,17 @@ window.iniciarLojas = async () => {
         buscarEscalaNoBanco(); 
     });
 
+    // NOVO: Pegando a produção (PME e PF) para a lógica das bordas coloridas
     const snapCorretores = await getDocs(collection(db, "corretores"));
     estado.corretores = [];
     snapCorretores.forEach(d => {
-        estado.corretores.push({ id: d.id, nome: d.data().nome });
+        let dados = d.data();
+        estado.corretores.push({ 
+            id: d.id, 
+            nome: dados.nome,
+            pme: parseFloat(dados.producao_pme) || 0,
+            pf: parseFloat(dados.producao_pf) || 0
+        });
     });
     estado.corretores.sort((a, b) => a.nome.localeCompare(b.nome));
 
@@ -58,7 +65,7 @@ async function buscarEscalaNoBanco() {
 }
 
 // ==========================================
-// 2. RENDERIZAR TABELA
+// 2. RENDERIZAR TABELA COM BORDAS INTELIGENTES
 // ==========================================
 function atualizarVisualizacao() {
     const [ano, mes] = filtroMes.value.split('-');
@@ -110,11 +117,25 @@ function atualizarVisualizacao() {
 
             const desenharCadeira = (corretor, iso, turno, index, dataFmt) => {
                 let conteudo = '';
-                let classesCard = 'card-vaga shadow-sm';
+                let classesCard = 'card-vaga shadow-sm border-2'; // Adicionando border-2 base
                 let classesTexto = 'nome-corretor text-truncate text-center w-100';
                 let badgeAtendimentos = '';
+                let iconeTroca = '';
 
                 if (corretor) {
+                    // LÓGICA DE CORES DA BORDA (PRODUÇÃO)
+                    let pme = 0, pf = 0;
+                    let corretorBd = estado.corretores.find(c => c.id === corretor.id);
+                    if (corretorBd) { pme = corretorBd.pme; pf = corretorBd.pf; }
+
+                    if (pme > 0) {
+                        classesCard += ' border-success'; // Vendeu PME (Verde)
+                    } else if (pf > 0) {
+                        classesCard += ' border-warning'; // Vendeu só PF (Amarelo)
+                    } else {
+                        classesCard += ' border-danger'; // Não vendeu (Vermelho)
+                    }
+
                     if (corretor.falta) {
                         classesCard += ' falta-bg';
                         classesTexto += ' falta-text';
@@ -124,19 +145,19 @@ function atualizarVisualizacao() {
                     }
                     
                     if (corretor.trocaInfo) {
-                        classesCard += ' border-warning border-2';
+                        iconeTroca = '<span title="Plantão Trocado" class="me-1">🔄</span>';
                     }
 
                     conteudo = `
                         <div class="${classesCard}" onclick="abrirDetalhesPlantao('${iso}', '${turno}', ${index}, '${dataFmt}')">
                             ${badgeAtendimentos}
                             <div class="${classesTexto}" title="${corretor.nome}">
-                                ${corretor.nome.split(' ')[0]}
+                                ${iconeTroca}${corretor.nome.split(' ')[0]}
                             </div>
                         </div>`;
                 } else {
                     conteudo = `
-                        <div class="card-vaga" style="border-style: dotted;" onclick="abrirDetalhesPlantao('${iso}', '${turno}', ${index}, '${dataFmt}')">
+                        <div class="card-vaga border-2" style="border-style: dotted;" onclick="abrirDetalhesPlantao('${iso}', '${turno}', ${index}, '${dataFmt}')">
                             <div class="text-muted fst-italic text-center w-100"><small>Vaga Livre</small></div>
                         </div>`;
                 }
@@ -254,7 +275,6 @@ window.salvarDetalhesPlantao = async () => {
 // 4. SISTEMA DE TROCA ENTRE 2 DIAS DA MESMA SEMANA
 // ==========================================
 window.abrirModalTroca = () => {
-    // 1. Pega apenas os dias da semana vigente!
     const indiceSemana = parseInt(document.getElementById('filtro-semana').value);
     const diasDaSemanaVisivel = estado.semanas[indiceSemana] || [];
 
@@ -272,7 +292,6 @@ window.abrirModalTroca = () => {
         return alert("Não há dias úteis nesta semana para efetuar trocas.");
     }
 
-    // Preenche os selects apenas com a semana visível
     document.getElementById('troca-data-1').innerHTML = options;
     document.getElementById('troca-data-2').innerHTML = options;
     
@@ -332,7 +351,7 @@ window.efetuarTroca = async () => {
         });
 
         alert(`✅ Troca efetuada com sucesso!\n\n${nome1} assumiu a cadeira de ${fmtData2}.\n${nome2} assumiu a cadeira de ${fmtData1}.`);
-        bootstrap.Modal.getInstance(document.getElementById('modal-troca')).show(); // Fallback caso modal suma mt rápido
+        bootstrap.Modal.getInstance(document.getElementById('modal-troca')).show(); 
         bootstrap.Modal.getInstance(document.getElementById('modal-troca')).hide();
         atualizarVisualizacao();
 
