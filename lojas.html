@@ -19,7 +19,6 @@
         .falta-bg { background-color: #ffe6e6 !important; border-color: #dc3545 !important; border-style: solid !important; border-width: 2px !important;}
         .falta-text { color: #dc3545 !important; text-decoration: line-through; }
 
-        /* NOVO: Estilo da Legenda */
         .legenda-box { font-size: 0.85rem; background: #ffffff; border: 1px solid #dee2e6; border-radius: 8px; padding: 10px 15px; }
         .legenda-item { display: inline-block; margin-right: 15px; margin-bottom: 0px; }
     </style>
@@ -107,14 +106,6 @@
             </div>
         </div>
 
-        <div class="legenda-box mb-3 shadow-sm d-flex align-items-center gap-3">
-            <strong class="text-dark m-0">📊 Raio-X de Produção:</strong>
-            <span class="legenda-item"><span class="badge bg-white text-success border border-success border-2 shadow-sm">VERDE</span> Vendeu PME</span>
-            <span class="legenda-item"><span class="badge bg-white text-warning border border-warning border-2 shadow-sm">AMARELO</span> Vendeu só PF</span>
-            <span class="legenda-item"><span class="badge bg-white text-danger border border-danger border-2 shadow-sm">VERMELHO</span> Não Vendeu</span>
-            <span class="legenda-item ms-auto text-muted small fst-italic">* As bordas mudam de acordo com as vendas no mês.</span>
-        </div>
-
         <div class="card shadow border-dark mb-5">
             <div class="card-header bg-dark text-white fw-bold fs-5 d-flex justify-content-between align-items-center">
                 <span id="titulo-tabela">📅 Escala - Loja Flamengo</span>
@@ -145,6 +136,7 @@
         </div>
     </div>
 
+    <!-- MODAL DE SORTEIO -->
     <div class="modal fade" id="modal-sorteio" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content border-0 shadow">
@@ -153,7 +145,15 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body bg-light">
-                    <p class="text-muted mb-3">Marque os corretores que participarão da escala presencial desta loja neste mês.</p>
+                    <p class="text-muted mb-2">Marque os corretores que participarão da escala presencial desta loja neste mês.</p>
+                    
+                    <!-- LEGENDA DE PRODUÇÃO DENTRO DO MODAL -->
+                    <div class="legenda-box mb-4 shadow-sm d-flex flex-wrap justify-content-center align-items-center gap-2">
+                        <span class="legenda-item"><span class="badge bg-white text-success border border-success border-2 shadow-sm">VERDE</span> Vendeu PME</span>
+                        <span class="legenda-item"><span class="badge bg-white text-warning border border-warning border-2 shadow-sm">AMARELO</span> Vendeu só PF</span>
+                        <span class="legenda-item"><span class="badge bg-white text-danger border border-danger border-2 shadow-sm">VERMELHO</span> Não Vendeu</span>
+                    </div>
+
                     <div class="row g-2" id="lista-checkboxes-corretores">
                         <div class="col-12 text-center text-muted py-3">Buscando equipe...</div>
                     </div>
@@ -166,6 +166,7 @@
         </div>
     </div>
 
+    <!-- MODAL DETALHES -->
     <div class="modal fade" id="modal-detalhes-plantao" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg border-0">
@@ -212,6 +213,7 @@
         </div>
     </div>
 
+    <!-- MODAL TROCA -->
     <div class="modal fade" id="modal-troca" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg border-0">
