@@ -30,7 +30,6 @@ window.iniciarLojas = async () => {
         buscarEscalaNoBanco(); 
     });
 
-    // NOVO: Pegando a produção (PME e PF) para a lógica das bordas coloridas
     const snapCorretores = await getDocs(collection(db, "corretores"));
     estado.corretores = [];
     snapCorretores.forEach(d => {
@@ -65,7 +64,7 @@ async function buscarEscalaNoBanco() {
 }
 
 // ==========================================
-// 2. RENDERIZAR TABELA COM BORDAS INTELIGENTES
+// 2. RENDERIZAR TABELA DA ESCALA (LIMPA)
 // ==========================================
 function atualizarVisualizacao() {
     const [ano, mes] = filtroMes.value.split('-');
@@ -117,25 +116,12 @@ function atualizarVisualizacao() {
 
             const desenharCadeira = (corretor, iso, turno, index, dataFmt) => {
                 let conteudo = '';
-                let classesCard = 'card-vaga shadow-sm border-2'; // Adicionando border-2 base
+                let classesCard = 'card-vaga shadow-sm'; 
                 let classesTexto = 'nome-corretor text-truncate text-center w-100';
                 let badgeAtendimentos = '';
                 let iconeTroca = '';
 
                 if (corretor) {
-                    // LÓGICA DE CORES DA BORDA (PRODUÇÃO)
-                    let pme = 0, pf = 0;
-                    let corretorBd = estado.corretores.find(c => c.id === corretor.id);
-                    if (corretorBd) { pme = corretorBd.pme; pf = corretorBd.pf; }
-
-                    if (pme > 0) {
-                        classesCard += ' border-success'; // Vendeu PME (Verde)
-                    } else if (pf > 0) {
-                        classesCard += ' border-warning'; // Vendeu só PF (Amarelo)
-                    } else {
-                        classesCard += ' border-danger'; // Não vendeu (Vermelho)
-                    }
-
                     if (corretor.falta) {
                         classesCard += ' falta-bg';
                         classesTexto += ' falta-text';
@@ -143,8 +129,8 @@ function atualizarVisualizacao() {
                     if (corretor.atendimentos > 0) {
                         badgeAtendimentos = `<span class="badge bg-success position-absolute top-0 start-100 translate-middle rounded-pill shadow" style="font-size: 0.8rem; z-index: 2;">${corretor.atendimentos}</span>`;
                     }
-                    
                     if (corretor.trocaInfo) {
+                        classesCard += ' border-warning border-2';
                         iconeTroca = '<span title="Plantão Trocado" class="me-1">🔄</span>';
                     }
 
@@ -157,7 +143,7 @@ function atualizarVisualizacao() {
                         </div>`;
                 } else {
                     conteudo = `
-                        <div class="card-vaga border-2" style="border-style: dotted;" onclick="abrirDetalhesPlantao('${iso}', '${turno}', ${index}, '${dataFmt}')">
+                        <div class="card-vaga" style="border-style: dotted;" onclick="abrirDetalhesPlantao('${iso}', '${turno}', ${index}, '${dataFmt}')">
                             <div class="text-muted fst-italic text-center w-100"><small>Vaga Livre</small></div>
                         </div>`;
                 }
@@ -178,7 +164,6 @@ function atualizarVisualizacao() {
 // ==========================================
 // 3. GERENCIAMENTO DE PLANTÃO INDIVIDUAL E TROCA
 // ==========================================
-
 window.abrirDetalhesPlantao = (iso, turno, index, dataFmt) => {
     window.editandoPlantao = { iso, turno, index, dataFmt };
     
@@ -361,9 +346,6 @@ window.efetuarTroca = async () => {
     }
 };
 
-// ==========================================
-// 5. NAVEGAÇÃO ENTRE ABAS E FILTROS
-// ==========================================
 window.mudarLoja = (loja, event) => {
     event.preventDefault();
     lojaAtual = loja;
@@ -388,16 +370,26 @@ filtroMes.addEventListener('change', buscarEscalaNoBanco);
 filtroSemana.addEventListener('change', atualizarVisualizacao);
 
 // ==========================================
-// 6. MODAL E SORTEIO INTELIGENTE
+// 6. MODAL E SORTEIO INTELIGENTE (BORDAS COLORIDAS AQUI)
 // ==========================================
 window.abrirModalSorteio = () => {
     const divCheckboxes = document.getElementById('lista-checkboxes-corretores');
     let html = '';
 
     estado.corretores.forEach(c => {
+        let pme = c.pme || 0;
+        let pf = c.pf || 0;
+        let corBorda = 'border-danger'; // Padrão: Vermelho (não vendeu nada)
+
+        if (pme > 0) {
+            corBorda = 'border-success'; // Vendeu PME (Verde)
+        } else if (pf > 0) {
+            corBorda = 'border-warning'; // Vendeu só PF (Amarelo)
+        }
+
         html += `
             <div class="col-md-4">
-                <div class="form-check border rounded p-2 bg-white shadow-sm">
+                <div class="form-check border ${corBorda} border-2 rounded p-2 bg-white shadow-sm">
                     <input class="form-check-input ms-1 me-2 chk-corretor" type="checkbox" value="${c.id}" id="chk_${c.id}" data-nome="${c.nome}">
                     <label class="form-check-label fw-bold w-100" style="cursor: pointer;" for="chk_${c.id}">
                         ${c.nome.split(' ')[0]}
