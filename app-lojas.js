@@ -1,5 +1,4 @@
 import { db } from "./firebase-config.js";
-// NOVO: Adicionado o comando "increment" para somar/subtrair as faltas automaticamente
 import { collection, getDocs, onSnapshot, doc, setDoc, getDoc, query, orderBy, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const tabelaBody = document.getElementById('tabela-body');
@@ -31,7 +30,6 @@ window.iniciarLojas = async () => {
         buscarEscalaNoBanco(); 
     });
 
-    // NOVO: Transformado em onSnapshot para atualizar as Faltas em tempo real
     onSnapshot(collection(db, "corretores"), (snap) => {
         estado.corretores = [];
         snap.forEach(d => {
@@ -41,7 +39,7 @@ window.iniciarLojas = async () => {
                 nome: dados.nome,
                 pme: parseFloat(dados.producao_pme) || 0,
                 pf: parseFloat(dados.producao_pf) || 0,
-                faltas: parseInt(dados.faltas) || 0 // NOVO: Traz as faltas do banco
+                faltas: parseInt(dados.faltas) || 0 
             });
         });
         estado.corretores.sort((a, b) => a.nome.localeCompare(b.nome));
@@ -138,7 +136,6 @@ function atualizarVisualizacao() {
                         iconeTroca = '<span title="Plantão Trocado" class="me-1">🔄</span>';
                     }
 
-                    // NOVO: Exibir Nome + Sobrenome
                     let partesNome = corretor.nome.split(' ');
                     let nomeExibicao = partesNome[0] + (partesNome.length > 1 ? ' ' + partesNome[1] : '');
 
@@ -229,32 +226,27 @@ window.salvarDetalhesPlantao = async () => {
     
     const faltaNova = document.getElementById('check-falta').checked;
 
-    // INTEGRAÇÃO: Contabilizar Faltas no Banco de Dados
     try {
         if (idSelecionado) {
             if (idSelecionado === idAntigo) {
-                // Mesmo corretor, só mudou o status da falta
                 if (faltaNova !== faltaAntiga) {
                     let diff = faltaNova ? 1 : -1;
                     await updateDoc(doc(db, "corretores", idSelecionado), { faltas: increment(diff) });
                 }
             } else {
-                // Trocou o corretor da vaga
                 if (idAntigo && faltaAntiga) {
-                    await updateDoc(doc(db, "corretores", idAntigo), { faltas: increment(-1) }); // Tira falta do antigo
+                    await updateDoc(doc(db, "corretores", idAntigo), { faltas: increment(-1) });
                 }
                 if (faltaNova) {
-                    await updateDoc(doc(db, "corretores", idSelecionado), { faltas: increment(1) }); // Aplica falta no novo
+                    await updateDoc(doc(db, "corretores", idSelecionado), { faltas: increment(1) });
                 }
             }
         } else {
-            // Removeu o corretor (Vaga Livre)
             if (idAntigo && faltaAntiga) {
                 await updateDoc(doc(db, "corretores", idAntigo), { faltas: increment(-1) });
             }
         }
 
-        // Salvar Escala Visual
         if (idSelecionado) {
             const nomeSelecionado = select.options[select.selectedIndex].getAttribute('data-nome');
             const atendimentos = parseInt(document.getElementById('input-atendimentos').value) || 0;
@@ -382,7 +374,6 @@ window.abrirModalSorteio = () => {
         if (pme > 0) corBorda = 'border-success'; 
         else if (pf > 0) corBorda = 'border-warning'; 
 
-        // NOVO: Mostra o número de faltas (se tiver)
         let badgeFaltas = c.faltas > 0 ? `<span class="badge bg-danger ms-2">${c.faltas} Falta(s)</span>` : '';
 
         html += `
@@ -409,7 +400,6 @@ window.sortearESalvar = async () => {
     const checkboxes = document.querySelectorAll('.chk-corretor:checked');
     if (checkboxes.length === 0) return alert("Selecione pelo menos um corretor!");
 
-    // NOVO: Trava para gerar só na semana selecionada!
     const indiceSemana = parseInt(filtroSemana.value);
     const diasDaSemanaVisivel = estado.semanas[indiceSemana] || [];
 
@@ -430,7 +420,6 @@ window.sortearESalvar = async () => {
     let contagemTurnos = {};
     selecionados.forEach(c => contagemTurnos[c.id] = 0);
 
-    // NOVO: Loop restrito apenas aos dias da semana visível na tela
     diasDaSemanaVisivel.forEach(dia => {
         if (dia.isFeriado) return; 
 
@@ -476,7 +465,6 @@ window.sortearESalvar = async () => {
         
         while(resultadoFinalDia.length < 4) resultadoFinalDia.push(null);
 
-        // Atualiza apenas o dia sorteado dentro da escala total do mês
         estado.escalaSalva[iso] = {
             manha: [resultadoFinalDia[0], resultadoFinalDia[1]],
             tarde: [resultadoFinalDia[2], resultadoFinalDia[3]]
@@ -490,10 +478,60 @@ window.sortearESalvar = async () => {
         });
         alert("✅ Escala gerada com sucesso!");
         bootstrap.Modal.getInstance(document.getElementById('modal-sorteio')).hide();
-        atualizarVisualizacao(); // Não precisa ir no banco, já atualiza na tela
+        atualizarVisualizacao(); 
     } catch (error) {
         console.error("Erro ao salvar:", error);
         alert("Erro ao salvar no banco de dados.");
+    }
+};
+
+// NOVO: Função para zerar a escala da semana
+window.zerarEscalaSemana = async () => {
+    const indiceSemana = parseInt(filtroSemana.value);
+    const diasDaSemanaVisivel = estado.semanas[indiceSemana] || [];
+
+    if (diasDaSemanaVisivel.length === 0) return alert("Não há dias úteis nesta semana.");
+
+    if (!confirm(`⚠️ Tem certeza que deseja ZERAR toda a escala da Semana ${indiceSemana + 1}?\n\nIsso deixará todos os plantões destes dias como "Vaga Livre".`)) {
+        return;
+    }
+
+    try {
+        // Varre os dias da semana para tirar faltas computadas antes de zerar
+        for (let dia of diasDaSemanaVisivel) {
+            let iso = dia.iso;
+            if (estado.escalaSalva[iso]) {
+                let turnos = ['manha', 'tarde'];
+                for (let t of turnos) {
+                    for (let i = 0; i < 2; i++) {
+                        let c = estado.escalaSalva[iso][t][i];
+                        if (c && c.falta && c.id) {
+                            // Retira a falta do banco do corretor
+                            await updateDoc(doc(db, "corretores", c.id), { faltas: increment(-1) });
+                        }
+                    }
+                }
+            }
+            // Zera o dia na escala
+            estado.escalaSalva[iso] = { manha: [null, null], tarde: [null, null] };
+        }
+
+        const mesRef = filtroMes.value;
+        const docId = `${lojaAtual}_${mesRef}`;
+        
+        await setDoc(doc(db, "escala_lojas", docId), {
+            loja: lojaAtual, 
+            mes: mesRef, 
+            escala: estado.escalaSalva, 
+            atualizadoEm: new Date().toISOString()
+        });
+
+        alert("✅ Escala da semana zerada com sucesso!");
+        atualizarVisualizacao();
+
+    } catch (error) {
+        console.error("Erro ao zerar escala:", error);
+        alert("Erro ao zerar no banco de dados.");
     }
 };
 
