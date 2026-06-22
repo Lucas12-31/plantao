@@ -1,5 +1,6 @@
 import { db } from "./firebase-config.js";
-import { collection, getDocs, onSnapshot, doc, setDoc, getDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+// NOVO: Adicionado o comando "increment" para somar/subtrair as faltas automaticamente
+import { collection, getDocs, onSnapshot, doc, setDoc, getDoc, query, orderBy, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const tabelaBody = document.getElementById('tabela-body');
 const filtroMes = document.getElementById('filtro-mes');
@@ -30,18 +31,21 @@ window.iniciarLojas = async () => {
         buscarEscalaNoBanco(); 
     });
 
-    const snapCorretores = await getDocs(collection(db, "corretores"));
-    estado.corretores = [];
-    snapCorretores.forEach(d => {
-        let dados = d.data();
-        estado.corretores.push({ 
-            id: d.id, 
-            nome: dados.nome,
-            pme: parseFloat(dados.producao_pme) || 0,
-            pf: parseFloat(dados.producao_pf) || 0
+    // NOVO: Transformado em onSnapshot para atualizar as Faltas em tempo real
+    onSnapshot(collection(db, "corretores"), (snap) => {
+        estado.corretores = [];
+        snap.forEach(d => {
+            let dados = d.data();
+            estado.corretores.push({ 
+                id: d.id, 
+                nome: dados.nome,
+                pme: parseFloat(dados.producao_pme) || 0,
+                pf: parseFloat(dados.producao_pf) || 0,
+                faltas: parseInt(dados.faltas) || 0 // NOVO: Traz as faltas do banco
+            });
         });
+        estado.corretores.sort((a, b) => a.nome.localeCompare(b.nome));
     });
-    estado.corretores.sort((a, b) => a.nome.localeCompare(b.nome));
 
     buscarEscalaNoBanco();
 };
@@ -64,7 +68,7 @@ async function buscarEscalaNoBanco() {
 }
 
 // ==========================================
-// 2. RENDERIZAR TABELA DA ESCALA (LIMPA)
+// 2. RENDERIZAR TABELA DA ESCALA
 // ==========================================
 function atualizarVisualizacao() {
     const [ano, mes] = filtroMes.value.split('-');
@@ -116,7 +120,7 @@ function atualizarVisualizacao() {
 
             const desenharCadeira = (corretor, iso, turno, index, dataFmt) => {
                 let conteudo = '';
-                let classesCard = 'card-vaga shadow-sm'; 
+                let classesCard = 'card-vaga shadow-sm border-2'; 
                 let classesTexto = 'nome-corretor text-truncate text-center w-100';
                 let badgeAtendimentos = '';
                 let iconeTroca = '';
@@ -134,16 +138,20 @@ function atualizarVisualizacao() {
                         iconeTroca = '<span title="Plantão Trocado" class="me-1">🔄</span>';
                     }
 
+                    // NOVO: Exibir Nome + Sobrenome
+                    let partesNome = corretor.nome.split(' ');
+                    let nomeExibicao = partesNome[0] + (partesNome.length > 1 ? ' ' + partesNome[1] : '');
+
                     conteudo = `
                         <div class="${classesCard}" onclick="abrirDetalhesPlantao('${iso}', '${turno}', ${index}, '${dataFmt}')">
                             ${badgeAtendimentos}
                             <div class="${classesTexto}" title="${corretor.nome}">
-                                ${iconeTroca}${corretor.nome.split(' ')[0]}
+                                ${iconeTroca}${nomeExibicao}
                             </div>
                         </div>`;
                 } else {
                     conteudo = `
-                        <div class="card-vaga" style="border-style: dotted;" onclick="abrirDetalhesPlantao('${iso}', '${turno}', ${index}, '${dataFmt}')">
+                        <div class="card-vaga border-2" style="border-style: dotted;" onclick="abrirDetalhesPlantao('${iso}', '${turno}', ${index}, '${dataFmt}')">
                             <div class="text-muted fst-italic text-center w-100"><small>Vaga Livre</small></div>
                         </div>`;
                 }
@@ -162,7 +170,7 @@ function atualizarVisualizacao() {
 }
 
 // ==========================================
-// 3. GERENCIAMENTO DE PLANTÃO INDIVIDUAL E TROCA
+// 3. GERENCIAMENTO E SALVAMENTO DE FALTAS
 // ==========================================
 window.abrirDetalhesPlantao = (iso, turno, index, dataFmt) => {
     window.editandoPlantao = { iso, turno, index, dataFmt };
@@ -215,32 +223,49 @@ window.salvarDetalhesPlantao = async () => {
     if(!estado.escalaSalva[iso]) estado.escalaSalva[iso] = { manha: [null, null], tarde: [null, null] };
 
     let corretorOriginal = estado.escalaSalva[iso][turno][index];
-    let infoTrocaExistente = null;
+    let infoTrocaExistente = corretorOriginal ? corretorOriginal.trocaInfo : null;
+    let idAntigo = corretorOriginal ? corretorOriginal.id : null;
+    let faltaAntiga = corretorOriginal ? (corretorOriginal.falta === true) : false;
     
-    if (corretorOriginal && corretorOriginal.id === idSelecionado) {
-        infoTrocaExistente = corretorOriginal.trocaInfo;
-    }
+    const faltaNova = document.getElementById('check-falta').checked;
 
-    if (idSelecionado) {
-        const nomeSelecionado = select.options[select.selectedIndex].getAttribute('data-nome');
-        const atendimentos = parseInt(document.getElementById('input-atendimentos').value) || 0;
-        const falta = document.getElementById('check-falta').checked;
-
-        estado.escalaSalva[iso][turno][index] = {
-            id: idSelecionado,
-            nome: nomeSelecionado,
-            atendimentos: atendimentos,
-            falta: falta
-        };
-
-        if (infoTrocaExistente) {
-            estado.escalaSalva[iso][turno][index].trocaInfo = infoTrocaExistente;
-        }
-    } else {
-        estado.escalaSalva[iso][turno][index] = null;
-    }
-
+    // INTEGRAÇÃO: Contabilizar Faltas no Banco de Dados
     try {
+        if (idSelecionado) {
+            if (idSelecionado === idAntigo) {
+                // Mesmo corretor, só mudou o status da falta
+                if (faltaNova !== faltaAntiga) {
+                    let diff = faltaNova ? 1 : -1;
+                    await updateDoc(doc(db, "corretores", idSelecionado), { faltas: increment(diff) });
+                }
+            } else {
+                // Trocou o corretor da vaga
+                if (idAntigo && faltaAntiga) {
+                    await updateDoc(doc(db, "corretores", idAntigo), { faltas: increment(-1) }); // Tira falta do antigo
+                }
+                if (faltaNova) {
+                    await updateDoc(doc(db, "corretores", idSelecionado), { faltas: increment(1) }); // Aplica falta no novo
+                }
+            }
+        } else {
+            // Removeu o corretor (Vaga Livre)
+            if (idAntigo && faltaAntiga) {
+                await updateDoc(doc(db, "corretores", idAntigo), { faltas: increment(-1) });
+            }
+        }
+
+        // Salvar Escala Visual
+        if (idSelecionado) {
+            const nomeSelecionado = select.options[select.selectedIndex].getAttribute('data-nome');
+            const atendimentos = parseInt(document.getElementById('input-atendimentos').value) || 0;
+            estado.escalaSalva[iso][turno][index] = { id: idSelecionado, nome: nomeSelecionado, atendimentos: atendimentos, falta: faltaNova };
+            if (infoTrocaExistente && idSelecionado === idAntigo) {
+                estado.escalaSalva[iso][turno][index].trocaInfo = infoTrocaExistente;
+            }
+        } else {
+            estado.escalaSalva[iso][turno][index] = null;
+        }
+
         const mesRef = filtroMes.value;
         const docId = `${lojaAtual}_${mesRef}`;
         await setDoc(doc(db, "escala_lojas", docId), {
@@ -252,12 +277,12 @@ window.salvarDetalhesPlantao = async () => {
 
     } catch (error) {
         console.error("Erro ao salvar detalhes:", error);
-        alert("Erro ao salvar no banco de dados.");
+        alert("Erro ao salvar alterações.");
     }
 }
 
 // ==========================================
-// 4. SISTEMA DE TROCA ENTRE 2 DIAS DA MESMA SEMANA
+// 4. TROCA ENTRE PLANTÕES
 // ==========================================
 window.abrirModalTroca = () => {
     const indiceSemana = parseInt(document.getElementById('filtro-semana').value);
@@ -279,7 +304,6 @@ window.abrirModalTroca = () => {
 
     document.getElementById('troca-data-1').innerHTML = options;
     document.getElementById('troca-data-2').innerHTML = options;
-    
     new bootstrap.Modal(document.getElementById('modal-troca')).show();
 };
 
@@ -292,13 +316,8 @@ window.efetuarTroca = async () => {
     const t2 = document.getElementById('troca-turno-2').value;
     const c2 = parseInt(document.getElementById('troca-cadeira-2').value);
 
-    if (d1 === d2 && t1 === t2 && c1 === c2) {
-        return alert("Você selecionou exatamente a mesma cadeira nas duas opções. Altere para trocar.");
-    }
-
-    if (!estado.escalaSalva[d1] || !estado.escalaSalva[d2]) {
-        return alert("Erro: Um dos dias selecionados ainda não possui escala gerada.");
-    }
+    if (d1 === d2 && t1 === t2 && c1 === c2) return alert("Selecione cadeiras diferentes.");
+    if (!estado.escalaSalva[d1] || !estado.escalaSalva[d2]) return alert("Erro: Dias sem escala gerada.");
 
     let obj1 = estado.escalaSalva[d1][t1][c1];
     let obj2 = estado.escalaSalva[d2][t2][c2];
@@ -314,55 +333,34 @@ window.efetuarTroca = async () => {
     let novoObj1 = obj2 ? { ...obj2 } : null;
     let novoObj2 = obj1 ? { ...obj1 } : null;
 
-    if (novoObj1) {
-        novoObj1.trocaInfo = `🔄 Trocou com <b>${nome1}</b><br><small>(O original dele era ${fmtData1} - ${labelT1})</small>`;
-    }
-    if (novoObj2) {
-        novoObj2.trocaInfo = `🔄 Trocou com <b>${nome2}</b><br><small>(O original dele era ${fmtData2} - ${labelT2})</small>`;
-    }
+    if (novoObj1) novoObj1.trocaInfo = `🔄 Trocou com <b>${nome1}</b><br><small>(O original dele era ${fmtData1} - ${labelT1})</small>`;
+    if (novoObj2) novoObj2.trocaInfo = `🔄 Trocou com <b>${nome2}</b><br><small>(O original dele era ${fmtData2} - ${labelT2})</small>`;
 
     estado.escalaSalva[d1][t1][c1] = novoObj1;
     estado.escalaSalva[d2][t2][c2] = novoObj2;
 
     try {
         const mesRef = filtroMes.value;
-        const docId = `${lojaAtual}_${mesRef}`;
-        
-        await setDoc(doc(db, "escala_lojas", docId), {
-            loja: lojaAtual,
-            mes: mesRef,
-            escala: estado.escalaSalva,
-            atualizadoEm: new Date().toISOString()
+        await setDoc(doc(db, "escala_lojas", `${lojaAtual}_${mesRef}`), {
+            loja: lojaAtual, mes: mesRef, escala: estado.escalaSalva, atualizadoEm: new Date().toISOString()
         });
-
         alert(`✅ Troca efetuada com sucesso!\n\n${nome1} assumiu a cadeira de ${fmtData2}.\n${nome2} assumiu a cadeira de ${fmtData1}.`);
-        bootstrap.Modal.getInstance(document.getElementById('modal-troca')).show(); 
         bootstrap.Modal.getInstance(document.getElementById('modal-troca')).hide();
         atualizarVisualizacao();
-
-    } catch (error) {
-        console.error("Erro ao salvar troca:", error);
-        alert("Erro ao salvar no banco de dados.");
-    }
+    } catch (error) { console.error("Erro:", error); }
 };
 
 window.mudarLoja = (loja, event) => {
     event.preventDefault();
     lojaAtual = loja;
-    
     tabs.forEach(t => {
         t.classList.remove('active', 'bg-white', 'border', 'text-dark');
-        if (t.innerText.toLowerCase().includes(loja)) {
-            t.classList.add('active');
-        } else {
-            t.classList.add('bg-white', 'border', 'text-dark');
-        }
+        if (t.innerText.toLowerCase().includes(loja)) t.classList.add('active');
+        else t.classList.add('bg-white', 'border', 'text-dark');
     });
-
     const nomeCapitalizado = loja.charAt(0).toUpperCase() + loja.slice(1);
     document.getElementById('titulo-tabela').innerText = `📅 Escala - Loja ${nomeCapitalizado}`;
     document.getElementById('nome-loja-btn').innerText = nomeCapitalizado;
-
     buscarEscalaNoBanco(); 
 };
 
@@ -370,7 +368,7 @@ filtroMes.addEventListener('change', buscarEscalaNoBanco);
 filtroSemana.addEventListener('change', atualizarVisualizacao);
 
 // ==========================================
-// 6. MODAL E SORTEIO INTELIGENTE (BORDAS COLORIDAS AQUI)
+// 6. MODAL E SORTEIO INTELIGENTE (POR SEMANA)
 // ==========================================
 window.abrirModalSorteio = () => {
     const divCheckboxes = document.getElementById('lista-checkboxes-corretores');
@@ -379,20 +377,20 @@ window.abrirModalSorteio = () => {
     estado.corretores.forEach(c => {
         let pme = c.pme || 0;
         let pf = c.pf || 0;
-        let corBorda = 'border-danger'; // Padrão: Vermelho (não vendeu nada)
+        let corBorda = 'border-danger'; 
 
-        if (pme > 0) {
-            corBorda = 'border-success'; // Vendeu PME (Verde)
-        } else if (pf > 0) {
-            corBorda = 'border-warning'; // Vendeu só PF (Amarelo)
-        }
+        if (pme > 0) corBorda = 'border-success'; 
+        else if (pf > 0) corBorda = 'border-warning'; 
+
+        // NOVO: Mostra o número de faltas (se tiver)
+        let badgeFaltas = c.faltas > 0 ? `<span class="badge bg-danger ms-2">${c.faltas} Falta(s)</span>` : '';
 
         html += `
             <div class="col-md-4">
-                <div class="form-check border ${corBorda} border-2 rounded p-2 bg-white shadow-sm">
+                <div class="form-check border ${corBorda} border-2 rounded p-2 bg-white shadow-sm d-flex align-items-center">
                     <input class="form-check-input ms-1 me-2 chk-corretor" type="checkbox" value="${c.id}" id="chk_${c.id}" data-nome="${c.nome}">
                     <label class="form-check-label fw-bold w-100" style="cursor: pointer;" for="chk_${c.id}">
-                        ${c.nome.split(' ')[0]}
+                        ${c.nome.split(' ')[0]} ${badgeFaltas}
                     </label>
                 </div>
             </div>
@@ -411,9 +409,11 @@ window.sortearESalvar = async () => {
     const checkboxes = document.querySelectorAll('.chk-corretor:checked');
     if (checkboxes.length === 0) return alert("Selecione pelo menos um corretor!");
 
-    if (checkboxes.length < 4) {
-        if (!confirm("⚠️ Atenção: Marcou menos de 4 corretores. Algumas cadeiras ficarão vazias. Continuar?")) return;
-    }
+    // NOVO: Trava para gerar só na semana selecionada!
+    const indiceSemana = parseInt(filtroSemana.value);
+    const diasDaSemanaVisivel = estado.semanas[indiceSemana] || [];
+
+    if(!confirm(`Deseja gerar e salvar o sorteio para a SEMANA ${indiceSemana + 1}? Isso substituirá as vagas apenas destes dias.`)) return;
 
     let selecionados = [];
     checkboxes.forEach(c => selecionados.push({ id: c.value, nome: c.getAttribute('data-nome') }));
@@ -430,9 +430,8 @@ window.sortearESalvar = async () => {
     let contagemTurnos = {};
     selecionados.forEach(c => contagemTurnos[c.id] = 0);
 
-    let novaEscala = {};
-
-    estado.diasDoMes.forEach(dia => {
+    // NOVO: Loop restrito apenas aos dias da semana visível na tela
+    diasDaSemanaVisivel.forEach(dia => {
         if (dia.isFeriado) return; 
 
         let iso = dia.iso;
@@ -477,7 +476,8 @@ window.sortearESalvar = async () => {
         
         while(resultadoFinalDia.length < 4) resultadoFinalDia.push(null);
 
-        novaEscala[iso] = {
+        // Atualiza apenas o dia sorteado dentro da escala total do mês
+        estado.escalaSalva[iso] = {
             manha: [resultadoFinalDia[0], resultadoFinalDia[1]],
             tarde: [resultadoFinalDia[2], resultadoFinalDia[3]]
         };
@@ -486,12 +486,11 @@ window.sortearESalvar = async () => {
     try {
         const docId = `${lojaAtual}_${mesRef}`;
         await setDoc(doc(db, "escala_lojas", docId), {
-            loja: lojaAtual, mes: mesRef, escala: novaEscala, atualizadoEm: new Date().toISOString()
+            loja: lojaAtual, mes: mesRef, escala: estado.escalaSalva, atualizadoEm: new Date().toISOString()
         });
         alert("✅ Escala gerada com sucesso!");
         bootstrap.Modal.getInstance(document.getElementById('modal-sorteio')).hide();
-        buscarEscalaNoBanco();
-
+        atualizarVisualizacao(); // Não precisa ir no banco, já atualiza na tela
     } catch (error) {
         console.error("Erro ao salvar:", error);
         alert("Erro ao salvar no banco de dados.");
