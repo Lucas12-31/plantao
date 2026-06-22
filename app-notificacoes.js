@@ -1,5 +1,5 @@
 import { db } from "./firebase-config.js";
-import { collection, addDoc, getDocs, updateDoc, doc, onSnapshot, query, where, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { collection, addDoc, getDocs, updateDoc, doc, onSnapshot, query, where, orderBy, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const listaEl = document.getElementById('lista-notificacoes');
 const badgeEl = document.getElementById('badge-contador');
@@ -84,7 +84,7 @@ async function verificarRegrasDeNotificacao() {
             if (devoNotificar) {
                 await addDoc(collection(db, "notificacoes"), {
                     lead_id: leadId,
-                    cliente: lead.cliente, // <-- NOVO: Salvando o nome do cliente no alerta
+                    cliente: lead.cliente, 
                     titulo: titulo,
                     mensagem: mensagem,
                     tipo_alerta: tipoAlerta,
@@ -124,10 +124,8 @@ onSnapshot(q, (snapshot) => {
             const dataN = new Date(n.timestamp).toLocaleDateString('pt-BR');
             const horaN = new Date(n.timestamp).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
             
-            // Prepara o nome do cliente para não quebrar o código (remove aspas se tiver)
             const safeCliente = n.cliente ? n.cliente.replace(/'/g, "\\'") : '';
 
-            // Adiciona a ação de clique passando o ID e o Nome do Cliente
             html += `
                 <li>
                     <a class="dropdown-item p-2 border-bottom" href="#" onclick="lerNotificacao('${doc.id}', '${safeCliente}', event)">
@@ -147,18 +145,46 @@ onSnapshot(q, (snapshot) => {
     if(listaEl) listaEl.innerHTML = html;
 });
 
-// Atualizada: Agora recebe o nome do cliente e redireciona
 window.lerNotificacao = async (id, clienteNome, event) => {
     if(event) event.preventDefault();
     try {
-        // Marca como lida no banco
         await updateDoc(doc(db, "notificacoes", id), { lida: true });
-        
-        // Redireciona para a página de leads com o parâmetro de busca na URL
         window.location.href = `leads.html?busca=${encodeURIComponent(clienteNome)}`;
-        
     } catch (error) {
         console.error(error);
+    }
+};
+
+// ======================================================
+// 3. A VASSOURA MÁGICA (LIMPAR TUDO)
+// ======================================================
+window.limparTodasNotificacoes = async (event) => {
+    if(event) {
+        event.preventDefault(); 
+        event.stopPropagation(); // Impede que o menu feche imediatamente ao clicar
+    }
+
+    if(confirm("Deseja marcar todas as mensagens como lidas e limpar o contador?")) {
+        try {
+            // Busca novamente todas as notificações não lidas
+            const notifsAbertas = query(collection(db, "notificacoes"), where("lida", "==", false));
+            const snapshot = await getDocs(notifsAbertas);
+            
+            // Usamos um "Lote" (Batch) para ser super rápido e atualizar até 500 itens de uma vez no Firebase
+            const batch = writeBatch(db);
+            
+            snapshot.forEach((documento) => {
+                const docRef = doc(db, "notificacoes", documento.id);
+                batch.update(docRef, { lida: true });
+            });
+
+            await batch.commit();
+            // A tela atualiza sozinha pelo onSnapshot!
+            
+        } catch(error) {
+            console.error("Erro ao limpar notificações: ", error);
+            alert("Houve um erro ao limpar as notificações.");
+        }
     }
 };
 
