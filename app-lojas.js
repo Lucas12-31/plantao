@@ -6,20 +6,14 @@ const tabelaTijuca = document.getElementById('tabela-body-tijuca');
 const filtroMes = document.getElementById('filtro-mes');
 const filtroSemana = document.getElementById('filtro-semana');
 
-// O estado agora comporta as duas lojas simultaneamente
-let estado = { 
-    corretores: [], 
-    feriados: [], 
-    escala: { flamengo: {}, tijuca: {} }, 
-    diasDoMes: [], 
-    semanas: [] 
-};
+let lojaAtual = 'flamengo'; 
+let estado = { corretores: [], feriados: [], escala: { flamengo: {}, tijuca: {} }, diasDoMes: [], semanas: [] };
 let carregamentoInicial = true;
-window.lojaSorteioAtual = null; // Para saber qual botão foi clicado (Flamengo ou Tijuca)
+window.lojaSorteioAtual = null; 
 window.editandoPlantao = { loja: null, iso: null, turno: null, index: null, dataFmt: null };
 
 // ==========================================
-// 1. INICIALIZAÇÃO E BUSCA (AS DUAS LOJAS)
+// 1. INICIALIZAÇÃO E BUSCA
 // ==========================================
 window.iniciarLojas = async () => {
     if (!filtroMes.value) {
@@ -74,9 +68,7 @@ async function buscarEscalaNoBanco() {
         }
 
         atualizarVisualizacao();
-    } catch (error) {
-        console.error("Erro ao buscar escala:", error);
-    }
+    } catch (error) { console.error("Erro ao buscar escala:", error); }
 }
 
 async function salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo) {
@@ -100,14 +92,15 @@ async function salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo) {
 }
 
 // ==========================================
-// 2. RENDERIZAR TABELAS (LADO A LADO)
+// 2. RENDERIZAR TABELAS
 // ==========================================
 function atualizarVisualizacao() {
     const [anoStr, mesStr] = filtroMes.value.split('-');
     estado.semanas = getSemanasFluidas(parseInt(anoStr), parseInt(mesStr) - 1, estado.feriados);
 
+    // NOVO: Adiciona a opção de Mês Completo
     const valorAntigoSemana = filtroSemana.value;
-    filtroSemana.innerHTML = '';
+    filtroSemana.innerHTML = '<option value="all" class="fw-bold text-primary">📅 Exibir Mês Completo</option>';
     estado.semanas.forEach((sem, index) => {
         let dataInicio = sem[0].fmt;
         let dataFim = sem[sem.length - 1].fmt;
@@ -115,37 +108,43 @@ function atualizarVisualizacao() {
     });
 
     if (carregamentoInicial) {
-        const hojeISO = new Date().toISOString().split('T')[0];
-        const indexSemanaAtual = estado.semanas.findIndex(semana => semana.some(dia => dia.iso === hojeISO));
-        filtroSemana.value = indexSemanaAtual !== -1 ? indexSemanaAtual : 0;
+        filtroSemana.value = "all"; // Padrão: Começa exibindo o Mês
         carregamentoInicial = false;
-    } else if (valorAntigoSemana && valorAntigoSemana < estado.semanas.length) {
+    } else if (valorAntigoSemana) {
         filtroSemana.value = valorAntigoSemana;
     }
 
-    const indiceSemana = parseInt(filtroSemana.value) || 0;
-    const diasDaSemana = estado.semanas[indiceSemana] || [];
+    const valSemana = filtroSemana.value;
+    let diasDaVisao = [];
+    if (valSemana === "all") {
+        diasDaVisao = estado.semanas.flat(); // Junta todas as semanas em uma lista só
+    } else {
+        diasDaVisao = estado.semanas[parseInt(valSemana)] || [];
+    }
 
-    if (diasDaSemana.length === 0) {
+    if (diasDaVisao.length === 0) {
         let msg = '<tr><td colspan="5" class="text-center py-4 text-muted">Não há dias úteis.</td></tr>';
         tabelaFlamengo.innerHTML = msg;
         tabelaTijuca.innerHTML = msg;
         return;
     }
 
-    // Função interna para desenhar uma loja
     const desenharTabela = (lojaId) => {
         let htmlBody = '';
         const escalaDaLoja = estado.escala[lojaId];
 
-        diasDaSemana.forEach(dia => {
+        diasDaVisao.forEach(dia => {
             let hojeISO = new Date().toISOString().split('T')[0];
             let classHoje = (dia.iso === hojeISO) ? "bg-warning" : "bg-white";
             let textoHoje = (dia.iso === hojeISO) ? '<br><span class="badge bg-danger mt-1">HOJE</span>' : '';
             let classFeriadoTd = dia.isFeriado ? "bg-danger text-white bg-opacity-75 border-danger" : classHoje;
+            
             let classeMesDiferente = (dia.iso.substring(0,7) !== filtroMes.value) ? "fst-italic opacity-75" : "";
+            
+            // NOVO: Adiciona uma borda grossa no final de toda sexta-feira para separar as semanas visualmente!
+            let estiloBordaSexta = dia.diaSemana === 'Sexta' ? "border-bottom: 3px solid #343a40;" : "";
 
-            htmlBody += `<tr class="${classeMesDiferente}">`;
+            htmlBody += `<tr class="${classeMesDiferente}" style="${estiloBordaSexta}">`;
             htmlBody += `
                 <td class="${classFeriadoTd} border-end border-3 border-dark fw-bold text-center" style="vertical-align: middle;">
                     <div class="fs-5">${dia.diaSemana}</div>
@@ -167,15 +166,9 @@ function atualizarVisualizacao() {
                     let iconeTroca = '';
 
                     if (corretor) {
-                        if (corretor.falta) {
-                            classesCard += ' falta-bg'; classesTexto += ' falta-text';
-                        }
-                        if (corretor.atendimentos > 0) {
-                            badgeAtendimentos = `<span class="badge bg-success position-absolute top-0 start-100 translate-middle rounded-pill shadow" style="font-size: 0.8rem; z-index: 2;">${corretor.atendimentos}</span>`;
-                        }
-                        if (corretor.trocaInfo) {
-                            classesCard += ' border-warning border-2'; iconeTroca = '<span title="Plantão Trocado" class="me-1">🔄</span>';
-                        }
+                        if (corretor.falta) { classesCard += ' falta-bg'; classesTexto += ' falta-text'; }
+                        if (corretor.atendimentos > 0) badgeAtendimentos = `<span class="badge bg-success position-absolute top-0 start-100 translate-middle rounded-pill shadow" style="font-size: 0.8rem; z-index: 2;">${corretor.atendimentos}</span>`;
+                        if (corretor.trocaInfo) { classesCard += ' border-warning border-2'; iconeTroca = '<span title="Plantão Trocado" class="me-1">🔄</span>'; }
 
                         let partesNome = corretor.nome.split(' ');
                         let nomeExibicao = partesNome[0] + (partesNome.length > 1 ? ' ' + partesNome[1] : '');
@@ -213,11 +206,8 @@ function atualizarVisualizacao() {
 // ==========================================
 window.abrirDetalhesPlantao = (loja, iso, turno, index, dataFmt) => {
     window.editandoPlantao = { loja, iso, turno, index, dataFmt };
-    
     let corretorAtual = null;
-    if(estado.escala[loja][iso] && estado.escala[loja][iso][turno]) {
-        corretorAtual = estado.escala[loja][iso][turno][index];
-    }
+    if(estado.escala[loja][iso] && estado.escala[loja][iso][turno]) corretorAtual = estado.escala[loja][iso][turno][index];
 
     let nomeExibicao = corretorAtual ? corretorAtual.nome.split(' ')[0] : 'Vaga Livre';
     let turnoExibicao = turno === 'manha' ? 'Manhã' : 'Tarde';
@@ -229,17 +219,13 @@ window.abrirDetalhesPlantao = (loja, iso, turno, index, dataFmt) => {
         selectHtml += `<option value="${c.id}" data-nome="${c.nome}" ${isSelected}>${c.nome}</option>`;
     });
     document.getElementById('select-alterar-corretor').innerHTML = selectHtml;
-
     document.getElementById('input-atendimentos').value = corretorAtual && corretorAtual.atendimentos ? corretorAtual.atendimentos : 0;
     document.getElementById('check-falta').checked = corretorAtual && corretorAtual.falta === true;
 
     const divTroca = document.getElementById('info-troca-container');
     const textoTroca = document.getElementById('texto-info-troca');
-    if (corretorAtual && corretorAtual.trocaInfo) {
-        textoTroca.innerHTML = corretorAtual.trocaInfo; divTroca.classList.remove('d-none');
-    } else {
-        textoTroca.innerHTML = ''; divTroca.classList.add('d-none');
-    }
+    if (corretorAtual && corretorAtual.trocaInfo) { textoTroca.innerHTML = corretorAtual.trocaInfo; divTroca.classList.remove('d-none'); } 
+    else { textoTroca.innerHTML = ''; divTroca.classList.add('d-none'); }
 
     new bootstrap.Modal(document.getElementById('modal-detalhes-plantao')).show();
 }
@@ -263,15 +249,13 @@ window.salvarDetalhesPlantao = async () => {
     let infoTrocaExistente = corretorOriginal ? corretorOriginal.trocaInfo : null;
     let idAntigo = corretorOriginal ? corretorOriginal.id : null;
     let faltaAntiga = corretorOriginal ? (corretorOriginal.falta === true) : false;
-    
     const faltaNova = document.getElementById('check-falta').checked;
 
     try {
         if (idSelecionado) {
             if (idSelecionado === idAntigo) {
                 if (faltaNova !== faltaAntiga) {
-                    let diff = faltaNova ? 1 : -1;
-                    await updateDoc(doc(db, "corretores", idSelecionado), { faltas: increment(diff) });
+                    await updateDoc(doc(db, "corretores", idSelecionado), { faltas: increment(faltaNova ? 1 : -1) });
                 }
             } else {
                 if (idAntigo && faltaAntiga) await updateDoc(doc(db, "corretores", idAntigo), { faltas: increment(-1) });
@@ -293,39 +277,30 @@ window.salvarDetalhesPlantao = async () => {
         await salvarEscalaNoBancoBaseadoNasDatas(loja);
         bootstrap.Modal.getInstance(document.getElementById('modal-detalhes-plantao')).hide();
         atualizarVisualizacao(); 
-
-    } catch (error) {
-        console.error("Erro:", error); alert("Erro ao salvar alterações.");
-    }
+    } catch (error) { console.error("Erro:", error); alert("Erro ao salvar."); }
 }
 
 // ==========================================
 // 4. TROCA ENTRE PLANTÕES
 // ==========================================
 window.abrirModalTroca = () => {
-    const indiceSemana = parseInt(document.getElementById('filtro-semana').value);
-    const diasDaSemanaVisivel = estado.semanas[indiceSemana] || [];
+    const valSemana = filtroSemana.value;
+    const diasDaVisao = (valSemana === "all") ? estado.semanas.flat() : (estado.semanas[parseInt(valSemana)] || []);
 
     let options = '';
     let diasValidos = 0;
-
-    diasDaSemanaVisivel.forEach(d => {
-        if(!d.isFeriado) {
-            options += `<option value="${d.iso}">${d.fmt} - ${d.diaSemana}</option>`;
-            diasValidos++;
-        }
+    diasDaVisao.forEach(d => {
+        if(!d.isFeriado) { options += `<option value="${d.iso}">${d.fmt} - ${d.diaSemana}</option>`; diasValidos++; }
     });
 
-    if (diasValidos === 0) return alert("Não há dias úteis nesta semana para efetuar trocas.");
-
+    if (diasValidos === 0) return alert("Não há dias úteis visíveis para efetuar trocas.");
     document.getElementById('troca-data-1').innerHTML = options;
     document.getElementById('troca-data-2').innerHTML = options;
     new bootstrap.Modal(document.getElementById('modal-troca')).show();
 };
 
 window.efetuarTroca = async () => {
-    const lojaAlvo = document.getElementById('troca-loja-selecao').value; // Pegando a loja escolhida no modal
-    
+    const lojaAlvo = document.getElementById('troca-loja-selecao').value; 
     const d1 = document.getElementById('troca-data-1').value;
     const t1 = document.getElementById('troca-turno-1').value;
     const c1 = parseInt(document.getElementById('troca-cadeira-1').value);
@@ -351,15 +326,15 @@ window.efetuarTroca = async () => {
     let novoObj1 = obj2 ? { ...obj2 } : null;
     let novoObj2 = obj1 ? { ...obj1 } : null;
 
-    if (novoObj1) novoObj1.trocaInfo = `🔄 Trocou com <b>${nome1}</b><br><small>(O original dele era ${data1Fmt} - ${labelT1})</small>`;
-    if (novoObj2) novoObj2.trocaInfo = `🔄 Trocou com <b>${nome2}</b><br><small>(O original dele era ${data2Fmt} - ${labelT2})</small>`;
+    if (novoObj1) novoObj1.trocaInfo = `🔄 Trocou com <b>${nome1}</b><br><small>(Original: ${data1Fmt} - ${labelT1})</small>`;
+    if (novoObj2) novoObj2.trocaInfo = `🔄 Trocou com <b>${nome2}</b><br><small>(Original: ${data2Fmt} - ${labelT2})</small>`;
 
     estado.escala[lojaAlvo][d1][t1][c1] = novoObj1;
     estado.escala[lojaAlvo][d2][t2][c2] = novoObj2;
 
     try {
         await salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo);
-        alert(`✅ Troca efetuada com sucesso na loja ${lojaAlvo.toUpperCase()}!\n\n${nome1} assumiu a cadeira de ${data2Fmt}.\n${nome2} assumiu a cadeira de ${data1Fmt}.`);
+        alert(`✅ Troca efetuada com sucesso!\n\n${nome1} assumiu a cadeira de ${data2Fmt}.\n${nome2} assumiu a cadeira de ${data1Fmt}.`);
         bootstrap.Modal.getInstance(document.getElementById('modal-troca')).hide();
         atualizarVisualizacao();
     } catch (error) { console.error("Erro:", error); }
@@ -369,7 +344,7 @@ filtroMes.addEventListener('change', buscarEscalaNoBanco);
 filtroSemana.addEventListener('change', atualizarVisualizacao);
 
 // ==========================================
-// 6. MODAL E SORTEIO INTELIGENTE (SEM CONFLITO DE TURNO)
+// 6. MODAL E SORTEIO INTELIGENTE
 // ==========================================
 window.abrirModalSorteio = (loja) => {
     window.lojaSorteioAtual = loja;
@@ -402,37 +377,56 @@ window.abrirModalSorteio = (loja) => {
     new bootstrap.Modal(document.getElementById('modal-sorteio')).show();
 };
 
-window.marcarTodos = () => {
-    document.querySelectorAll('.chk-corretor').forEach(el => el.checked = true);
-};
+window.marcarTodos = () => { document.querySelectorAll('.chk-corretor').forEach(el => el.checked = true); };
+
+async function getEscalaOutraLojaMesclada(outraLoja) {
+    const [anoStr, mesStr] = filtroMes.value.split('-');
+    const ano = parseInt(anoStr);
+    const mesIndex = parseInt(mesStr) - 1;
+    const prev = new Date(ano, mesIndex - 1, 1);
+    const next = new Date(ano, mesIndex + 1, 1);
+    const formataMes = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+    const [snapAtual, snapPrev, snapNext] = await Promise.all([
+        getDoc(doc(db, "escala_lojas", `${outraLoja}_${filtroMes.value}`)),
+        getDoc(doc(db, "escala_lojas", `${outraLoja}_${formataMes(prev)}`)),
+        getDoc(doc(db, "escala_lojas", `${outraLoja}_${formataMes(next)}`) )
+    ]);
+
+    let combinada = {};
+    if (snapPrev.exists() && snapPrev.data().escala) Object.assign(combinada, snapPrev.data().escala);
+    if (snapNext.exists() && snapNext.data().escala) Object.assign(combinada, snapNext.data().escala);
+    if (snapAtual.exists() && snapAtual.data().escala) Object.assign(combinada, snapAtual.data().escala);
+    return combinada;
+}
 
 window.sortearESalvar = async () => {
     const lojaAlvo = window.lojaSorteioAtual;
     const checkboxes = document.querySelectorAll('.chk-corretor:checked');
     if (checkboxes.length === 0) return alert("Selecione pelo menos um corretor!");
 
-    const indiceSemana = parseInt(filtroSemana.value);
-    const diasDaSemanaVisivel = estado.semanas[indiceSemana] || [];
+    const valSemana = filtroSemana.value;
+    const diasDaVisao = (valSemana === "all") ? estado.semanas.flat() : (estado.semanas[parseInt(valSemana)] || []);
+    let textoEscopo = (valSemana === "all") ? "o MÊS COMPLETO" : `a SEMANA ${parseInt(valSemana) + 1}`;
 
-    if(!confirm(`Deseja gerar o sorteio da Loja ${lojaAlvo.toUpperCase()} para a SEMANA ${indiceSemana + 1}?`)) return;
+    if(!confirm(`Deseja gerar o sorteio da Loja ${lojaAlvo.toUpperCase()} para ${textoEscopo}?`)) return;
 
     let selecionados = [];
     checkboxes.forEach(c => selecionados.push({ id: c.value, nome: c.getAttribute('data-nome') }));
 
     const outraLoja = lojaAlvo === 'flamengo' ? 'tijuca' : 'flamengo';
-    const escalaOutraLoja = estado.escala[outraLoja]; // Já está na memória!
+    const escalaOutraLoja = await getEscalaOutraLojaMesclada(outraLoja);
 
     let contagemTurnos = {};
     selecionados.forEach(c => contagemTurnos[c.id] = 0);
 
-    diasDaSemanaVisivel.forEach(dia => {
+    diasDaVisao.forEach(dia => {
         if (dia.isFeriado) return; 
         let iso = dia.iso;
         
         let ocupadosOutraManha = [];
         let ocupadosOutraTarde = [];
 
-        // LÓGICA REFINADA: Separamos quem tá ocupado de manhã e quem tá ocupado de tarde na outra loja
         if (escalaOutraLoja[iso]) {
             const eOutra = escalaOutraLoja[iso];
             if (eOutra.manha && eOutra.manha[0]) ocupadosOutraManha.push(eOutra.manha[0].id);
@@ -442,11 +436,9 @@ window.sortearESalvar = async () => {
         }
 
         let escolhidosHoje = []; 
-
         const escolherCandidato = (ocupadosNoTurno) => {
             let candidatosDisponiveis = selecionados.filter(c => 
-                !ocupadosNoTurno.includes(c.id) && 
-                !escolhidosHoje.some(escolhido => escolhido !== null && escolhido.id === c.id) 
+                !ocupadosNoTurno.includes(c.id) && !escolhidosHoje.some(escolhido => escolhido !== null && escolhido.id === c.id) 
             );
 
             if (candidatosDisponiveis.length === 0) {
@@ -464,18 +456,10 @@ window.sortearESalvar = async () => {
             }
         };
 
-        // 2 vagas de Manhã (Não pode estar na outra loja de Manhã)
-        escolherCandidato(ocupadosOutraManha);
-        escolherCandidato(ocupadosOutraManha);
-        
-        // 2 vagas de Tarde (Não pode estar na outra loja de Tarde)
-        escolherCandidato(ocupadosOutraTarde);
-        escolherCandidato(ocupadosOutraTarde);
+        escolherCandidato(ocupadosOutraManha); escolherCandidato(ocupadosOutraManha);
+        escolherCandidato(ocupadosOutraTarde); escolherCandidato(ocupadosOutraTarde);
 
-        estado.escala[lojaAlvo][iso] = {
-            manha: [escolhidosHoje[0], escolhidosHoje[1]],
-            tarde: [escolhidosHoje[2], escolhidosHoje[3]]
-        };
+        estado.escala[lojaAlvo][iso] = { manha: [escolhidosHoje[0], escolhidosHoje[1]], tarde: [escolhidosHoje[2], escolhidosHoje[3]] };
     });
 
     try {
@@ -483,32 +467,28 @@ window.sortearESalvar = async () => {
         alert("✅ Escala gerada com sucesso!");
         bootstrap.Modal.getInstance(document.getElementById('modal-sorteio')).hide();
         atualizarVisualizacao(); 
-    } catch (error) {
-        console.error("Erro ao salvar:", error);
-        alert("Erro ao salvar no banco de dados.");
-    }
+    } catch (error) { console.error("Erro ao salvar:", error); alert("Erro ao salvar no banco de dados."); }
 };
 
 window.zerarEscalaSemana = async (lojaAlvo) => {
     try {
-        const indiceSemana = parseInt(filtroSemana.value);
-        const diasDaSemanaVisivel = estado.semanas[indiceSemana] || [];
+        const valSemana = filtroSemana.value;
+        const diasDaVisao = (valSemana === "all") ? estado.semanas.flat() : (estado.semanas[parseInt(valSemana)] || []);
+        let textoEscopo = (valSemana === "all") ? "o MÊS COMPLETO" : `a SEMANA ${parseInt(valSemana) + 1}`;
 
-        if (diasDaSemanaVisivel.length === 0) return alert("Não há dias úteis nesta semana.");
-        if (!confirm(`⚠️ ZERAR toda a escala da Semana ${indiceSemana + 1} na Loja ${lojaAlvo.toUpperCase()}?`)) return;
+        if (diasDaVisao.length === 0) return alert("Não há dias úteis visíveis para zerar.");
+        if (!confirm(`⚠️ ZERAR toda a escala para ${textoEscopo} na Loja ${lojaAlvo.toUpperCase()}?`)) return;
 
         if (!estado.escala[lojaAlvo]) estado.escala[lojaAlvo] = {};
 
-        for (let dia of diasDaSemanaVisivel) {
+        for (let dia of diasDaVisao) {
             let iso = dia.iso;
             if (estado.escala[lojaAlvo][iso]) {
                 let turnos = ['manha', 'tarde'];
                 for (let t of turnos) {
                     for (let i = 0; i < 2; i++) {
                         let c = estado.escala[lojaAlvo][iso][t] ? estado.escala[lojaAlvo][iso][t][i] : null;
-                        if (c && c.falta && c.id) {
-                            await updateDoc(doc(db, "corretores", c.id), { faltas: increment(-1) });
-                        }
+                        if (c && c.falta && c.id) await updateDoc(doc(db, "corretores", c.id), { faltas: increment(-1) });
                     }
                 }
             }
@@ -516,38 +496,15 @@ window.zerarEscalaSemana = async (lojaAlvo) => {
         }
 
         await salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo);
-        alert("✅ Escala da semana zerada com sucesso!");
+        alert(`✅ Escala zerada com sucesso!`);
         atualizarVisualizacao();
-    } catch (error) {
-        console.error("Erro ao zerar escala:", error);
-        alert("Ops! Erro ao zerar: " + error.message);
-    }
+
+    } catch (error) { console.error("Erro ao zerar escala:", error); alert("Ops! Erro ao zerar: " + error.message); }
 };
 
 // ==========================================
 // 7. HELPER: CALENDÁRIO FLUIDO
 // ==========================================
-function getDiasUteisMes(ano, mesIndex, listaDeFeriados = []) {
-    let date = new Date(ano, mesIndex, 1);
-    let days = [];
-    const nomesDias = ['Dom', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sáb'];
-    
-    while (date.getMonth() === mesIndex) {
-        let diaSemana = date.getDay();
-        let iso = date.toISOString().split('T')[0]; 
-        let feriadoEncontrado = listaDeFeriados.find(f => f.data === iso);
-
-        if (diaSemana !== 0 && diaSemana !== 6) { 
-            let fmt = date.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
-            days.push({ 
-                iso, fmt, diaSemana: nomesDias[diaSemana], isFeriado: !!feriadoEncontrado, descricaoFeriado: feriadoEncontrado ? feriadoEncontrado.descricao : "" 
-            });
-        }
-        date.setDate(date.getDate() + 1);
-    }
-    return days;
-}
-
 function getSemanasFluidas(ano, mesIndex, listaDeFeriados = []) {
     let primeiroDia = new Date(ano, mesIndex, 1);
     let ultimoDia = new Date(ano, mesIndex + 1, 0);
