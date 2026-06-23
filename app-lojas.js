@@ -1,5 +1,6 @@
 import { db } from "./firebase-config.js";
-import { collection, getDocs, onSnapshot, doc, setDoc, getDoc, query, orderBy, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+// NOVO: Incluído addDoc e deleteDoc para controlar os feriados por aqui!
+import { collection, getDocs, onSnapshot, doc, setDoc, getDoc, query, orderBy, updateDoc, increment, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const tabelaFlamengo = document.getElementById('tabela-body-flamengo');
 const tabelaTijuca = document.getElementById('tabela-body-tijuca');
@@ -28,6 +29,11 @@ window.iniciarLojas = async () => {
         estado.feriados = [];
         snap.forEach(d => estado.feriados.push({ id: d.id, ...d.data() }));
         buscarEscalaNoBanco(); 
+        
+        // NOVO: Se a janelinha de feriados estiver aberta na tela, atualiza a lista interna na hora
+        if (document.getElementById('modal-feriados')?.classList.contains('show')) {
+            renderizarListaFeriadosModal();
+        }
     });
 
     onSnapshot(collection(db, "corretores"), (snap) => {
@@ -152,7 +158,7 @@ function atualizarVisualizacao() {
             `;
 
             if (dia.isFeriado) {
-                htmlBody += `<td colspan="4" class="bg-light align-middle text-center"><div class="alert alert-secondary mb-0 d-inline-block shadow-sm fw-bold px-3 py-1">🏖️ Folga</div></td>`;
+                htmlBody += `<td colspan="4" class="bg-light align-middle text-center"><div class="alert alert-secondary mb-0 d-inline-block shadow-sm fw-bold px-3 py-1">🏖️ Folga: <span class="text-danger">${dia.descricaoFeriado}</span></div></td>`;
             } else {
                 let escaladosHoje = escalaDaLoja[dia.iso] || { manha: [null, null], tarde: [null, null] };
 
@@ -168,20 +174,17 @@ function atualizarVisualizacao() {
                         if (corretor.atendimentos > 0) badgeAtendimentos = `<span class="badge bg-success position-absolute top-0 start-100 translate-middle rounded-pill shadow" style="font-size: 0.8rem; z-index: 2;">${corretor.atendimentos}</span>`;
                         if (corretor.trocaInfo) { classesCard += ' border-warning border-2'; iconeTroca = '<span title="Plantão Trocado" class="me-1">🔄</span>'; }
 
-                        // LÓGICA DO NOME EMPILHADO (LEONARDO \n JEREMIAS)
                         let partesNome = corretor.nome.split(' ');
                         let primeiroNome = partesNome[0];
                         let sobrenome = '';
                         
                         if (partesNome.length > 1) {
-                            // Se o sobrenome for "de", "da", "dos", pega o próximo também (Ex: "de Carvalho")
                             if (partesNome[1].toLowerCase().match(/^(da|de|do|dos|das)$/) && partesNome.length > 2) {
                                 sobrenome = partesNome[1] + ' ' + partesNome[2];
                             } else {
                                 sobrenome = partesNome[1];
                             }
                         }
-                        // Junta o primeiro nome com o sobrenome usando uma quebra de linha <br>
                         let nomeExibicao = primeiroNome + (sobrenome ? '<br>' + sobrenome : '');
 
                         conteudo = `
@@ -461,7 +464,7 @@ window.sortearESalvar = async () => {
     checkboxes.forEach(c => selecionados.push({ id: c.value, nome: c.getAttribute('data-nome') }));
 
     const outraLoja = lojaAlvo === 'flamengo' ? 'tijuca' : 'flamengo';
-    const escalaOutraLoja = await getEscalaOutraLojaMesclada(outraLoja);
+    const scalaOutraLoja = await getEscalaOutraLojaMesclada(outraLoja);
 
     let semanaDoDia = {};
     estado.semanas.forEach((sem, index) => {
@@ -533,8 +536,8 @@ window.sortearESalvar = async () => {
     turnosParaPreencher.sort(() => Math.random() - 0.5); 
 
     const isCorretorOcupadoNaOutraLoja = (corretorId, iso, turno) => {
-        if (!escalaOutraLoja[iso]) return false;
-        let eOutra = escalaOutraLoja[iso];
+        if (!scalaOutraLoja[iso]) return false;
+        let eOutra = scalaOutraLoja[iso];
         if (eOutra[turno]) {
             if (eOutra[turno][0] && eOutra[turno][0].id === corretorId) return true;
             if (eOutra[turno][1] && eOutra[turno][1].id === corretorId) return true;
@@ -604,10 +607,10 @@ window.sortearESalvar = async () => {
                     return percA - percB;
                 });
 
-                let escolhido = elegiveis[0];
-                t.vagas[i] = { id: escolhido.id, nome: escolhido.nome, atendimentos: 0, falta: false };
-                escolhido.alocadosGeral++;
-                alocadosPorSemana[escolhido.id][sIdx] = (alocadosPorSemana[escolhido.id][sIdx] || 0) + 1;
+                letPlatform = elegiveis[0];
+                t.vagas[i] = { id: letPlatform.id, nome: letPlatform.nome, atendimentos: 0, falta: false };
+                letPlatform.alocadosGeral++;
+                alocadosPorSemana[letPlatform.id][sIdx] = (alocadosPorSemana[letPlatform.id][sIdx] || 0) + 1;
             }
         }
     });
@@ -622,7 +625,7 @@ window.sortearESalvar = async () => {
 
             elegiveisXepa.sort((a, b) => {
                 let vezesSemanaA = alocadosPorSemana[a.id][sIdx] || 0;
-                let vezesSemanaB = alocadosPorSemana[b.id][sIdx] || 0;
+                letvezesSemanaB = alocadosPorSemana[b.id][sIdx] || 0;
                 if (vezesSemanaA !== vezesSemanaB) return vezesSemanaA - vezesSemanaB;
 
                 if (a.alocadosXepa !== b.alocadosXepa) return a.alocadosXepa - b.alocadosXepa; 
@@ -700,7 +703,71 @@ window.zerarEscalaSemana = async (lojaAlvo) => {
 };
 
 // ==========================================
-// 7. HELPER: CALENDÁRIO FLUIDO
+// 8. GERENCIAMENTO DE FERIADOS (NOVO)
+// ==========================================
+function renderizarListaFeriadosModal() {
+    const divLista = document.getElementById('lista-feriados-modal');
+    let html = '';
+
+    if (estado.feriados.length === 0) {
+        html = '<div class="text-center text-muted py-3 small">Nenhum feriado cadastrado.</div>';
+    } else {
+        estado.feriados.forEach(f => {
+            const [ano, mes, dia] = f.data.split('-');
+            const dataFmt = `${dia}/${mes}/${ano}`;
+            
+            html += `
+                <div class="list-group-item d-flex justify-content-between align-items-center py-2 px-3">
+                    <div>
+                        <span class="fw-bold text-dark">${dataFmt}</span> - 
+                        <span class="text-muted small">${f.descricao}</span>
+                    </div>
+                    <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="excluirFeriado('${f.id}')">🗑️</button>
+                </div>
+            `;
+        });
+    }
+    divLista.innerHTML = html;
+}
+
+window.abrirModalFeriados = () => {
+    renderizarListaFeriadosModal();
+    new bootstrap.Modal(document.getElementById('modal-feriados')).show();
+};
+
+window.salvarNovoFeriado = async () => {
+    const inputData = document.getElementById('feriado-data').value;
+    const inputDesc = document.getElementById('feriado-desc').value.trim();
+
+    if (!inputData || !inputDesc) {
+        return alert("Por favor, preencha a data e a descrição do feriado!");
+    }
+
+    try {
+        await addDoc(collection(db, "feriados"), {
+            data: inputData,
+            descricao: inputDesc
+        });
+        
+        document.getElementById('feriado-data').value = '';
+        document.getElementById('feriado-desc').value = '';
+    } catch (error) {
+        console.error("Erro ao salvar feriado:", error);
+        alert("Erro ao salvar feriado.");
+    }
+};
+
+window.excluirFeriado = async (id) => {
+    if (!confirm("Deseja excluir este feriado? Os dias afetados voltarão a ter plantão normal.")) return;
+    try {
+        await deleteDoc(doc(db, "feriados", id));
+    } catch (error) {
+        console.error("Erro ao excluir feriado:", error);
+    }
+};
+
+// ==========================================
+// 9. HELPER: CALENDÁRIO FLUIDO
 // ==========================================
 function getSemanasFluidas(ano, mesIndex, listaDeFeriados = []) {
     let primeiroDia = new Date(ano, mesIndex, 1);
@@ -730,7 +797,11 @@ function getSemanasFluidas(ano, mesIndex, listaDeFeriados = []) {
             let fmt = current.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
             
             semanaAtual.push({
-                iso: isoStr, fmt: fmt, diaSemana: nomesDias[diaSemana], isFeriado: !!feriadoEncontrado, descricaoFeriado: feriadoEncontrado ? feriadoEncontrado.descricao : ""
+                iso: isoStr, 
+                fmt: fmt, 
+                diaSemana: nomesDias[diaSemana], 
+                isFeriado: !!feriadoEncontrado, 
+                descricaoFeriado: feriadoEncontrado ? feriadoEncontrado.descricao : ""
             });
 
             if (diaSemana === 5) { 
