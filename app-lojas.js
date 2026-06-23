@@ -1,19 +1,25 @@
 import { db } from "./firebase-config.js";
 import { collection, getDocs, onSnapshot, doc, setDoc, getDoc, query, orderBy, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-const tabelaBody = document.getElementById('tabela-body');
+const tabelaFlamengo = document.getElementById('tabela-body-flamengo');
+const tabelaTijuca = document.getElementById('tabela-body-tijuca');
 const filtroMes = document.getElementById('filtro-mes');
 const filtroSemana = document.getElementById('filtro-semana');
-const tabs = document.querySelectorAll('#lojas-tabs .nav-link');
 
-let lojaAtual = 'flamengo'; 
-let estado = { corretores: [], feriados: [], escalaSalva: {}, semanas: [] };
+// O estado agora comporta as duas lojas simultaneamente
+let estado = { 
+    corretores: [], 
+    feriados: [], 
+    escala: { flamengo: {}, tijuca: {} }, 
+    diasDoMes: [], 
+    semanas: [] 
+};
 let carregamentoInicial = true;
-
-window.editandoPlantao = { iso: null, turno: null, index: null, dataFmt: null };
+window.lojaSorteioAtual = null; // Para saber qual botão foi clicado (Flamengo ou Tijuca)
+window.editandoPlantao = { loja: null, iso: null, turno: null, index: null, dataFmt: null };
 
 // ==========================================
-// 1. INICIALIZAÇÃO E BUSCA INTELIGENTE (3 MESES)
+// 1. INICIALIZAÇÃO E BUSCA (AS DUAS LOJAS)
 // ==========================================
 window.iniciarLojas = async () => {
     if (!filtroMes.value) {
@@ -35,11 +41,7 @@ window.iniciarLojas = async () => {
         snap.forEach(d => {
             let dados = d.data();
             estado.corretores.push({ 
-                id: d.id, 
-                nome: dados.nome,
-                pme: parseFloat(dados.producao_pme) || 0,
-                pf: parseFloat(dados.producao_pf) || 0,
-                faltas: parseInt(dados.faltas) || 0 
+                id: d.id, nome: dados.nome, pme: parseFloat(dados.producao_pme) || 0, pf: parseFloat(dados.producao_pf) || 0, faltas: parseInt(dados.faltas) || 0 
             });
         });
         estado.corretores.sort((a, b) => a.nome.localeCompare(b.nome));
@@ -53,26 +55,23 @@ async function buscarEscalaNoBanco() {
     const ano = parseInt(anoStr);
     const mesIndex = parseInt(mesStr) - 1;
 
-    // Para montar semanas perfeitas, precisamos puxar o mês anterior, o atual e o próximo!
     const prev = new Date(ano, mesIndex - 1, 1);
     const next = new Date(ano, mesIndex + 1, 1);
     const formataMes = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     
-    const docAtual = `${lojaAtual}_${filtroMes.value}`;
-    const docPrev = `${lojaAtual}_${formataMes(prev)}`;
-    const docNext = `${lojaAtual}_${formataMes(next)}`;
+    const meses = [formataMes(prev), filtroMes.value, formataMes(next)];
 
     try {
-        const [snapAtual, snapPrev, snapNext] = await Promise.all([
-            getDoc(doc(db, "escala_lojas", docAtual)),
-            getDoc(doc(db, "escala_lojas", docPrev)),
-            getDoc(doc(db, "escala_lojas", docNext))
-        ]);
+        estado.escala.flamengo = {};
+        estado.escala.tijuca = {};
 
-        estado.escalaSalva = {};
-        if (snapPrev.exists() && snapPrev.data().escala) Object.assign(estado.escalaSalva, snapPrev.data().escala);
-        if (snapNext.exists() && snapNext.data().escala) Object.assign(estado.escalaSalva, snapNext.data().escala);
-        if (snapAtual.exists() && snapAtual.data().escala) Object.assign(estado.escalaSalva, snapAtual.data().escala);
+        for (let m of meses) {
+            let docF = await getDoc(doc(db, "escala_lojas", `flamengo_${m}`));
+            if (docF.exists() && docF.data().escala) Object.assign(estado.escala.flamengo, docF.data().escala);
+
+            let docT = await getDoc(doc(db, "escala_lojas", `tijuca_${m}`));
+            if (docT.exists() && docT.data().escala) Object.assign(estado.escala.tijuca, docT.data().escala);
+        }
 
         atualizarVisualizacao();
     } catch (error) {
@@ -80,37 +79,33 @@ async function buscarEscalaNoBanco() {
     }
 }
 
-// NOVO: Função para fatiar as edições e salvar cada dia na sua "pasta" (Mês) correta no banco!
-async function salvarEscalaNoBancoBaseadoNasDatas() {
+async function salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo) {
     let lotesPorMes = {};
+    const escalaDaLoja = estado.escala[lojaAlvo];
     
-    for (let iso in estado.escalaSalva) {
-        let mesDoIso = iso.substring(0, 7); // Ex: "2026-06"
+    for (let iso in escalaDaLoja) {
+        let mesDoIso = iso.substring(0, 7); 
         if(!lotesPorMes[mesDoIso]) lotesPorMes[mesDoIso] = {};
-        lotesPorMes[mesDoIso][iso] = estado.escalaSalva[iso];
+        lotesPorMes[mesDoIso][iso] = escalaDaLoja[iso];
     }
 
     const promessas = Object.keys(lotesPorMes).map(mesKey => {
-        const docId = `${lojaAtual}_${mesKey}`;
+        const docId = `${lojaAlvo}_${mesKey}`;
         return setDoc(doc(db, "escala_lojas", docId), {
-            loja: lojaAtual,
-            mes: mesKey,
-            escala: lotesPorMes[mesKey],
-            atualizadoEm: new Date().toISOString()
-        }, { merge: true }); // Merge salva só o que mudou sem apagar o resto
+            loja: lojaAlvo, mes: mesKey, escala: lotesPorMes[mesKey], atualizadoEm: new Date().toISOString()
+        }, { merge: true }); 
     });
 
     await Promise.all(promessas);
 }
 
 // ==========================================
-// 2. RENDERIZAR TABELA E ATUALIZAR DROPDOWN
+// 2. RENDERIZAR TABELAS (LADO A LADO)
 // ==========================================
 function atualizarVisualizacao() {
     const [anoStr, mesStr] = filtroMes.value.split('-');
     estado.semanas = getSemanasFluidas(parseInt(anoStr), parseInt(mesStr) - 1, estado.feriados);
 
-    // NOVO: Preenche a caixinha de Semanas dinamicamente com as datas reais!
     const valorAntigoSemana = filtroSemana.value;
     filtroSemana.innerHTML = '';
     estado.semanas.forEach((sem, index) => {
@@ -132,99 +127,96 @@ function atualizarVisualizacao() {
     const diasDaSemana = estado.semanas[indiceSemana] || [];
 
     if (diasDaSemana.length === 0) {
-        tabelaBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">Não há dias úteis nesta semana.</td></tr>';
+        let msg = '<tr><td colspan="5" class="text-center py-4 text-muted">Não há dias úteis.</td></tr>';
+        tabelaFlamengo.innerHTML = msg;
+        tabelaTijuca.innerHTML = msg;
         return;
     }
 
-    let htmlBody = '';
-    diasDaSemana.forEach(dia => {
-        let hojeISO = new Date().toISOString().split('T')[0];
-        let classHoje = (dia.iso === hojeISO) ? "bg-warning" : "bg-white";
-        let textoHoje = (dia.iso === hojeISO) ? '<br><span class="badge bg-danger mt-1">HOJE</span>' : '';
-        let classFeriadoTd = dia.isFeriado ? "bg-danger text-white bg-opacity-75 border-danger" : classHoje;
+    // Função interna para desenhar uma loja
+    const desenharTabela = (lojaId) => {
+        let htmlBody = '';
+        const escalaDaLoja = estado.escala[lojaId];
 
-        // Se o dia pertence a um mês diferente do selecionado, deixamos ele cinza para dar um charme visual
-        let classeMesDiferente = (dia.iso.substring(0,7) !== filtroMes.value) ? "fst-italic opacity-75" : "";
+        diasDaSemana.forEach(dia => {
+            let hojeISO = new Date().toISOString().split('T')[0];
+            let classHoje = (dia.iso === hojeISO) ? "bg-warning" : "bg-white";
+            let textoHoje = (dia.iso === hojeISO) ? '<br><span class="badge bg-danger mt-1">HOJE</span>' : '';
+            let classFeriadoTd = dia.isFeriado ? "bg-danger text-white bg-opacity-75 border-danger" : classHoje;
+            let classeMesDiferente = (dia.iso.substring(0,7) !== filtroMes.value) ? "fst-italic opacity-75" : "";
 
-        htmlBody += `<tr class="${classeMesDiferente}">`;
-        htmlBody += `
-            <td class="${classFeriadoTd} border-end border-3 border-dark fw-bold text-center" style="vertical-align: middle;">
-                <div class="fs-5">${dia.diaSemana}</div>
-                <div class="${dia.isFeriado ? 'text-white' : 'text-muted'} small">${dia.fmt}</div>
-                ${textoHoje}
-            </td>
-        `;
-
-        if (dia.isFeriado) {
+            htmlBody += `<tr class="${classeMesDiferente}">`;
             htmlBody += `
-                <td colspan="4" class="bg-light align-middle text-center" style="height: 80px;">
-                    <div class="alert alert-secondary mb-0 d-inline-block shadow-sm border-secondary fw-bold px-4 py-2">
-                        🏖️ Folga / Feriado: <span class="text-danger">${dia.descricaoFeriado}</span>
-                    </div>
+                <td class="${classFeriadoTd} border-end border-3 border-dark fw-bold text-center" style="vertical-align: middle;">
+                    <div class="fs-5">${dia.diaSemana}</div>
+                    <div class="${dia.isFeriado ? 'text-white' : 'text-muted'} small">${dia.fmt}</div>
+                    ${textoHoje}
                 </td>
             `;
-        } else {
-            let escaladosHoje = estado.escalaSalva[dia.iso] || { manha: [null, null], tarde: [null, null] };
 
-            const desenharCadeira = (corretor, iso, turno, index, dataFmt) => {
-                let conteudo = '';
-                let classesCard = 'card-vaga shadow-sm border-2'; 
-                let classesTexto = 'nome-corretor text-truncate text-center w-100';
-                let badgeAtendimentos = '';
-                let iconeTroca = '';
+            if (dia.isFeriado) {
+                htmlBody += `<td colspan="4" class="bg-light align-middle text-center"><div class="alert alert-secondary mb-0 d-inline-block shadow-sm fw-bold px-3 py-1">🏖️ Folga</div></td>`;
+            } else {
+                let escaladosHoje = escalaDaLoja[dia.iso] || { manha: [null, null], tarde: [null, null] };
 
-                if (corretor) {
-                    if (corretor.falta) {
-                        classesCard += ' falta-bg';
-                        classesTexto += ' falta-text';
+                const desenharCadeira = (corretor, iso, turno, index, dataFmt) => {
+                    let conteudo = '';
+                    let classesCard = 'card-vaga shadow-sm border-2'; 
+                    let classesTexto = 'nome-corretor text-truncate text-center w-100';
+                    let badgeAtendimentos = '';
+                    let iconeTroca = '';
+
+                    if (corretor) {
+                        if (corretor.falta) {
+                            classesCard += ' falta-bg'; classesTexto += ' falta-text';
+                        }
+                        if (corretor.atendimentos > 0) {
+                            badgeAtendimentos = `<span class="badge bg-success position-absolute top-0 start-100 translate-middle rounded-pill shadow" style="font-size: 0.8rem; z-index: 2;">${corretor.atendimentos}</span>`;
+                        }
+                        if (corretor.trocaInfo) {
+                            classesCard += ' border-warning border-2'; iconeTroca = '<span title="Plantão Trocado" class="me-1">🔄</span>';
+                        }
+
+                        let partesNome = corretor.nome.split(' ');
+                        let nomeExibicao = partesNome[0] + (partesNome.length > 1 ? ' ' + partesNome[1] : '');
+
+                        conteudo = `
+                            <div class="${classesCard}" onclick="abrirDetalhesPlantao('${lojaId}', '${iso}', '${turno}', ${index}, '${dataFmt}')">
+                                ${badgeAtendimentos}
+                                <div class="${classesTexto}" title="${corretor.nome}">${iconeTroca}${nomeExibicao}</div>
+                            </div>`;
+                    } else {
+                        conteudo = `
+                            <div class="card-vaga border-2" style="border-style: dotted;" onclick="abrirDetalhesPlantao('${lojaId}', '${iso}', '${turno}', ${index}, '${dataFmt}')">
+                                <div class="text-muted fst-italic text-center w-100"><small>Vaga Livre</small></div>
+                            </div>`;
                     }
-                    if (corretor.atendimentos > 0) {
-                        badgeAtendimentos = `<span class="badge bg-success position-absolute top-0 start-100 translate-middle rounded-pill shadow" style="font-size: 0.8rem; z-index: 2;">${corretor.atendimentos}</span>`;
-                    }
-                    if (corretor.trocaInfo) {
-                        classesCard += ' border-warning border-2';
-                        iconeTroca = '<span title="Plantão Trocado" class="me-1">🔄</span>';
-                    }
+                    return `<td class="align-middle p-2" style="width: 21%;">${conteudo}</td>`;
+                };
 
-                    let partesNome = corretor.nome.split(' ');
-                    let nomeExibicao = partesNome[0] + (partesNome.length > 1 ? ' ' + partesNome[1] : '');
+                htmlBody += desenharCadeira(escaladosHoje.manha[0], dia.iso, 'manha', 0, dia.fmt); 
+                htmlBody += desenharCadeira(escaladosHoje.manha[1], dia.iso, 'manha', 1, dia.fmt); 
+                htmlBody += desenharCadeira(escaladosHoje.tarde[0], dia.iso, 'tarde', 0, dia.fmt); 
+                htmlBody += desenharCadeira(escaladosHoje.tarde[1], dia.iso, 'tarde', 1, dia.fmt); 
+            }
+            htmlBody += `</tr>`;
+        });
+        return htmlBody;
+    };
 
-                    conteudo = `
-                        <div class="${classesCard}" onclick="abrirDetalhesPlantao('${iso}', '${turno}', ${index}, '${dataFmt}')">
-                            ${badgeAtendimentos}
-                            <div class="${classesTexto}" title="${corretor.nome}">
-                                ${iconeTroca}${nomeExibicao}
-                            </div>
-                        </div>`;
-                } else {
-                    conteudo = `
-                        <div class="card-vaga border-2" style="border-style: dotted;" onclick="abrirDetalhesPlantao('${iso}', '${turno}', ${index}, '${dataFmt}')">
-                            <div class="text-muted fst-italic text-center w-100"><small>Vaga Livre</small></div>
-                        </div>`;
-                }
-                return `<td class="align-middle p-2" style="width: 21%;">${conteudo}</td>`;
-            };
-
-            htmlBody += desenharCadeira(escaladosHoje.manha[0], dia.iso, 'manha', 0, dia.fmt); 
-            htmlBody += desenharCadeira(escaladosHoje.manha[1], dia.iso, 'manha', 1, dia.fmt); 
-            htmlBody += desenharCadeira(escaladosHoje.tarde[0], dia.iso, 'tarde', 0, dia.fmt); 
-            htmlBody += desenharCadeira(escaladosHoje.tarde[1], dia.iso, 'tarde', 1, dia.fmt); 
-        }
-        
-        htmlBody += `</tr>`;
-    });
-    tabelaBody.innerHTML = htmlBody;
+    tabelaFlamengo.innerHTML = desenharTabela('flamengo');
+    tabelaTijuca.innerHTML = desenharTabela('tijuca');
 }
 
 // ==========================================
 // 3. GERENCIAMENTO E SALVAMENTO DE FALTAS
 // ==========================================
-window.abrirDetalhesPlantao = (iso, turno, index, dataFmt) => {
-    window.editandoPlantao = { iso, turno, index, dataFmt };
+window.abrirDetalhesPlantao = (loja, iso, turno, index, dataFmt) => {
+    window.editandoPlantao = { loja, iso, turno, index, dataFmt };
     
     let corretorAtual = null;
-    if(estado.escalaSalva[iso] && estado.escalaSalva[iso][turno]) {
-        corretorAtual = estado.escalaSalva[iso][turno][index];
+    if(estado.escala[loja][iso] && estado.escala[loja][iso][turno]) {
+        corretorAtual = estado.escala[loja][iso][turno][index];
     }
 
     let nomeExibicao = corretorAtual ? corretorAtual.nome.split(' ')[0] : 'Vaga Livre';
@@ -244,11 +236,9 @@ window.abrirDetalhesPlantao = (iso, turno, index, dataFmt) => {
     const divTroca = document.getElementById('info-troca-container');
     const textoTroca = document.getElementById('texto-info-troca');
     if (corretorAtual && corretorAtual.trocaInfo) {
-        textoTroca.innerHTML = corretorAtual.trocaInfo;
-        divTroca.classList.remove('d-none');
+        textoTroca.innerHTML = corretorAtual.trocaInfo; divTroca.classList.remove('d-none');
     } else {
-        textoTroca.innerHTML = '';
-        divTroca.classList.add('d-none');
+        textoTroca.innerHTML = ''; divTroca.classList.add('d-none');
     }
 
     new bootstrap.Modal(document.getElementById('modal-detalhes-plantao')).show();
@@ -265,11 +255,11 @@ window.mudarAtendimentos = (valor) => {
 window.salvarDetalhesPlantao = async () => {
     const select = document.getElementById('select-alterar-corretor');
     const idSelecionado = select.value;
-    const { iso, turno, index } = window.editandoPlantao;
+    const { loja, iso, turno, index } = window.editandoPlantao;
     
-    if(!estado.escalaSalva[iso]) estado.escalaSalva[iso] = { manha: [null, null], tarde: [null, null] };
+    if(!estado.escala[loja][iso]) estado.escala[loja][iso] = { manha: [null, null], tarde: [null, null] };
 
-    let corretorOriginal = estado.escalaSalva[iso][turno][index];
+    let corretorOriginal = estado.escala[loja][iso][turno][index];
     let infoTrocaExistente = corretorOriginal ? corretorOriginal.trocaInfo : null;
     let idAntigo = corretorOriginal ? corretorOriginal.id : null;
     let faltaAntiga = corretorOriginal ? (corretorOriginal.falta === true) : false;
@@ -284,38 +274,28 @@ window.salvarDetalhesPlantao = async () => {
                     await updateDoc(doc(db, "corretores", idSelecionado), { faltas: increment(diff) });
                 }
             } else {
-                if (idAntigo && faltaAntiga) {
-                    await updateDoc(doc(db, "corretores", idAntigo), { faltas: increment(-1) });
-                }
-                if (faltaNova) {
-                    await updateDoc(doc(db, "corretores", idSelecionado), { faltas: increment(1) });
-                }
+                if (idAntigo && faltaAntiga) await updateDoc(doc(db, "corretores", idAntigo), { faltas: increment(-1) });
+                if (faltaNova) await updateDoc(doc(db, "corretores", idSelecionado), { faltas: increment(1) });
             }
         } else {
-            if (idAntigo && faltaAntiga) {
-                await updateDoc(doc(db, "corretores", idAntigo), { faltas: increment(-1) });
-            }
+            if (idAntigo && faltaAntiga) await updateDoc(doc(db, "corretores", idAntigo), { faltas: increment(-1) });
         }
 
         if (idSelecionado) {
             const nomeSelecionado = select.options[select.selectedIndex].getAttribute('data-nome');
             const atendimentos = parseInt(document.getElementById('input-atendimentos').value) || 0;
-            estado.escalaSalva[iso][turno][index] = { id: idSelecionado, nome: nomeSelecionado, atendimentos: atendimentos, falta: faltaNova };
-            if (infoTrocaExistente && idSelecionado === idAntigo) {
-                estado.escalaSalva[iso][turno][index].trocaInfo = infoTrocaExistente;
-            }
+            estado.escala[loja][iso][turno][index] = { id: idSelecionado, nome: nomeSelecionado, atendimentos: atendimentos, falta: faltaNova };
+            if (infoTrocaExistente && idSelecionado === idAntigo) estado.escala[loja][iso][turno][index].trocaInfo = infoTrocaExistente;
         } else {
-            estado.escalaSalva[iso][turno][index] = null;
+            estado.escala[loja][iso][turno][index] = null;
         }
 
-        await salvarEscalaNoBancoBaseadoNasDatas();
-
+        await salvarEscalaNoBancoBaseadoNasDatas(loja);
         bootstrap.Modal.getInstance(document.getElementById('modal-detalhes-plantao')).hide();
         atualizarVisualizacao(); 
 
     } catch (error) {
-        console.error("Erro ao salvar detalhes:", error);
-        alert("Erro ao salvar alterações.");
+        console.error("Erro:", error); alert("Erro ao salvar alterações.");
     }
 }
 
@@ -344,6 +324,8 @@ window.abrirModalTroca = () => {
 };
 
 window.efetuarTroca = async () => {
+    const lojaAlvo = document.getElementById('troca-loja-selecao').value; // Pegando a loja escolhida no modal
+    
     const d1 = document.getElementById('troca-data-1').value;
     const t1 = document.getElementById('troca-turno-1').value;
     const c1 = parseInt(document.getElementById('troca-cadeira-1').value);
@@ -353,10 +335,10 @@ window.efetuarTroca = async () => {
     const c2 = parseInt(document.getElementById('troca-cadeira-2').value);
 
     if (d1 === d2 && t1 === t2 && c1 === c2) return alert("Selecione cadeiras diferentes.");
-    if (!estado.escalaSalva[d1] || !estado.escalaSalva[d2]) return alert("Erro: Dias sem escala gerada.");
+    if (!estado.escala[lojaAlvo][d1] || !estado.escala[lojaAlvo][d2]) return alert("Erro: Dias sem escala gerada nesta loja.");
 
-    let obj1 = estado.escalaSalva[d1][t1][c1];
-    let obj2 = estado.escalaSalva[d2][t2][c2];
+    let obj1 = estado.escala[lojaAlvo][d1][t1][c1];
+    let obj2 = estado.escala[lojaAlvo][d2][t2][c2];
 
     let nome1 = obj1 ? obj1.nome.split(' ')[0] : "Vaga Livre";
     let nome2 = obj2 ? obj2.nome.split(' ')[0] : "Vaga Livre";
@@ -372,38 +354,27 @@ window.efetuarTroca = async () => {
     if (novoObj1) novoObj1.trocaInfo = `🔄 Trocou com <b>${nome1}</b><br><small>(O original dele era ${data1Fmt} - ${labelT1})</small>`;
     if (novoObj2) novoObj2.trocaInfo = `🔄 Trocou com <b>${nome2}</b><br><small>(O original dele era ${data2Fmt} - ${labelT2})</small>`;
 
-    estado.escalaSalva[d1][t1][c1] = novoObj1;
-    estado.escalaSalva[d2][t2][c2] = novoObj2;
+    estado.escala[lojaAlvo][d1][t1][c1] = novoObj1;
+    estado.escala[lojaAlvo][d2][t2][c2] = novoObj2;
 
     try {
-        await salvarEscalaNoBancoBaseadoNasDatas();
-        alert(`✅ Troca efetuada com sucesso!\n\n${nome1} assumiu a cadeira de ${data2Fmt}.\n${nome2} assumiu a cadeira de ${data1Fmt}.`);
+        await salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo);
+        alert(`✅ Troca efetuada com sucesso na loja ${lojaAlvo.toUpperCase()}!\n\n${nome1} assumiu a cadeira de ${data2Fmt}.\n${nome2} assumiu a cadeira de ${data1Fmt}.`);
         bootstrap.Modal.getInstance(document.getElementById('modal-troca')).hide();
         atualizarVisualizacao();
     } catch (error) { console.error("Erro:", error); }
-};
-
-window.mudarLoja = (loja, event) => {
-    event.preventDefault();
-    lojaAtual = loja;
-    tabs.forEach(t => {
-        t.classList.remove('active', 'bg-white', 'border', 'text-dark');
-        if (t.innerText.toLowerCase().includes(loja)) t.classList.add('active');
-        else t.classList.add('bg-white', 'border', 'text-dark');
-    });
-    const nomeCapitalizado = loja.charAt(0).toUpperCase() + loja.slice(1);
-    document.getElementById('titulo-tabela').innerText = `📅 Escala - Loja ${nomeCapitalizado}`;
-    document.getElementById('nome-loja-btn').innerText = nomeCapitalizado;
-    buscarEscalaNoBanco(); 
 };
 
 filtroMes.addEventListener('change', buscarEscalaNoBanco);
 filtroSemana.addEventListener('change', atualizarVisualizacao);
 
 // ==========================================
-// 6. MODAL E SORTEIO INTELIGENTE (POR SEMANA)
+// 6. MODAL E SORTEIO INTELIGENTE (SEM CONFLITO DE TURNO)
 // ==========================================
-window.abrirModalSorteio = () => {
+window.abrirModalSorteio = (loja) => {
+    window.lojaSorteioAtual = loja;
+    document.getElementById('modal-sorteio-titulo').innerText = `Sorteio - Loja ${loja.charAt(0).toUpperCase() + loja.slice(1)}`;
+
     const divCheckboxes = document.getElementById('lista-checkboxes-corretores');
     let html = '';
 
@@ -411,10 +382,8 @@ window.abrirModalSorteio = () => {
         let pme = c.pme || 0;
         let pf = c.pf || 0;
         let corBorda = 'border-danger'; 
-
         if (pme > 0) corBorda = 'border-success'; 
         else if (pf > 0) corBorda = 'border-warning'; 
-
         let badgeFaltas = c.faltas > 0 ? `<span class="badge bg-danger ms-2" title="Acúmulo de Faltas">${c.faltas} ⚠️</span>` : '';
 
         html += `
@@ -437,66 +406,46 @@ window.marcarTodos = () => {
     document.querySelectorAll('.chk-corretor').forEach(el => el.checked = true);
 };
 
-// NOVO: Função auxiliar para puxar os dados da Outra Loja dos 3 meses
-async function getEscalaOutraLojaMesclada(outraLoja) {
-    const [anoStr, mesStr] = filtroMes.value.split('-');
-    const ano = parseInt(anoStr);
-    const mesIndex = parseInt(mesStr) - 1;
-
-    const prev = new Date(ano, mesIndex - 1, 1);
-    const next = new Date(ano, mesIndex + 1, 1);
-    const formataMes = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-
-    const [snapAtual, snapPrev, snapNext] = await Promise.all([
-        getDoc(doc(db, "escala_lojas", `${outraLoja}_${filtroMes.value}`)),
-        getDoc(doc(db, "escala_lojas", `${outraLoja}_${formataMes(prev)}`)),
-        getDoc(doc(db, "escala_lojas", `${outraLoja}_${formataMes(next)}`) )
-    ]);
-
-    let combinada = {};
-    if (snapPrev.exists() && snapPrev.data().escala) Object.assign(combinada, snapPrev.data().escala);
-    if (snapNext.exists() && snapNext.data().escala) Object.assign(combinada, snapNext.data().escala);
-    if (snapAtual.exists() && snapAtual.data().escala) Object.assign(combinada, snapAtual.data().escala);
-    return combinada;
-}
-
 window.sortearESalvar = async () => {
+    const lojaAlvo = window.lojaSorteioAtual;
     const checkboxes = document.querySelectorAll('.chk-corretor:checked');
     if (checkboxes.length === 0) return alert("Selecione pelo menos um corretor!");
 
     const indiceSemana = parseInt(filtroSemana.value);
     const diasDaSemanaVisivel = estado.semanas[indiceSemana] || [];
 
-    if(!confirm(`Deseja gerar e salvar o sorteio para a SEMANA ${indiceSemana + 1}? Isso substituirá as vagas apenas destes dias.`)) return;
+    if(!confirm(`Deseja gerar o sorteio da Loja ${lojaAlvo.toUpperCase()} para a SEMANA ${indiceSemana + 1}?`)) return;
 
     let selecionados = [];
     checkboxes.forEach(c => selecionados.push({ id: c.value, nome: c.getAttribute('data-nome') }));
 
-    const outraLoja = lojaAtual === 'flamengo' ? 'tijuca' : 'flamengo';
-    let escalaOutraLoja = await getEscalaOutraLojaMesclada(outraLoja);
+    const outraLoja = lojaAlvo === 'flamengo' ? 'tijuca' : 'flamengo';
+    const escalaOutraLoja = estado.escala[outraLoja]; // Já está na memória!
 
     let contagemTurnos = {};
     selecionados.forEach(c => contagemTurnos[c.id] = 0);
 
     diasDaSemanaVisivel.forEach(dia => {
         if (dia.isFeriado) return; 
-
         let iso = dia.iso;
-        let ocupadosOutraLoja = []; 
+        
+        let ocupadosOutraManha = [];
+        let ocupadosOutraTarde = [];
 
+        // LÓGICA REFINADA: Separamos quem tá ocupado de manhã e quem tá ocupado de tarde na outra loja
         if (escalaOutraLoja[iso]) {
             const eOutra = escalaOutraLoja[iso];
-            if (eOutra.manha[0]) ocupadosOutraLoja.push(eOutra.manha[0].id);
-            if (eOutra.manha[1]) ocupadosOutraLoja.push(eOutra.manha[1].id);
-            if (eOutra.tarde[0]) ocupadosOutraLoja.push(eOutra.tarde[0].id);
-            if (eOutra.tarde[1]) ocupadosOutraLoja.push(eOutra.tarde[1].id);
+            if (eOutra.manha && eOutra.manha[0]) ocupadosOutraManha.push(eOutra.manha[0].id);
+            if (eOutra.manha && eOutra.manha[1]) ocupadosOutraManha.push(eOutra.manha[1].id);
+            if (eOutra.tarde && eOutra.tarde[0]) ocupadosOutraTarde.push(eOutra.tarde[0].id);
+            if (eOutra.tarde && eOutra.tarde[1]) ocupadosOutraTarde.push(eOutra.tarde[1].id);
         }
 
         let escolhidosHoje = []; 
 
-        for (let i = 0; i < 4; i++) {
+        const escolherCandidato = (ocupadosNoTurno) => {
             let candidatosDisponiveis = selecionados.filter(c => 
-                !ocupadosOutraLoja.includes(c.id) && 
+                !ocupadosNoTurno.includes(c.id) && 
                 !escolhidosHoje.some(escolhido => escolhido !== null && escolhido.id === c.id) 
             );
 
@@ -509,28 +458,28 @@ window.sortearESalvar = async () => {
                     if (pesoA === pesoB) return Math.random() - 0.5; 
                     return pesoA - pesoB;
                 });
-
                 let selecionado = candidatosDisponiveis[0];
                 escolhidosHoje.push({ id: selecionado.id, nome: selecionado.nome, atendimentos: 0, falta: false }); 
                 contagemTurnos[selecionado.id]++; 
             }
-        }
+        };
 
-        let validos = escolhidosHoje.filter(x => x !== null);
-        let nulos = escolhidosHoje.filter(x => x === null);
-        validos.sort(() => Math.random() - 0.5);
-        let resultadoFinalDia = [...validos, ...nulos];
+        // 2 vagas de Manhã (Não pode estar na outra loja de Manhã)
+        escolherCandidato(ocupadosOutraManha);
+        escolherCandidato(ocupadosOutraManha);
         
-        while(resultadoFinalDia.length < 4) resultadoFinalDia.push(null);
+        // 2 vagas de Tarde (Não pode estar na outra loja de Tarde)
+        escolherCandidato(ocupadosOutraTarde);
+        escolherCandidato(ocupadosOutraTarde);
 
-        estado.escalaSalva[iso] = {
-            manha: [resultadoFinalDia[0], resultadoFinalDia[1]],
-            tarde: [resultadoFinalDia[2], resultadoFinalDia[3]]
+        estado.escala[lojaAlvo][iso] = {
+            manha: [escolhidosHoje[0], escolhidosHoje[1]],
+            tarde: [escolhidosHoje[2], escolhidosHoje[3]]
         };
     });
 
     try {
-        await salvarEscalaNoBancoBaseadoNasDatas();
+        await salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo);
         alert("✅ Escala gerada com sucesso!");
         bootstrap.Modal.getInstance(document.getElementById('modal-sorteio')).hide();
         atualizarVisualizacao(); 
@@ -540,37 +489,35 @@ window.sortearESalvar = async () => {
     }
 };
 
-window.zerarEscalaSemana = async () => {
+window.zerarEscalaSemana = async (lojaAlvo) => {
     try {
         const indiceSemana = parseInt(filtroSemana.value);
         const diasDaSemanaVisivel = estado.semanas[indiceSemana] || [];
 
         if (diasDaSemanaVisivel.length === 0) return alert("Não há dias úteis nesta semana.");
+        if (!confirm(`⚠️ ZERAR toda a escala da Semana ${indiceSemana + 1} na Loja ${lojaAlvo.toUpperCase()}?`)) return;
 
-        if (!confirm(`⚠️ Tem certeza que deseja ZERAR toda a escala da Semana ${indiceSemana + 1}?\n\nIsso deixará todos os plantões destes dias como "Vaga Livre".`)) return;
-
-        if (!estado.escalaSalva) estado.escalaSalva = {};
+        if (!estado.escala[lojaAlvo]) estado.escala[lojaAlvo] = {};
 
         for (let dia of diasDaSemanaVisivel) {
             let iso = dia.iso;
-            if (estado.escalaSalva[iso]) {
+            if (estado.escala[lojaAlvo][iso]) {
                 let turnos = ['manha', 'tarde'];
                 for (let t of turnos) {
                     for (let i = 0; i < 2; i++) {
-                        let c = estado.escalaSalva[iso][t] ? estado.escalaSalva[iso][t][i] : null;
+                        let c = estado.escala[lojaAlvo][iso][t] ? estado.escala[lojaAlvo][iso][t][i] : null;
                         if (c && c.falta && c.id) {
                             await updateDoc(doc(db, "corretores", c.id), { faltas: increment(-1) });
                         }
                     }
                 }
             }
-            estado.escalaSalva[iso] = { manha: [null, null], tarde: [null, null] };
+            estado.escala[lojaAlvo][iso] = { manha: [null, null], tarde: [null, null] };
         }
 
-        await salvarEscalaNoBancoBaseadoNasDatas();
+        await salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo);
         alert("✅ Escala da semana zerada com sucesso!");
         atualizarVisualizacao();
-
     } catch (error) {
         console.error("Erro ao zerar escala:", error);
         alert("Ops! Erro ao zerar: " + error.message);
@@ -578,24 +525,43 @@ window.zerarEscalaSemana = async () => {
 };
 
 // ==========================================
-// 7. HELPER: CALENDÁRIO FLUIDO (O CÉREBRO NOVO)
+// 7. HELPER: CALENDÁRIO FLUIDO
 // ==========================================
+function getDiasUteisMes(ano, mesIndex, listaDeFeriados = []) {
+    let date = new Date(ano, mesIndex, 1);
+    let days = [];
+    const nomesDias = ['Dom', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sáb'];
+    
+    while (date.getMonth() === mesIndex) {
+        let diaSemana = date.getDay();
+        let iso = date.toISOString().split('T')[0]; 
+        let feriadoEncontrado = listaDeFeriados.find(f => f.data === iso);
+
+        if (diaSemana !== 0 && diaSemana !== 6) { 
+            let fmt = date.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
+            days.push({ 
+                iso, fmt, diaSemana: nomesDias[diaSemana], isFeriado: !!feriadoEncontrado, descricaoFeriado: feriadoEncontrado ? feriadoEncontrado.descricao : "" 
+            });
+        }
+        date.setDate(date.getDate() + 1);
+    }
+    return days;
+}
+
 function getSemanasFluidas(ano, mesIndex, listaDeFeriados = []) {
     let primeiroDia = new Date(ano, mesIndex, 1);
     let ultimoDia = new Date(ano, mesIndex + 1, 0);
 
-    // Ajusta o Início (Volta até achar a Segunda-feira)
     let start = new Date(primeiroDia);
     let diaStart = start.getDay();
-    if (diaStart === 0) start.setDate(start.getDate() + 1); // Dom -> Seg
-    else if (diaStart > 1) start.setDate(start.getDate() - (diaStart - 1)); // Ex: Qui -> Seg
+    if (diaStart === 0) start.setDate(start.getDate() + 1); 
+    else if (diaStart > 1) start.setDate(start.getDate() - (diaStart - 1)); 
 
-    // Ajusta o Fim (Avança até achar a Sexta-feira)
     let end = new Date(ultimoDia);
     let diaEnd = end.getDay();
-    if (diaEnd === 6) end.setDate(end.getDate() - 1); // Sab -> Sex
-    else if (diaEnd === 0) end.setDate(end.getDate() - 2); // Dom -> Sex
-    else if (diaEnd < 5) end.setDate(end.getDate() + (5 - diaEnd)); // Ter -> Sex
+    if (diaEnd === 6) end.setDate(end.getDate() - 1); 
+    else if (diaEnd === 0) end.setDate(end.getDate() - 2); 
+    else if (diaEnd < 5) end.setDate(end.getDate() + (5 - diaEnd)); 
 
     let semanas = [];
     let semanaAtual = [];
@@ -604,21 +570,16 @@ function getSemanasFluidas(ano, mesIndex, listaDeFeriados = []) {
     let current = new Date(start);
     while (current <= end) {
         let diaSemana = current.getDay();
-        if (diaSemana !== 0 && diaSemana !== 6) { // Pula sábado e domingo
-            // YYYY-MM-DD local
+        if (diaSemana !== 0 && diaSemana !== 6) { 
             let isoStr = `${current.getFullYear()}-${String(current.getMonth()+1).padStart(2,'0')}-${String(current.getDate()).padStart(2,'0')}`;
             let feriadoEncontrado = listaDeFeriados.find(f => f.data === isoStr);
             let fmt = current.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
             
             semanaAtual.push({
-                iso: isoStr,
-                fmt: fmt,
-                diaSemana: nomesDias[diaSemana],
-                isFeriado: !!feriadoEncontrado,
-                descricaoFeriado: feriadoEncontrado ? feriadoEncontrado.descricao : ""
+                iso: isoStr, fmt: fmt, diaSemana: nomesDias[diaSemana], isFeriado: !!feriadoEncontrado, descricaoFeriado: feriadoEncontrado ? feriadoEncontrado.descricao : ""
             });
 
-            if (diaSemana === 5) { // Sexta-feira fecha e guarda o pacote da semana inteira
+            if (diaSemana === 5) { 
                 semanas.push(semanaAtual);
                 semanaAtual = [];
             }
