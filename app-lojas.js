@@ -1,5 +1,4 @@
 import { db } from "./firebase-config.js";
-// NOVO: Incluído addDoc e deleteDoc para controlar os feriados por aqui!
 import { collection, getDocs, onSnapshot, doc, setDoc, getDoc, query, orderBy, updateDoc, increment, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const tabelaFlamengo = document.getElementById('tabela-body-flamengo');
@@ -30,7 +29,6 @@ window.iniciarLojas = async () => {
         snap.forEach(d => estado.feriados.push({ id: d.id, ...d.data() }));
         buscarEscalaNoBanco(); 
         
-        // NOVO: Se a janelinha de feriados estiver aberta na tela, atualiza a lista interna na hora
         if (document.getElementById('modal-feriados')?.classList.contains('show')) {
             renderizarListaFeriadosModal();
         }
@@ -40,14 +38,22 @@ window.iniciarLojas = async () => {
         estado.corretores = [];
         snap.forEach(d => {
             let dados = d.data();
-            let suspenso = dados.elegivel === false;
+            
+            let suspenso = false;
+            for (let key in dados) {
+                if (dados[key] && String(dados[key]).toLowerCase().includes('suspenso')) {
+                    suspenso = true; break;
+                }
+            }
+            if (dados.elegivel === false) suspenso = true;
+
             estado.corretores.push({ 
                 id: d.id, 
                 nome: dados.nome, 
                 pme: parseFloat(dados.producao_pme) || 0, 
                 pf: parseFloat(dados.producao_pf) || 0, 
                 faltas: parseInt(dados.faltas) || 0,
-                isSuspenso: suspenso 
+                isSuspenso: suspenso
             });
         });
         estado.corretores.sort((a, b) => a.nome.localeCompare(b.nome));
@@ -464,16 +470,17 @@ window.sortearESalvar = async () => {
     checkboxes.forEach(c => selecionados.push({ id: c.value, nome: c.getAttribute('data-nome') }));
 
     const outraLoja = lojaAlvo === 'flamengo' ? 'tijuca' : 'flamengo';
-    const scalaOutraLoja = await getEscalaOutraLojaMesclada(outraLoja);
+    const escalaOutraLoja = await getEscalaOutraLojaMesclada(outraLoja);
 
     let semanaDoDia = {};
     estado.semanas.forEach((sem, index) => {
         sem.forEach(dia => { semanaDoDia[dia.iso] = index; });
     });
+    
     let alocadosPorSemana = {}; 
-
-    // 1. CALCULAR METAS
     let corretoresMetas = {};
+
+    // 1. INICIALIZAR METAS E CONTADORES
     selecionados.forEach(c => {
         let cData = estado.corretores.find(x => x.id === c.id);
         let isSuspenso = cData ? cData.isSuspenso : false;
@@ -496,7 +503,7 @@ window.sortearESalvar = async () => {
         alocadosPorSemana[c.id] = {}; 
     });
 
-    // 2. DESCONTAR PLANTÕES JÁ EXISTENTES 
+    // 2. DESCONTAR PLANTÕES JÁ EXISTENTES COM BLINDAGEM CONTRA UNDEFINED
     let diasParaIgnorar = diasDaVisao.map(d => d.iso);
     for (let iso in estado.escala[lojaAlvo]) {
         let sIdx = semanaDoDia[iso];
@@ -512,15 +519,24 @@ window.sortearESalvar = async () => {
                     corretoresMetas[cad1.id].alocadosGeral++;
                     corretoresMetas[cad1.id].alocadosSolo++;
                 }
-                if (cad1.id) alocadosPorSemana[cad1.id][sIdx] = (alocadosPorSemana[cad1.id][sIdx] || 0) + 1;
+                if (cad1.id && sIdx !== undefined) {
+                    if (!alocadosPorSemana[cad1.id]) alocadosPorSemana[cad1.id] = {};
+                    alocadosPorSemana[cad1.id][sIdx] = (alocadosPorSemana[cad1.id][sIdx] || 0) + 1;
+                }
             } else {
                 if (cad1) {
                     if (corretoresMetas[cad1.id] && !diasParaIgnorar.includes(iso)) corretoresMetas[cad1.id].alocadosGeral++;
-                    alocadosPorSemana[cad1.id][sIdx] = (alocadosPorSemana[cad1.id][sIdx] || 0) + 1;
+                    if (sIdx !== undefined) {
+                        if (!alocadosPorSemana[cad1.id]) alocadosPorSemana[cad1.id] = {};
+                        alocadosPorSemana[cad1.id][sIdx] = (alocadosPorSemana[cad1.id][sIdx] || 0) + 1;
+                    }
                 }
                 if (cad2) {
                     if (corretoresMetas[cad2.id] && !diasParaIgnorar.includes(iso)) corretoresMetas[cad2.id].alocadosGeral++;
-                    alocadosPorSemana[cad2.id][sIdx] = (alocadosPorSemana[cad2.id][sIdx] || 0) + 1;
+                    if (sIdx !== undefined) {
+                        if (!alocadosPorSemana[cad2.id]) alocadosPorSemana[cad2.id] = {};
+                        alocadosPorSemana[cad2.id][sIdx] = (alocadosPorSemana[cad2.id][sIdx] || 0) + 1;
+                    }
                 }
             }
         });
@@ -536,8 +552,8 @@ window.sortearESalvar = async () => {
     turnosParaPreencher.sort(() => Math.random() - 0.5); 
 
     const isCorretorOcupadoNaOutraLoja = (corretorId, iso, turno) => {
-        if (!scalaOutraLoja[iso]) return false;
-        let eOutra = scalaOutraLoja[iso];
+        if (!escalaOutraLoja[iso]) return false;
+        let eOutra = escalaOutraLoja[iso];
         if (eOutra[turno]) {
             if (eOutra[turno][0] && eOutra[turno][0].id === corretorId) return true;
             if (eOutra[turno][1] && eOutra[turno][1].id === corretorId) return true;
@@ -607,10 +623,10 @@ window.sortearESalvar = async () => {
                     return percA - percB;
                 });
 
-                letPlatform = elegiveis[0];
-                t.vagas[i] = { id: letPlatform.id, nome: letPlatform.nome, atendimentos: 0, falta: false };
-                letPlatform.alocadosGeral++;
-                alocadosPorSemana[letPlatform.id][sIdx] = (alocadosPorSemana[letPlatform.id][sIdx] || 0) + 1;
+                let escolhido = elegiveis[0];
+                t.vagas[i] = { id: escolhido.id, nome: escolhido.nome, atendimentos: 0, falta: false };
+                escolhido.alocadosGeral++;
+                alocadosPorSemana[escolhido.id][sIdx] = (alocadosPorSemana[escolhido.id][sIdx] || 0) + 1;
             }
         }
     });
@@ -625,7 +641,7 @@ window.sortearESalvar = async () => {
 
             elegiveisXepa.sort((a, b) => {
                 let vezesSemanaA = alocadosPorSemana[a.id][sIdx] || 0;
-                letvezesSemanaB = alocadosPorSemana[b.id][sIdx] || 0;
+                let vezesSemanaB = alocadosPorSemana[b.id][sIdx] || 0;
                 if (vezesSemanaA !== vezesSemanaB) return vezesSemanaA - vezesSemanaB;
 
                 if (a.alocadosXepa !== b.alocadosXepa) return a.alocadosXepa - b.alocadosXepa; 
@@ -649,7 +665,7 @@ window.sortearESalvar = async () => {
         }
     });
 
-    // 7. MONTAR A ESCALA FINAL
+    // 7. MONTAR A ESCALA FINAL E SALVAR
     diasDaVisao.forEach(dia => {
         if (dia.isFeriado) return;
         let turnosDoDia = turnosParaPreencher.filter(t => t.iso === dia.iso);
@@ -703,7 +719,7 @@ window.zerarEscalaSemana = async (lojaAlvo) => {
 };
 
 // ==========================================
-// 8. GERENCIAMENTO DE FERIADOS (NOVO)
+// 8. GERENCIAMENTO DE FERIADOS
 // ==========================================
 function renderizarListaFeriadosModal() {
     const divLista = document.getElementById('lista-feriados-modal');
@@ -797,11 +813,7 @@ function getSemanasFluidas(ano, mesIndex, listaDeFeriados = []) {
             let fmt = current.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
             
             semanaAtual.push({
-                iso: isoStr, 
-                fmt: fmt, 
-                diaSemana: nomesDias[diaSemana], 
-                isFeriado: !!feriadoEncontrado, 
-                descricaoFeriado: feriadoEncontrado ? feriadoEncontrado.descricao : ""
+                iso: isoStr, fmt: fmt, diaSemana: nomesDias[diaSemana], isFeriado: !!feriadoEncontrado, descricaoFeriado: feriadoEncontrado ? feriadoEncontrado.descricao : ""
             });
 
             if (diaSemana === 5) { 
