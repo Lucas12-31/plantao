@@ -123,6 +123,7 @@
 
     </div>
 
+    <!-- MODAL DE LANÇAR PRODUÇÃO -->
     <div class="modal fade" id="modal-lancar-producao" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg border-0 border-top border-success border-4">
@@ -165,6 +166,7 @@
         </div>
     </div>
 
+    <!-- MODAL DE EDITAR PRODUÇÃO (LÁPIS) -->
     <div class="modal fade" id="modal-editar-producao" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg border-0">
@@ -204,36 +206,6 @@
 
                     <div class="row g-3 mt-2">
                         <div class="col-12">
-                            <label class="form-label fw-bold small text-muted text-uppercase mb-1">Competência (Mês/Ano):</label>
-                            <input type="month" id="edit-prod-mes" class="form-control fw-bold shadow-sm">
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer bg-white">
-                    <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-warning fw-bold px-4 shadow-sm" onclick="salvarEdicaoProducao()">💾 Salvar Correções</button>
-                </div>
-            </div>
-        </div>
-    </div>
-                <div class="modal-body bg-light p-4">
-                    <div class="alert alert-warning small mb-4">
-                        ⚠️ <b>Aviso:</b> Esta ação sobrescreve os valores. Use para correções.
-                    </div>
-                    
-                    <input type="hidden" id="edit-prod-id">
-                    <h5 id="edit-prod-nome" class="fw-bold text-center mb-4 text-uppercase text-dark">NOME DO CORRETOR</h5>
-                    
-                    <div class="row g-3">
-                        <div class="col-6">
-                            <label class="form-label fw-bold small text-muted text-uppercase mb-1">Total PME (R$):</label>
-                            <input type="number" id="edit-prod-pme" class="form-control fw-bold shadow-sm" step="0.01" min="0">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label fw-bold small text-muted text-uppercase mb-1">Total PF (R$):</label>
-                            <input type="number" id="edit-prod-pf" class="form-control fw-bold shadow-sm" step="0.01" min="0">
-                        </div>
-                        <div class="col-12 mt-3">
                             <label class="form-label fw-bold small text-muted text-uppercase mb-1">Competência (Mês/Ano):</label>
                             <input type="month" id="edit-prod-mes" class="form-control fw-bold shadow-sm">
                         </div>
