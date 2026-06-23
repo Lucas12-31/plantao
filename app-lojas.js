@@ -98,7 +98,6 @@ function atualizarVisualizacao() {
     const [anoStr, mesStr] = filtroMes.value.split('-');
     estado.semanas = getSemanasFluidas(parseInt(anoStr), parseInt(mesStr) - 1, estado.feriados);
 
-    // NOVO: Adiciona a opção de Mês Completo
     const valorAntigoSemana = filtroSemana.value;
     filtroSemana.innerHTML = '<option value="all" class="fw-bold text-primary">📅 Exibir Mês Completo</option>';
     estado.semanas.forEach((sem, index) => {
@@ -108,19 +107,14 @@ function atualizarVisualizacao() {
     });
 
     if (carregamentoInicial) {
-        filtroSemana.value = "all"; // Padrão: Começa exibindo o Mês
+        filtroSemana.value = "all"; 
         carregamentoInicial = false;
     } else if (valorAntigoSemana) {
         filtroSemana.value = valorAntigoSemana;
     }
 
     const valSemana = filtroSemana.value;
-    let diasDaVisao = [];
-    if (valSemana === "all") {
-        diasDaVisao = estado.semanas.flat(); // Junta todas as semanas em uma lista só
-    } else {
-        diasDaVisao = estado.semanas[parseInt(valSemana)] || [];
-    }
+    let diasDaVisao = (valSemana === "all") ? estado.semanas.flat() : (estado.semanas[parseInt(valSemana)] || []);
 
     if (diasDaVisao.length === 0) {
         let msg = '<tr><td colspan="5" class="text-center py-4 text-muted">Não há dias úteis.</td></tr>';
@@ -140,8 +134,6 @@ function atualizarVisualizacao() {
             let classFeriadoTd = dia.isFeriado ? "bg-danger text-white bg-opacity-75 border-danger" : classHoje;
             
             let classeMesDiferente = (dia.iso.substring(0,7) !== filtroMes.value) ? "fst-italic opacity-75" : "";
-            
-            // NOVO: Adiciona uma borda grossa no final de toda sexta-feira para separar as semanas visualmente!
             let estiloBordaSexta = dia.diaSemana === 'Sexta' ? "border-bottom: 3px solid #343a40;" : "";
 
             htmlBody += `<tr class="${classeMesDiferente}" style="${estiloBordaSexta}">`;
@@ -254,9 +246,7 @@ window.salvarDetalhesPlantao = async () => {
     try {
         if (idSelecionado) {
             if (idSelecionado === idAntigo) {
-                if (faltaNova !== faltaAntiga) {
-                    await updateDoc(doc(db, "corretores", idSelecionado), { faltas: increment(faltaNova ? 1 : -1) });
-                }
+                if (faltaNova !== faltaAntiga) await updateDoc(doc(db, "corretores", idSelecionado), { faltas: increment(faltaNova ? 1 : -1) });
             } else {
                 if (idAntigo && faltaAntiga) await updateDoc(doc(db, "corretores", idAntigo), { faltas: increment(-1) });
                 if (faltaNova) await updateDoc(doc(db, "corretores", idSelecionado), { faltas: increment(1) });
@@ -344,7 +334,7 @@ filtroMes.addEventListener('change', buscarEscalaNoBanco);
 filtroSemana.addEventListener('change', atualizarVisualizacao);
 
 // ==========================================
-// 6. MODAL E SORTEIO INTELIGENTE
+// 6. MODAL E SORTEIO INTELIGENTE (MERITOCRACIA)
 // ==========================================
 window.abrirModalSorteio = (loja) => {
     window.lojaSorteioAtual = loja;
@@ -359,6 +349,23 @@ window.abrirModalSorteio = (loja) => {
         let corBorda = 'border-danger'; 
         if (pme > 0) corBorda = 'border-success'; 
         else if (pf > 0) corBorda = 'border-warning'; 
+
+        // CÁLCULO DAS METAS E DIREITOS DE PLANTÃO PARA EXIBIR NA TELA
+        let pontos = (pme * 2) + pf;
+        let totalPlantoes = pontos > 0 ? 1 + Math.floor(pontos / 5000) : 0;
+        totalPlantoes = Math.min(4, totalPlantoes); // Máximo 4
+        
+        let totalSolo = Math.floor(pme / 5000);
+        totalSolo = Math.min(2, totalSolo); // Máximo 2
+        totalSolo = Math.min(totalSolo, totalPlantoes); // Solo não pode ser maior que o total
+
+        let infoDireito = '';
+        if (totalPlantoes > 0) {
+            infoDireito = `<span class="badge bg-primary ms-1" style="font-size: 0.7rem;" title="Direito de Plantões no Mês">🏆 ${totalPlantoes} Vagas ${totalSolo > 0 ? `(${totalSolo} Solo)` : ''}</span>`;
+        } else {
+            infoDireito = `<span class="badge bg-secondary ms-1" style="font-size: 0.7rem;" title="Sem produção no mês">🚫 0 Vagas</span>`;
+        }
+
         let badgeFaltas = c.faltas > 0 ? `<span class="badge bg-danger ms-2" title="Acúmulo de Faltas">${c.faltas} ⚠️</span>` : '';
 
         html += `
@@ -366,7 +373,7 @@ window.abrirModalSorteio = (loja) => {
                 <div class="form-check border ${corBorda} border-2 rounded p-2 bg-white shadow-sm d-flex align-items-center">
                     <input class="form-check-input ms-1 me-2 chk-corretor" type="checkbox" value="${c.id}" id="chk_${c.id}" data-nome="${c.nome}">
                     <label class="form-check-label fw-bold w-100" style="cursor: pointer;" for="chk_${c.id}">
-                        ${c.nome.split(' ')[0]} ${badgeFaltas}
+                        ${c.nome.split(' ')[0]} ${infoDireito} ${badgeFaltas}
                     </label>
                 </div>
             </div>
@@ -409,7 +416,7 @@ window.sortearESalvar = async () => {
     const diasDaVisao = (valSemana === "all") ? estado.semanas.flat() : (estado.semanas[parseInt(valSemana)] || []);
     let textoEscopo = (valSemana === "all") ? "o MÊS COMPLETO" : `a SEMANA ${parseInt(valSemana) + 1}`;
 
-    if(!confirm(`Deseja gerar o sorteio da Loja ${lojaAlvo.toUpperCase()} para ${textoEscopo}?`)) return;
+    if(!confirm(`O sistema aplicará as regras de meritocracia por produção.\nDeseja gerar o sorteio da Loja ${lojaAlvo.toUpperCase()} para ${textoEscopo}?`)) return;
 
     let selecionados = [];
     checkboxes.forEach(c => selecionados.push({ id: c.value, nome: c.getAttribute('data-nome') }));
@@ -417,54 +424,131 @@ window.sortearESalvar = async () => {
     const outraLoja = lojaAlvo === 'flamengo' ? 'tijuca' : 'flamengo';
     const escalaOutraLoja = await getEscalaOutraLojaMesclada(outraLoja);
 
-    let contagemTurnos = {};
-    selecionados.forEach(c => contagemTurnos[c.id] = 0);
+    // 1. CALCULAR METAS (DIREITOS) DOS CORRETORES
+    let corretoresMetas = {};
+    selecionados.forEach(c => {
+        let cData = estado.corretores.find(x => x.id === c.id);
+        let pme = cData ? cData.pme : 0;
+        let pf = cData ? cData.pf : 0;
+        let pontos = (pme * 2) + pf;
 
-    diasDaVisao.forEach(dia => {
-        if (dia.isFeriado) return; 
-        let iso = dia.iso;
+        let total = pontos > 0 ? 1 + Math.floor(pontos / 5000) : 0;
+        total = Math.min(4, total); // Cap de 4 por mês
+
+        let solo = Math.floor(pme / 5000);
+        solo = Math.min(2, solo); // Cap de 2 solo por mês
+        solo = Math.min(solo, total);
+
+        corretoresMetas[c.id] = {
+            id: c.id, nome: c.nome, totalGeral: total, totalSolo: solo, alocadosGeral: 0, alocadosSolo: 0
+        };
+    });
+
+    // 2. DESCONTAR PLANTÕES QUE JÁ EXISTEM NO MÊS (FORA DA VISÃO ATUAL) PARA NÃO PASSAR DO LIMITE DE 4
+    let diasParaIgnorar = diasDaVisao.map(d => d.iso);
+    for (let iso in estado.escala[lojaAlvo]) {
+        if (diasParaIgnorar.includes(iso)) continue; 
         
-        let ocupadosOutraManha = [];
-        let ocupadosOutraTarde = [];
+        let diaEscala = estado.escala[lojaAlvo][iso];
+        ['manha', 'tarde'].forEach(turno => {
+            if(!diaEscala[turno]) return;
+            let cad1 = diaEscala[turno][0];
+            let cad2 = diaEscala[turno][1];
+            
+            // Checa se é Solo (Mesmo corretor nas duas cadeiras)
+            if (cad1 && cad2 && cad1.id === cad2.id) {
+                if (corretoresMetas[cad1.id]) {
+                    corretoresMetas[cad1.id].alocadosGeral++;
+                    corretoresMetas[cad1.id].alocadosSolo++;
+                }
+            } else {
+                if (cad1 && corretoresMetas[cad1.id]) corretoresMetas[cad1.id].alocadosGeral++;
+                if (cad2 && corretoresMetas[cad2.id]) corretoresMetas[cad2.id].alocadosGeral++;
+            }
+        });
+    }
 
-        if (escalaOutraLoja[iso]) {
-            const eOutra = escalaOutraLoja[iso];
-            if (eOutra.manha && eOutra.manha[0]) ocupadosOutraManha.push(eOutra.manha[0].id);
-            if (eOutra.manha && eOutra.manha[1]) ocupadosOutraManha.push(eOutra.manha[1].id);
-            if (eOutra.tarde && eOutra.tarde[0]) ocupadosOutraTarde.push(eOutra.tarde[0].id);
-            if (eOutra.tarde && eOutra.tarde[1]) ocupadosOutraTarde.push(eOutra.tarde[1].id);
+    // 3. PREPARAR OS SLOTS DE TURNO QUE VAMOS PREENCHER
+    let turnosParaPreencher = [];
+    diasDaVisao.forEach(dia => {
+        if (dia.isFeriado) return;
+        turnosParaPreencher.push({ iso: dia.iso, turno: 'manha', vagas: [null, null] });
+        turnosParaPreencher.push({ iso: dia.iso, turno: 'tarde', vagas: [null, null] });
+    });
+    // Embaralha para ficar justo e aleatório as datas
+    turnosParaPreencher.sort(() => Math.random() - 0.5); 
+
+    function isCorretorOcupadoNaOutraLoja(corretorId, iso, turno) {
+        if (!escalaOutraLoja[iso]) return false;
+        let eOutra = escalaOutraLoja[iso];
+        if (eOutra[turno]) {
+            if (eOutra[turno][0] && eOutra[turno][0].id === corretorId) return true;
+            if (eOutra[turno][1] && eOutra[turno][1].id === corretorId) return true;
         }
+        return false;
+    }
 
-        let escolhidosHoje = []; 
-        const escolherCandidato = (ocupadosNoTurno) => {
-            let candidatosDisponiveis = selecionados.filter(c => 
-                !ocupadosNoTurno.includes(c.id) && !escolhidosHoje.some(escolhido => escolhido !== null && escolhido.id === c.id) 
+    // 4. DISTRIBUIÇÃO FASE 1: GARANTIR OS PLANTÕES SOLO PRIMEIRO
+    Object.values(corretoresMetas).forEach(cMeta => {
+        while (cMeta.alocadosSolo < cMeta.totalSolo && cMeta.alocadosGeral < cMeta.totalGeral) {
+            let turnoIndex = turnosParaPreencher.findIndex(t => 
+                t.vagas[0] === null && t.vagas[1] === null && !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno)
+            );
+            
+            if (turnoIndex !== -1) {
+                turnosParaPreencher[turnoIndex].vagas[0] = { id: cMeta.id, nome: cMeta.nome, atendimentos: 0, falta: false };
+                turnosParaPreencher[turnoIndex].vagas[1] = { id: cMeta.id, nome: cMeta.nome, atendimentos: 0, falta: false };
+                cMeta.alocadosSolo++;
+                cMeta.alocadosGeral++;
+            } else {
+                break; // Se não achou turno vazio, azar.
+            }
+        }
+    });
+
+    // 5. DISTRIBUIÇÃO FASE 2: PREENCHER AS CADEIRAS INDIVIDUAIS RESTANTES
+    turnosParaPreencher.forEach(t => {
+        for (let i = 0; i < 2; i++) {
+            if (t.vagas[i] !== null) continue; // Cadeira já preenchida (ex: pelo plantão solo)
+
+            let elegiveis = Object.values(corretoresMetas).filter(cMeta => 
+                cMeta.alocadosGeral < cMeta.totalGeral && // Ainda tem direito a vaga no mês
+                t.vagas[0]?.id !== cMeta.id && // Não pode ser ele mesmo na outra cadeira (pra não virar solo sem querer)
+                !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) // Não chocar com a outra loja
             );
 
-            if (candidatosDisponiveis.length === 0) {
-                escolhidosHoje.push(null); 
-            } else {
-                candidatosDisponiveis.sort((a, b) => {
-                    let pesoA = contagemTurnos[a.id];
-                    let pesoB = contagemTurnos[b.id];
-                    if (pesoA === pesoB) return Math.random() - 0.5; 
-                    return pesoA - pesoB;
+            if (elegiveis.length > 0) {
+                // Prioriza quem recebeu menos da sua cota até agora
+                elegiveis.sort((a, b) => {
+                    let percA = a.alocadosGeral / a.totalGeral;
+                    let percB = b.alocadosGeral / b.totalGeral;
+                    if (percA === percB) return Math.random() - 0.5; // Desempate aleatório
+                    return percA - percB;
                 });
-                let selecionado = candidatosDisponiveis[0];
-                escolhidosHoje.push({ id: selecionado.id, nome: selecionado.nome, atendimentos: 0, falta: false }); 
-                contagemTurnos[selecionado.id]++; 
+
+                let escolhido = elegiveis[0];
+                t.vagas[i] = { id: escolhido.id, nome: escolhido.nome, atendimentos: 0, falta: false };
+                escolhido.alocadosGeral++;
             }
+        }
+    });
+
+    // 6. MONTAR A ESCALA FINAL E SALVAR
+    diasDaVisao.forEach(dia => {
+        if (dia.isFeriado) return;
+        let turnosDoDia = turnosParaPreencher.filter(t => t.iso === dia.iso);
+        let manha = turnosDoDia.find(t => t.turno === 'manha');
+        let tarde = turnosDoDia.find(t => t.turno === 'tarde');
+
+        estado.escala[lojaAlvo][dia.iso] = {
+            manha: manha ? manha.vagas : [null, null],
+            tarde: tarde ? tarde.vagas : [null, null]
         };
-
-        escolherCandidato(ocupadosOutraManha); escolherCandidato(ocupadosOutraManha);
-        escolherCandidato(ocupadosOutraTarde); escolherCandidato(ocupadosOutraTarde);
-
-        estado.escala[lojaAlvo][iso] = { manha: [escolhidosHoje[0], escolhidosHoje[1]], tarde: [escolhidosHoje[2], escolhidosHoje[3]] };
     });
 
     try {
         await salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo);
-        alert("✅ Escala gerada com sucesso!");
+        alert("✅ Escala Meritocrática gerada com sucesso!");
         bootstrap.Modal.getInstance(document.getElementById('modal-sorteio')).hide();
         atualizarVisualizacao(); 
     } catch (error) { console.error("Erro ao salvar:", error); alert("Erro ao salvar no banco de dados."); }
