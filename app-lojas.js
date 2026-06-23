@@ -34,9 +34,7 @@ window.iniciarLojas = async () => {
         estado.corretores = [];
         snap.forEach(d => {
             let dados = d.data();
-            
             let suspenso = dados.elegivel === false;
-
             estado.corretores.push({ 
                 id: d.id, 
                 nome: dados.nome, 
@@ -161,7 +159,7 @@ function atualizarVisualizacao() {
                 const desenharCadeira = (corretor, iso, turno, index, dataFmt) => {
                     let conteudo = '';
                     let classesCard = 'card-vaga shadow-sm border-2'; 
-                    let classesTexto = 'nome-corretor text-truncate text-center w-100';
+                    let classesTexto = 'nome-corretor text-center w-100';
                     let badgeAtendimentos = '';
                     let iconeTroca = '';
 
@@ -170,13 +168,12 @@ function atualizarVisualizacao() {
                         if (corretor.atendimentos > 0) badgeAtendimentos = `<span class="badge bg-success position-absolute top-0 start-100 translate-middle rounded-pill shadow" style="font-size: 0.8rem; z-index: 2;">${corretor.atendimentos}</span>`;
                         if (corretor.trocaInfo) { classesCard += ' border-warning border-2'; iconeTroca = '<span title="Plantão Trocado" class="me-1">🔄</span>'; }
 
-                        let partesNome = corretor.nome.split(' ');
-                        let nomeExibicao = partesNome[0] + (partesNome.length > 1 ? ' ' + partesNome[1] : '');
+                        let nomeDisplay = corretor.nome;
 
                         conteudo = `
                             <div class="${classesCard}" onclick="abrirDetalhesPlantao('${lojaId}', '${iso}', '${turno}', ${index}, '${dataFmt}')">
                                 ${badgeAtendimentos}
-                                <div class="${classesTexto}" title="${corretor.nome}">${iconeTroca}${nomeExibicao}</div>
+                                <div class="${classesTexto}" title="${corretor.nome}">${iconeTroca}${nomeDisplay}</div>
                             </div>`;
                     } else {
                         conteudo = `
@@ -342,7 +339,7 @@ filtroMes.addEventListener('change', buscarEscalaNoBanco);
 filtroSemana.addEventListener('change', atualizarVisualizacao);
 
 // ==========================================
-// 6. MODAL E SORTEIO INTELIGENTE
+// 6. MODAL E SORTEIO INTELIGENTE (MERITOCRACIA + ESPAÇAMENTO SEMANAL)
 // ==========================================
 window.abrirModalSorteio = (loja) => {
     window.lojaSorteioAtual = loja;
@@ -377,18 +374,15 @@ window.abrirModalSorteio = (loja) => {
 
         let infoDireito = '';
         if (isSuspenso) {
-            // Texto reduzido para não quebrar a linha e estragar o design
             infoDireito = `<span class="badge bg-dark text-white" style="font-size: 0.65rem;" title="Corretor Suspenso">⛔ SUSPENSO</span>`;
         } else if (totalPlantoes > 0) {
-            // Adaptação para Vgs em vez de Vagas e (2S) para economizar espaço
-            infoDireito = `<span class="badge bg-primary" style="font-size: 0.7rem;" title="Direito de Plantões no Mês">🏆 ${totalPlantoes} Vagas ${totalSolo > 0 ? `(${totalSolo} Solo)` : ''}</span>`;
+            infoDireito = `<span class="badge bg-primary" style="font-size: 0.7rem;" title="Direito de Plantões no Mês">🏆 ${totalPlantoes} Vgs ${totalSolo > 0 ? `(${totalSolo} S)` : ''}</span>`;
         } else {
             infoDireito = `<span class="badge bg-secondary" style="font-size: 0.7rem;" title="Sem produção no mês">🚫 0 Vagas</span>`;
         }
 
         let badgeFaltas = c.faltas > 0 ? `<span class="badge bg-danger ms-1" title="Acúmulo de Faltas">${c.faltas} ⚠️</span>` : '';
 
-        // NOVO DESIGN: Adicionado d-flex com justify-content-between e trava h-100 para garantir que tudo fique na mesma linha e do mesmo tamanho
         html += `
             <div class="col-md-4">
                 <div class="form-check border ${corBorda} border-2 rounded p-2 bg-white shadow-sm d-flex align-items-center h-100">
@@ -408,19 +402,12 @@ window.abrirModalSorteio = (loja) => {
 
 window.selecionarFiltros = (tipo) => {
     const checkboxes = document.querySelectorAll('.chk-corretor');
-    
     checkboxes.forEach(chk => {
         let cor = chk.getAttribute('data-cor');
-        
-        if (tipo === 'todos') {
-            chk.checked = true;
-        } else if (tipo === 'verdes' && cor === 'verde') {
-            chk.checked = true;
-        } else if (tipo === 'amarelos' && cor === 'amarelo') {
-            chk.checked = true;
-        } else if (tipo === 'limpar') {
-            chk.checked = false;
-        }
+        if (tipo === 'todos') chk.checked = true;
+        else if (tipo === 'verdes' && cor === 'verde') chk.checked = true;
+        else if (tipo === 'amarelos' && cor === 'amarelo') chk.checked = true;
+        else if (tipo === 'limpar') chk.checked = false;
     });
 };
 
@@ -454,7 +441,7 @@ window.sortearESalvar = async () => {
     const diasDaVisao = (valSemana === "all") ? estado.semanas.flat() : (estado.semanas[parseInt(valSemana)] || []);
     let textoEscopo = (valSemana === "all") ? "o MÊS COMPLETO" : `a SEMANA ${parseInt(valSemana) + 1}`;
 
-    if(!confirm(`Deseja gerar o sorteio da Loja ${lojaAlvo.toUpperCase()} para ${textoEscopo}?\n\nO sistema aplicará a meritocracia e preencherá as vagas restantes para quem chegou mais perto de subir de patamar (Xepa da Produção).`)) return;
+    if(!confirm(`Deseja gerar o sorteio da Loja ${lojaAlvo.toUpperCase()} para ${textoEscopo}?\n\nO sistema aplicará a meritocracia, preencherá as vagas restantes (Xepa) e evitará repetições na mesma semana sempre que possível.`)) return;
 
     let selecionados = [];
     checkboxes.forEach(c => selecionados.push({ id: c.value, nome: c.getAttribute('data-nome') }));
@@ -462,24 +449,27 @@ window.sortearESalvar = async () => {
     const outraLoja = lojaAlvo === 'flamengo' ? 'tijuca' : 'flamengo';
     const escalaOutraLoja = await getEscalaOutraLojaMesclada(outraLoja);
 
+    // Mapeador de Semanas (Para a Trava Anti-Repetição Semanal)
+    let semanaDoDia = {};
+    estado.semanas.forEach((sem, index) => {
+        sem.forEach(dia => { semanaDoDia[dia.iso] = index; });
+    });
+    let alocadosPorSemana = {}; // Registra quantas vezes o corretor caiu em cada semana
+
     // 1. CALCULAR METAS
     let corretoresMetas = {};
     selecionados.forEach(c => {
         let cData = estado.corretores.find(x => x.id === c.id);
-        
         let isSuspenso = cData ? cData.isSuspenso : false;
         let pme = (cData && !isSuspenso) ? cData.pme : 0;
         let pf = (cData && !isSuspenso) ? cData.pf : 0;
-        
         let pontos = (pme * 2) + pf;
 
         let total = pontos > 0 ? 1 + Math.floor(pontos / 5000) : 0;
         total = Math.min(4, total); 
-
         let solo = Math.floor(pme / 5000);
         solo = Math.min(2, solo); 
         solo = Math.min(solo, total);
-
         let resto = pontos % 5000;
 
         corretoresMetas[c.id] = { 
@@ -487,27 +477,35 @@ window.sortearESalvar = async () => {
             alocadosGeral: 0, alocadosSolo: 0, alocadosXepa: 0,
             pontos: pontos, resto: resto 
         };
+        alocadosPorSemana[c.id] = {}; // Inicia o contador semanal limpo
     });
 
-    // 2. DESCONTAR PLANTÕES JÁ EXISTENTES 
+    // 2. DESCONTAR PLANTÕES JÁ EXISTENTES NO MÊS E ALIMENTAR O CONTADOR SEMANAL
     let diasParaIgnorar = diasDaVisao.map(d => d.iso);
     for (let iso in estado.escala[lojaAlvo]) {
-        if (diasParaIgnorar.includes(iso)) continue; 
-        
+        let sIdx = semanaDoDia[iso];
         let diaEscala = estado.escala[lojaAlvo][iso];
+
         ['manha', 'tarde'].forEach(turno => {
             if(!diaEscala[turno]) return;
             let cad1 = diaEscala[turno][0];
             let cad2 = diaEscala[turno][1];
             
-            if (cad1 && cad2 && cad1.id === cad2.id) {
-                if (corretoresMetas[cad1.id]) {
+            if (cad1 && cad2 && cad1.id === cad2.id) { // Foi plantão solo
+                if (corretoresMetas[cad1.id] && !diasParaIgnorar.includes(iso)) {
                     corretoresMetas[cad1.id].alocadosGeral++;
                     corretoresMetas[cad1.id].alocadosSolo++;
                 }
+                if (cad1.id) alocadosPorSemana[cad1.id][sIdx] = (alocadosPorSemana[cad1.id][sIdx] || 0) + 1;
             } else {
-                if (cad1 && corretoresMetas[cad1.id]) corretoresMetas[cad1.id].alocadosGeral++;
-                if (cad2 && corretoresMetas[cad2.id]) corretoresMetas[cad2.id].alocadosGeral++;
+                if (cad1) {
+                    if (corretoresMetas[cad1.id] && !diasParaIgnorar.includes(iso)) corretoresMetas[cad1.id].alocadosGeral++;
+                    alocadosPorSemana[cad1.id][sIdx] = (alocadosPorSemana[cad1.id][sIdx] || 0) + 1;
+                }
+                if (cad2) {
+                    if (corretoresMetas[cad2.id] && !diasParaIgnorar.includes(iso)) corretoresMetas[cad2.id].alocadosGeral++;
+                    alocadosPorSemana[cad2.id][sIdx] = (alocadosPorSemana[cad2.id][sIdx] || 0) + 1;
+                }
             }
         });
     }
@@ -539,26 +537,40 @@ window.sortearESalvar = async () => {
         return false;
     };
 
-    // 4. DISTRIBUIÇÃO FASE 1: SOLO
+    // 4. DISTRIBUIÇÃO FASE 1: SOLO (Busca Semanas Vazias)
     Object.values(corretoresMetas).forEach(cMeta => {
         while (cMeta.alocadosSolo < cMeta.totalSolo && cMeta.alocadosGeral < cMeta.totalGeral) {
+            // 1ª Tentativa: Achar um dia numa semana que ele ainda não trabalhou
             let turnoIndex = turnosParaPreencher.findIndex(t => 
                 t.vagas[0] === null && t.vagas[1] === null && 
                 !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) &&
-                !isCorretorOcupadoNoDiaNaMesmaLoja(cMeta.id, t.iso)
+                !isCorretorOcupadoNoDiaNaMesmaLoja(cMeta.id, t.iso) &&
+                (alocadosPorSemana[cMeta.id][semanaDoDia[t.iso]] || 0) === 0 
             );
             
+            // Fallback: Se todas as semanas já tem ele, pega o primeiro buraco que servir
+            if (turnoIndex === -1) {
+                turnoIndex = turnosParaPreencher.findIndex(t => 
+                    t.vagas[0] === null && t.vagas[1] === null && 
+                    !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) &&
+                    !isCorretorOcupadoNoDiaNaMesmaLoja(cMeta.id, t.iso)
+                );
+            }
+
             if (turnoIndex !== -1) {
+                let sIdx = semanaDoDia[turnosParaPreencher[turnoIndex].iso];
                 turnosParaPreencher[turnoIndex].vagas[0] = { id: cMeta.id, nome: cMeta.nome, atendimentos: 0, falta: false };
                 turnosParaPreencher[turnoIndex].vagas[1] = { id: cMeta.id, nome: cMeta.nome, atendimentos: 0, falta: false };
                 cMeta.alocadosSolo++;
                 cMeta.alocadosGeral++;
+                alocadosPorSemana[cMeta.id][sIdx] = (alocadosPorSemana[cMeta.id][sIdx] || 0) + 1;
             } else break; 
         }
     });
 
-    // 5. DISTRIBUIÇÃO FASE 2: NORMAL
+    // 5. DISTRIBUIÇÃO FASE 2: NORMAL (Com peso Semanal)
     turnosParaPreencher.forEach(t => {
+        let sIdx = semanaDoDia[t.iso];
         for (let i = 0; i < 2; i++) {
             if (t.vagas[i] !== null) continue; 
 
@@ -570,27 +582,44 @@ window.sortearESalvar = async () => {
             );
 
             if (elegiveis.length > 0) {
+                // Inteligência de Ordenação (Pesos)
                 elegiveis.sort((a, b) => {
+                    let vezesSemanaA = alocadosPorSemana[a.id][sIdx] || 0;
+                    let vezesSemanaB = alocadosPorSemana[b.id][sIdx] || 0;
+                    
+                    // Peso 1: Tenta botar quem apareceu MENOS vezes nesta semana específica
+                    if (vezesSemanaA !== vezesSemanaB) return vezesSemanaA - vezesSemanaB; 
+
+                    // Peso 2: Se deu empate, olha quem completou menos a cota geral do mês
                     let percA = a.alocadosGeral / a.totalGeral;
                     let percB = b.alocadosGeral / b.totalGeral;
                     if (percA === percB) return Math.random() - 0.5; 
                     return percA - percB;
                 });
+
                 let escolhido = elegiveis[0];
                 t.vagas[i] = { id: escolhido.id, nome: escolhido.nome, atendimentos: 0, falta: false };
                 escolhido.alocadosGeral++;
+                alocadosPorSemana[escolhido.id][sIdx] = (alocadosPorSemana[escolhido.id][sIdx] || 0) + 1;
             }
         }
     });
 
-    // 6. DISTRIBUIÇÃO FASE 3: A XEPA
+    // 6. DISTRIBUIÇÃO FASE 3: A XEPA (Com peso Semanal)
     let elegiveisXepa = Object.values(corretoresMetas).filter(c => c.pontos > 0);
 
     turnosParaPreencher.forEach(t => {
+        let sIdx = semanaDoDia[t.iso];
         for (let i = 0; i < 2; i++) {
             if (t.vagas[i] !== null) continue; 
 
             elegiveisXepa.sort((a, b) => {
+                let vezesSemanaA = alocadosPorSemana[a.id][sIdx] || 0;
+                let vezesSemanaB = alocadosPorSemana[b.id][sIdx] || 0;
+                
+                // Na Xepa também tentamos não repetir na semana
+                if (vezesSemanaA !== vezesSemanaB) return vezesSemanaA - vezesSemanaB;
+
                 if (a.alocadosXepa !== b.alocadosXepa) return a.alocadosXepa - b.alocadosXepa; 
                 if (b.resto !== a.resto) return b.resto - a.resto; 
                 return b.pontos - a.pontos; 
@@ -605,6 +634,7 @@ window.sortearESalvar = async () => {
                     t.vagas[i] = { id: cMeta.id, nome: cMeta.nome, atendimentos: 0, falta: false };
                     cMeta.alocadosGeral++;
                     cMeta.alocadosXepa++; 
+                    alocadosPorSemana[cMeta.id][sIdx] = (alocadosPorSemana[cMeta.id][sIdx] || 0) + 1;
                     break;
                 }
             }
