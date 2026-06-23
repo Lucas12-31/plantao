@@ -35,15 +35,8 @@ window.iniciarLojas = async () => {
         snap.forEach(d => {
             let dados = d.data();
             
-            // NOVO: VARREDURA TOTAL (Busca Implacável)
-            // Varre absolutamente todos os campos salvos neste corretor no Firebase
-            let suspenso = false;
-            for (let key in dados) {
-                if (dados[key] && String(dados[key]).toLowerCase().includes('suspenso')) {
-                    suspenso = true;
-                    break;
-                }
-            }
+            // DESCOBERTA: O app-producao usa 'elegivel: false' para indicar suspensão
+            let suspenso = dados.elegivel === false;
 
             estado.corretores.push({ 
                 id: d.id, 
@@ -51,7 +44,7 @@ window.iniciarLojas = async () => {
                 pme: parseFloat(dados.producao_pme) || 0, 
                 pf: parseFloat(dados.producao_pf) || 0, 
                 faltas: parseInt(dados.faltas) || 0,
-                isSuspenso: suspenso
+                isSuspenso: suspenso // Agora mapeado perfeitamente!
             });
         });
         estado.corretores.sort((a, b) => a.nome.localeCompare(b.nome));
@@ -100,7 +93,7 @@ async function salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo) {
     const promessas = Object.keys(lotesPorMes).map(mesKey => {
         const docId = `${lojaAlvo}_${mesKey}`;
         return setDoc(doc(db, "escala_lojas", docId), {
-            loja: lojaAlvo, mes: mesKey, escala: lotesPorMes[mesKey], atualizadoEm: new Date().toISOString()
+            loja: lojaAlvo, mes: mesKey, escala: lotesPorMes[mesKey], updatedEm: new Date().toISOString()
         }, { merge: true }); 
     });
 
@@ -367,10 +360,10 @@ window.abrirModalSorteio = (loja) => {
         let corBorda = 'border-danger'; 
         let dataCor = 'vermelho';
 
-        if (pme > 0) {
+        if (!isSuspenso && pme > 0) {
             corBorda = 'border-success'; 
             dataCor = 'verde';
-        } else if (pf > 0) {
+        } else if (!isSuspenso && pf > 0) {
             corBorda = 'border-warning'; 
             dataCor = 'amarelo';
         }
@@ -464,7 +457,7 @@ window.sortearESalvar = async () => {
     checkboxes.forEach(c => selecionados.push({ id: c.value, nome: c.getAttribute('data-nome') }));
 
     const outraLoja = lojaAlvo === 'flamengo' ? 'tijuca' : 'flamengo';
-    const escalaOutraLoja = await getEscalaOutraLojaMesclada(outraLoja);
+    const scalaOutraLoja = await getEscalaOutraLojaMesclada(outraLoja);
 
     // 1. CALCULAR METAS
     let corretoresMetas = {};
@@ -526,8 +519,8 @@ window.sortearESalvar = async () => {
     turnosParaPreencher.sort(() => Math.random() - 0.5); 
 
     const isCorretorOcupadoNaOutraLoja = (corretorId, iso, turno) => {
-        if (!escalaOutraLoja[iso]) return false;
-        let eOutra = escalaOutraLoja[iso];
+        if (!scalaOutraLoja[iso]) return false;
+        let eOutra = scalaOutraLoja[iso];
         if (eOutra[turno]) {
             if (eOutra[turno][0] && eOutra[turno][0].id === corretorId) return true;
             if (eOutra[turno][1] && eOutra[turno][1].id === corretorId) return true;
