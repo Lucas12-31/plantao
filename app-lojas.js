@@ -35,7 +35,12 @@ window.iniciarLojas = async () => {
         snap.forEach(d => {
             let dados = d.data();
             estado.corretores.push({ 
-                id: d.id, nome: dados.nome, pme: parseFloat(dados.producao_pme) || 0, pf: parseFloat(dados.producao_pf) || 0, faltas: parseInt(dados.faltas) || 0 
+                id: d.id, 
+                nome: dados.nome, 
+                pme: parseFloat(dados.producao_pme) || 0, 
+                pf: parseFloat(dados.producao_pf) || 0, 
+                faltas: parseInt(dados.faltas) || 0,
+                status: (dados.status || 'ativo').toLowerCase() // NOVO: Captura o status do corretor
             });
         });
         estado.corretores.sort((a, b) => a.nome.localeCompare(b.nome));
@@ -334,7 +339,7 @@ filtroMes.addEventListener('change', buscarEscalaNoBanco);
 filtroSemana.addEventListener('change', atualizarVisualizacao);
 
 // ==========================================
-// 6. MODAL E SORTEIO INTELIGENTE (MERITOCRACIA + XEPA)
+// 6. MODAL E SORTEIO INTELIGENTE
 // ==========================================
 window.abrirModalSorteio = (loja) => {
     window.lojaSorteioAtual = loja;
@@ -344,8 +349,11 @@ window.abrirModalSorteio = (loja) => {
     let html = '';
 
     estado.corretores.forEach(c => {
-        let pme = c.pme || 0;
-        let pf = c.pf || 0;
+        // NOVO: Verifica se o corretor está suspenso. Se estiver, a produção é forçada a 0 localmente.
+        let isSuspenso = c.status === 'suspenso';
+        let pme = isSuspenso ? 0 : (c.pme || 0);
+        let pf = isSuspenso ? 0 : (c.pf || 0);
+        
         let corBorda = 'border-danger'; 
         let dataCor = 'vermelho';
 
@@ -373,14 +381,16 @@ window.abrirModalSorteio = (loja) => {
         }
 
         let badgeFaltas = c.faltas > 0 ? `<span class="badge bg-danger ms-2" title="Acúmulo de Faltas">${c.faltas} ⚠️</span>` : '';
+        
+        // NOVO: Adiciona a tag preta se o status for suspenso
+        let badgeSuspenso = isSuspenso ? `<span class="badge bg-dark text-white ms-1" style="font-size: 0.65rem;">SUSPENSO</span>` : '';
 
-        // NOVO: Agora a tag de input guarda o "data-cor" para o botão conseguir achar!
         html += `
             <div class="col-md-4">
                 <div class="form-check border ${corBorda} border-2 rounded p-2 bg-white shadow-sm d-flex align-items-center">
                     <input class="form-check-input ms-1 me-2 chk-corretor" type="checkbox" value="${c.id}" id="chk_${c.id}" data-nome="${c.nome}" data-cor="${dataCor}">
                     <label class="form-check-label fw-bold w-100" style="cursor: pointer;" for="chk_${c.id}">
-                        ${c.nome.split(' ')[0]} ${infoDireito} ${badgeFaltas}
+                        ${c.nome.split(' ')[0]} ${badgeSuspenso} ${infoDireito} ${badgeFaltas}
                     </label>
                 </div>
             </div>
@@ -391,7 +401,6 @@ window.abrirModalSorteio = (loja) => {
     new bootstrap.Modal(document.getElementById('modal-sorteio')).show();
 };
 
-// NOVO: Função de Filtros Rápidos (Substitui o antigo marcarTodos)
 window.selecionarFiltros = (tipo) => {
     const checkboxes = document.querySelectorAll('.chk-corretor');
     
@@ -448,12 +457,16 @@ window.sortearESalvar = async () => {
     const outraLoja = lojaAlvo === 'flamengo' ? 'tijuca' : 'flamengo';
     const escalaOutraLoja = await getEscalaOutraLojaMesclada(outraLoja);
 
-    // 1. CALCULAR METAS (INCLUINDO RESTO PARA A XEPA)
+    // 1. CALCULAR METAS (INCLUINDO RESTO PARA A XEPA E VERIFICANDO SUSPENSOS)
     let corretoresMetas = {};
     selecionados.forEach(c => {
         let cData = estado.corretores.find(x => x.id === c.id);
-        let pme = cData ? cData.pme : 0;
-        let pf = cData ? cData.pf : 0;
+        
+        // NOVO: Se o corretor estiver suspenso na hora do sorteio, a produção é zerada
+        let isSuspenso = cData ? (cData.status === 'suspenso') : false;
+        let pme = (cData && !isSuspenso) ? cData.pme : 0;
+        let pf = (cData && !isSuspenso) ? cData.pf : 0;
+        
         let pontos = (pme * 2) + pf;
 
         let total = pontos > 0 ? 1 + Math.floor(pontos / 5000) : 0;
@@ -566,7 +579,7 @@ window.sortearESalvar = async () => {
         }
     });
 
-    // 6. DISTRIBUIÇÃO FASE 3: A XEPA (TAPA BURACO DA PRODUÇÃO)
+    // 6. DISTRIBUIÇÃO FASE 3: A XEPA
     let elegiveisXepa = Object.values(corretoresMetas).filter(c => c.pontos > 0);
 
     turnosParaPreencher.forEach(t => {
