@@ -11,7 +11,7 @@
         .card-vaga { border: 1px dashed #ccc; padding: 10px; border-radius: 8px; background-color: #fcfcfc; height: 100%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; position: relative; min-height: 50px;}
         .card-vaga:hover { background-color: #e9ecef; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         
-        .nome-corretor { font-weight: bold; font-size: 1.1rem; color: #333; } 
+        .nome-corretor { font-weight: bold; font-size: 1.05rem; color: #333; } 
         
         .manha-bg { background-color: #e0f7fa !important; }
         .tarde-bg { background-color: #fff3e0 !important; }
@@ -21,6 +21,9 @@
 
         .legenda-box { font-size: 0.85rem; background: #ffffff; border: 1px solid #dee2e6; border-radius: 8px; padding: 10px 15px; }
         .legenda-item { display: inline-block; margin-right: 15px; margin-bottom: 0px; }
+        
+        /* Ajuste para telas lado a lado */
+        .table-escala { font-size: 0.9rem; }
     </style>
     <script type="module" src="auth.js"></script>
 </head>
@@ -35,7 +38,6 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto align-items-center gap-2" style="font-size: 0.85rem;">
-                    
                     <li class="nav-item"><a class="nav-link text-light" href="cadastro.html">👥 Cadastro</a></li>
                     <li class="nav-item"><a class="nav-link text-light" href="parceiros.html">🤝 Parceiros</a></li>
                     <li class="nav-item"><a class="nav-link text-success fw-bold" href="producao.html">💰 Produção</a></li>
@@ -65,87 +67,110 @@
 
     <div class="container-fluid px-4">
         
-        <!-- O CABEÇALHO FOI TOTALMENTE REORGANIZADO PARA NÃO QUEBRAR O TEXTO -->
-        <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-end mb-3 border-bottom pb-3 gap-3">
-            
-            <!-- Esquerda: Título e Lojas -->
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-4 border-bottom pb-3 gap-3">
             <div>
-                <h3 class="fw-bold text-dark mb-3">🏪 Escala Presencial</h3>
-                <div class="d-flex flex-wrap align-items-center gap-2">
-                    <ul class="nav nav-pills flex-nowrap" id="lojas-tabs">
-                        <li class="nav-item">
-                            <a class="nav-link active fw-bold px-4 text-nowrap" href="#" onclick="mudarLoja('flamengo', event)">📍 Loja Flamengo</a>
-                        </li>
-                        <li class="nav-item ms-2">
-                            <a class="nav-link bg-white border text-dark fw-bold px-4 text-nowrap" href="#" onclick="mudarLoja('tijuca', event)">📍 Loja Tijuca</a>
-                        </li>
-                    </ul>
-                    <button class="btn btn-outline-secondary fw-bold border-2 shadow-sm text-nowrap ms-2" onclick="abrirModalTroca()">
-                        🔄 Troca de Plantão
-                    </button>
-                </div>
+                <h3 class="fw-bold text-dark mb-2">🏪 Escalas Presenciais (Lado a Lado)</h3>
+                <button class="btn btn-outline-secondary fw-bold border-2 shadow-sm text-nowrap" onclick="abrirModalTroca()">
+                    🔄 Efetuar Troca de Plantão
+                </button>
             </div>
             
-            <!-- Direita: Filtros e Botões alinhados por baixo -->
             <div class="d-flex flex-wrap gap-3 align-items-end bg-white p-3 rounded shadow-sm border">
                 <div>
                     <label class="small text-muted fw-bold mb-1">Mês Referência:</label>
-                    <input type="month" id="filtro-mes" class="form-control fw-bold">
+                    <input type="month" id="filtro-mes" class="form-control fw-bold form-control-sm">
                 </div>
-                <div style="flex-grow: 1; min-width: 240px;">
+                <div style="min-width: 240px;">
                     <label class="small text-muted fw-bold mb-1">Semana:</label>
-                    <select id="filtro-semana" class="form-select fw-bold w-100">
+                    <select id="filtro-semana" class="form-select fw-bold form-select-sm w-100">
                         <option value="0">Carregando...</option>
                     </select>
-                </div>
-                <!-- Divisória dos botões -->
-                <div class="d-flex gap-2">
-                    <button class="btn btn-primary fw-bold shadow-sm text-nowrap" onclick="abrirModalSorteio()">
-                        🎲 Gerar Escala (<span id="nome-loja-btn">Flamengo</span>)
-                    </button>
-                    <button class="btn btn-outline-danger fw-bold shadow-sm text-nowrap" onclick="zerarEscalaSemana()">
-                        🗑️ Zerar Semana
-                    </button>
                 </div>
             </div>
         </div>
 
-        <div class="card shadow border-dark mb-5">
-            <div class="card-header bg-dark text-white fw-bold fs-5 d-flex justify-content-between align-items-center">
-                <span id="titulo-tabela">📅 Escala - Loja Flamengo</span>
-                <small class="fw-normal">Manhã: 09h às 13h30 | Tarde: 13h30 às 18h</small>
+        <div class="row">
+            <div class="col-xl-6 mb-5">
+                <div class="card shadow border-primary h-100">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center py-3">
+                        <div>
+                            <span class="fw-bold fs-5">📍 Loja Flamengo</span><br>
+                            <small class="fw-normal opacity-75">Manhã: 09h às 13h30 | Tarde: 13h30 às 18h</small>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-light fw-bold shadow-sm" onclick="abrirModalSorteio('flamengo')">🎲 Gerar</button>
+                            <button class="btn btn-sm btn-outline-light fw-bold shadow-sm" onclick="zerarEscalaSemana('flamengo')">🗑️ Zerar</button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-escala mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="bg-light" rowspan="2" style="width: 15%;">Data</th>
+                                        <th colspan="2" class="manha-bg border-bottom-0">☀️ Manhã</th>
+                                        <th colspan="2" class="tarde-bg border-bottom-0">🌙 Tarde</th>
+                                    </tr>
+                                    <tr>
+                                        <th class="manha-bg text-muted small" style="width: 21%;">Cad. 1</th>
+                                        <th class="manha-bg text-muted small" style="width: 21%;">Cad. 2</th>
+                                        <th class="tarde-bg text-muted small" style="width: 21%;">Cad. 1</th>
+                                        <th class="tarde-bg text-muted small" style="width: 21%;">Cad. 2</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabela-body-flamengo">
+                                    <tr><td colspan="5" class="text-center py-5">Carregando escala...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-bordered table-escala mb-0">
-                        <thead>
-                            <tr>
-                                <th class="bg-light" rowspan="2" style="width: 15%;">Data</th>
-                                <th colspan="2" class="manha-bg border-bottom-0">☀️ Turno da Manhã</th>
-                                <th colspan="2" class="tarde-bg border-bottom-0">🌙 Turno da Tarde</th>
-                            </tr>
-                            <tr>
-                                <th class="manha-bg text-muted small" style="width: 21%;">Cadeira 1</th>
-                                <th class="manha-bg text-muted small" style="width: 21%;">Cadeira 2</th>
-                                <th class="tarde-bg text-muted small" style="width: 21%;">Cadeira 1</th>
-                                <th class="tarde-bg text-muted small" style="width: 21%;">Cadeira 2</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabela-body">
-                            <tr><td colspan="5" class="text-center py-5">Carregando escala...</td></tr>
-                        </tbody>
-                    </table>
+
+            <div class="col-xl-6 mb-5">
+                <div class="card shadow border-danger h-100">
+                    <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center py-3">
+                        <div>
+                            <span class="fw-bold fs-5">📍 Loja Tijuca</span><br>
+                            <small class="fw-normal opacity-75">Manhã: 09h às 13h30 | Tarde: 13h30 às 18h</small>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-light fw-bold shadow-sm text-danger" onclick="abrirModalSorteio('tijuca')">🎲 Gerar</button>
+                            <button class="btn btn-sm btn-outline-light fw-bold shadow-sm" onclick="zerarEscalaSemana('tijuca')">🗑️ Zerar</button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-escala mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="bg-light" rowspan="2" style="width: 15%;">Data</th>
+                                        <th colspan="2" class="manha-bg border-bottom-0">☀️ Manhã</th>
+                                        <th colspan="2" class="tarde-bg border-bottom-0">🌙 Tarde</th>
+                                    </tr>
+                                    <tr>
+                                        <th class="manha-bg text-muted small" style="width: 21%;">Cad. 1</th>
+                                        <th class="manha-bg text-muted small" style="width: 21%;">Cad. 2</th>
+                                        <th class="tarde-bg text-muted small" style="width: 21%;">Cad. 1</th>
+                                        <th class="tarde-bg text-muted small" style="width: 21%;">Cad. 2</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabela-body-tijuca">
+                                    <tr><td colspan="5" class="text-center py-5">Carregando escala...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- MODAL DE SORTEIO -->
     <div class="modal fade" id="modal-sorteio" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content border-0 shadow">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title fw-bold">Selecione os Corretores para Sortear</h5>
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title fw-bold" id="modal-sorteio-titulo">Sorteio</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body bg-light">
@@ -169,7 +194,6 @@
         </div>
     </div>
 
-    <!-- MODAL DETALHES -->
     <div class="modal fade" id="modal-detalhes-plantao" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg border-0">
@@ -216,16 +240,24 @@
         </div>
     </div>
 
-    <!-- MODAL TROCA -->
     <div class="modal fade" id="modal-troca" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg border-0">
                 <div class="modal-header bg-warning text-dark">
-                    <h5 class="modal-title fw-bold">🔄 Trocar Plantões (Mesma Loja)</h5>
+                    <h5 class="modal-title fw-bold">🔄 Trocar Plantões</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body bg-light p-4">
-                    <p class="text-muted small mb-4">Selecione os dois plantões que deseja inverter a posição.</p>
+                    
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-muted small text-uppercase">Em qual loja será a troca?</label>
+                        <select id="troca-loja-selecao" class="form-select border-warning fw-bold shadow-sm">
+                            <option value="flamengo">📍 Loja Flamengo</option>
+                            <option value="tijuca">📍 Loja Tijuca</option>
+                        </select>
+                    </div>
+
+                    <p class="text-muted small mb-3">Selecione os dois plantões que deseja inverter a posição.</p>
 
                     <h6 class="fw-bold text-primary">Plantão 1 (Origem)</h6>
                     <div class="row g-2 mb-3">
