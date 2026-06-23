@@ -34,13 +34,20 @@ window.iniciarLojas = async () => {
         estado.corretores = [];
         snap.forEach(d => {
             let dados = d.data();
+            
+            // NOVO: Verificação BLINDADA de Suspensão (procura em vários campos)
+            let suspenso = false;
+            if (dados.status && String(dados.status).toLowerCase().trim() === 'suspenso') suspenso = true;
+            if (dados.situacao && String(dados.situacao).toLowerCase().trim() === 'suspenso') suspenso = true;
+            if (dados.meta_pme && String(dados.meta_pme).toLowerCase().trim() === 'suspenso') suspenso = true;
+
             estado.corretores.push({ 
                 id: d.id, 
                 nome: dados.nome, 
                 pme: parseFloat(dados.producao_pme) || 0, 
                 pf: parseFloat(dados.producao_pf) || 0, 
                 faltas: parseInt(dados.faltas) || 0,
-                status: (dados.status || 'ativo').toLowerCase() // NOVO: Captura o status do corretor
+                isSuspenso: suspenso
             });
         });
         estado.corretores.sort((a, b) => a.nome.localeCompare(b.nome));
@@ -349,8 +356,7 @@ window.abrirModalSorteio = (loja) => {
     let html = '';
 
     estado.corretores.forEach(c => {
-        // NOVO: Verifica se o corretor está suspenso. Se estiver, a produção é forçada a 0 localmente.
-        let isSuspenso = c.status === 'suspenso';
+        let isSuspenso = c.isSuspenso === true;
         let pme = isSuspenso ? 0 : (c.pme || 0);
         let pf = isSuspenso ? 0 : (c.pf || 0);
         
@@ -374,23 +380,22 @@ window.abrirModalSorteio = (loja) => {
         totalSolo = Math.min(totalSolo, totalPlantoes); 
 
         let infoDireito = '';
-        if (totalPlantoes > 0) {
+        if (isSuspenso) {
+            infoDireito = `<span class="badge bg-dark text-white ms-1" style="font-size: 0.7rem;" title="Corretor Suspenso">⛔ SUSPENSO (0 Vagas)</span>`;
+        } else if (totalPlantoes > 0) {
             infoDireito = `<span class="badge bg-primary ms-1" style="font-size: 0.7rem;" title="Direito de Plantões no Mês">🏆 ${totalPlantoes} Vagas ${totalSolo > 0 ? `(${totalSolo} Solo)` : ''}</span>`;
         } else {
             infoDireito = `<span class="badge bg-secondary ms-1" style="font-size: 0.7rem;" title="Sem produção no mês">🚫 0 Vagas</span>`;
         }
 
         let badgeFaltas = c.faltas > 0 ? `<span class="badge bg-danger ms-2" title="Acúmulo de Faltas">${c.faltas} ⚠️</span>` : '';
-        
-        // NOVO: Adiciona a tag preta se o status for suspenso
-        let badgeSuspenso = isSuspenso ? `<span class="badge bg-dark text-white ms-1" style="font-size: 0.65rem;">SUSPENSO</span>` : '';
 
         html += `
             <div class="col-md-4">
                 <div class="form-check border ${corBorda} border-2 rounded p-2 bg-white shadow-sm d-flex align-items-center">
                     <input class="form-check-input ms-1 me-2 chk-corretor" type="checkbox" value="${c.id}" id="chk_${c.id}" data-nome="${c.nome}" data-cor="${dataCor}">
                     <label class="form-check-label fw-bold w-100" style="cursor: pointer;" for="chk_${c.id}">
-                        ${c.nome.split(' ')[0]} ${badgeSuspenso} ${infoDireito} ${badgeFaltas}
+                        ${c.nome.split(' ')[0]} ${infoDireito} ${badgeFaltas}
                     </label>
                 </div>
             </div>
@@ -457,13 +462,12 @@ window.sortearESalvar = async () => {
     const outraLoja = lojaAlvo === 'flamengo' ? 'tijuca' : 'flamengo';
     const escalaOutraLoja = await getEscalaOutraLojaMesclada(outraLoja);
 
-    // 1. CALCULAR METAS (INCLUINDO RESTO PARA A XEPA E VERIFICANDO SUSPENSOS)
+    // 1. CALCULAR METAS
     let corretoresMetas = {};
     selecionados.forEach(c => {
         let cData = estado.corretores.find(x => x.id === c.id);
         
-        // NOVO: Se o corretor estiver suspenso na hora do sorteio, a produção é zerada
-        let isSuspenso = cData ? (cData.status === 'suspenso') : false;
+        let isSuspenso = cData ? cData.isSuspenso : false;
         let pme = (cData && !isSuspenso) ? cData.pme : 0;
         let pf = (cData && !isSuspenso) ? cData.pf : 0;
         
