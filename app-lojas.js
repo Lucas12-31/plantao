@@ -334,7 +334,7 @@ filtroMes.addEventListener('change', buscarEscalaNoBanco);
 filtroSemana.addEventListener('change', atualizarVisualizacao);
 
 // ==========================================
-// 6. MODAL E SORTEIO INTELIGENTE (MERITOCRACIA)
+// 6. MODAL E SORTEIO INTELIGENTE (MERITOCRACIA + XEPA)
 // ==========================================
 window.abrirModalSorteio = (loja) => {
     window.lojaSorteioAtual = loja;
@@ -347,8 +347,15 @@ window.abrirModalSorteio = (loja) => {
         let pme = c.pme || 0;
         let pf = c.pf || 0;
         let corBorda = 'border-danger'; 
-        if (pme > 0) corBorda = 'border-success'; 
-        else if (pf > 0) corBorda = 'border-warning'; 
+        let dataCor = 'vermelho';
+
+        if (pme > 0) {
+            corBorda = 'border-success'; 
+            dataCor = 'verde';
+        } else if (pf > 0) {
+            corBorda = 'border-warning'; 
+            dataCor = 'amarelo';
+        }
 
         let pontos = (pme * 2) + pf;
         let totalPlantoes = pontos > 0 ? 1 + Math.floor(pontos / 5000) : 0;
@@ -367,10 +374,11 @@ window.abrirModalSorteio = (loja) => {
 
         let badgeFaltas = c.faltas > 0 ? `<span class="badge bg-danger ms-2" title="Acúmulo de Faltas">${c.faltas} ⚠️</span>` : '';
 
+        // NOVO: Agora a tag de input guarda o "data-cor" para o botão conseguir achar!
         html += `
             <div class="col-md-4">
                 <div class="form-check border ${corBorda} border-2 rounded p-2 bg-white shadow-sm d-flex align-items-center">
-                    <input class="form-check-input ms-1 me-2 chk-corretor" type="checkbox" value="${c.id}" id="chk_${c.id}" data-nome="${c.nome}">
+                    <input class="form-check-input ms-1 me-2 chk-corretor" type="checkbox" value="${c.id}" id="chk_${c.id}" data-nome="${c.nome}" data-cor="${dataCor}">
                     <label class="form-check-label fw-bold w-100" style="cursor: pointer;" for="chk_${c.id}">
                         ${c.nome.split(' ')[0]} ${infoDireito} ${badgeFaltas}
                     </label>
@@ -383,7 +391,24 @@ window.abrirModalSorteio = (loja) => {
     new bootstrap.Modal(document.getElementById('modal-sorteio')).show();
 };
 
-window.marcarTodos = () => { document.querySelectorAll('.chk-corretor').forEach(el => el.checked = true); };
+// NOVO: Função de Filtros Rápidos (Substitui o antigo marcarTodos)
+window.selecionarFiltros = (tipo) => {
+    const checkboxes = document.querySelectorAll('.chk-corretor');
+    
+    checkboxes.forEach(chk => {
+        let cor = chk.getAttribute('data-cor');
+        
+        if (tipo === 'todos') {
+            chk.checked = true;
+        } else if (tipo === 'verdes' && cor === 'verde') {
+            chk.checked = true;
+        } else if (tipo === 'amarelos' && cor === 'amarelo') {
+            chk.checked = true;
+        } else if (tipo === 'limpar') {
+            chk.checked = false;
+        }
+    });
+};
 
 async function getEscalaOutraLojaMesclada(outraLoja) {
     const [anoStr, mesStr] = filtroMes.value.split('-');
@@ -415,7 +440,7 @@ window.sortearESalvar = async () => {
     const diasDaVisao = (valSemana === "all") ? estado.semanas.flat() : (estado.semanas[parseInt(valSemana)] || []);
     let textoEscopo = (valSemana === "all") ? "o MÊS COMPLETO" : `a SEMANA ${parseInt(valSemana) + 1}`;
 
-    if(!confirm(`O sistema aplicará as regras de meritocracia por produção.\nDeseja gerar o sorteio da Loja ${lojaAlvo.toUpperCase()} para ${textoEscopo}?`)) return;
+    if(!confirm(`Deseja gerar o sorteio da Loja ${lojaAlvo.toUpperCase()} para ${textoEscopo}?\n\nO sistema aplicará a meritocracia e preencherá as vagas restantes para quem chegou mais perto de subir de patamar (Xepa da Produção).`)) return;
 
     let selecionados = [];
     checkboxes.forEach(c => selecionados.push({ id: c.value, nome: c.getAttribute('data-nome') }));
@@ -423,7 +448,7 @@ window.sortearESalvar = async () => {
     const outraLoja = lojaAlvo === 'flamengo' ? 'tijuca' : 'flamengo';
     const escalaOutraLoja = await getEscalaOutraLojaMesclada(outraLoja);
 
-    // 1. CALCULAR METAS
+    // 1. CALCULAR METAS (INCLUINDO RESTO PARA A XEPA)
     let corretoresMetas = {};
     selecionados.forEach(c => {
         let cData = estado.corretores.find(x => x.id === c.id);
@@ -438,7 +463,13 @@ window.sortearESalvar = async () => {
         solo = Math.min(2, solo); 
         solo = Math.min(solo, total);
 
-        corretoresMetas[c.id] = { id: c.id, nome: c.nome, totalGeral: total, totalSolo: solo, alocadosGeral: 0, alocadosSolo: 0 };
+        let resto = pontos % 5000;
+
+        corretoresMetas[c.id] = { 
+            id: c.id, nome: c.nome, totalGeral: total, totalSolo: solo, 
+            alocadosGeral: 0, alocadosSolo: 0, alocadosXepa: 0,
+            pontos: pontos, resto: resto 
+        };
     });
 
     // 2. DESCONTAR PLANTÕES JÁ EXISTENTES 
@@ -473,7 +504,6 @@ window.sortearESalvar = async () => {
     });
     turnosParaPreencher.sort(() => Math.random() - 0.5); 
 
-    // Helper Anti-Choque
     const isCorretorOcupadoNaOutraLoja = (corretorId, iso, turno) => {
         if (!escalaOutraLoja[iso]) return false;
         let eOutra = escalaOutraLoja[iso];
@@ -484,7 +514,6 @@ window.sortearESalvar = async () => {
         return false;
     };
 
-    // Helper Anti-Dobradinha (Impede o cara de trabalhar de manhã e de tarde no mesmo dia na mesma loja)
     const isCorretorOcupadoNoDiaNaMesmaLoja = (corretorId, iso) => {
         let turnosDoDia = turnosParaPreencher.filter(t => t.iso === iso);
         for(let t of turnosDoDia) {
@@ -518,9 +547,9 @@ window.sortearESalvar = async () => {
 
             let elegiveis = Object.values(corretoresMetas).filter(cMeta => 
                 cMeta.alocadosGeral < cMeta.totalGeral && 
-                t.vagas[0]?.id !== cMeta.id && // Não ser ele mesmo do lado
-                !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) && // Não chocar loja
-                !isCorretorOcupadoNoDiaNaMesmaLoja(cMeta.id, t.iso) // Anti-Dobradinha
+                t.vagas[0]?.id !== cMeta.id && 
+                !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) && 
+                !isCorretorOcupadoNoDiaNaMesmaLoja(cMeta.id, t.iso) 
             );
 
             if (elegiveis.length > 0) {
@@ -537,7 +566,35 @@ window.sortearESalvar = async () => {
         }
     });
 
-    // 6. MONTAR A ESCALA FINAL
+    // 6. DISTRIBUIÇÃO FASE 3: A XEPA (TAPA BURACO DA PRODUÇÃO)
+    let elegiveisXepa = Object.values(corretoresMetas).filter(c => c.pontos > 0);
+
+    turnosParaPreencher.forEach(t => {
+        for (let i = 0; i < 2; i++) {
+            if (t.vagas[i] !== null) continue; 
+
+            elegiveisXepa.sort((a, b) => {
+                if (a.alocadosXepa !== b.alocadosXepa) return a.alocadosXepa - b.alocadosXepa; 
+                if (b.resto !== a.resto) return b.resto - a.resto; 
+                return b.pontos - a.pontos; 
+            });
+
+            for (let cMeta of elegiveisXepa) {
+                if (cMeta.alocadosGeral < 4 && 
+                    t.vagas[0]?.id !== cMeta.id && 
+                    !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) &&
+                    !isCorretorOcupadoNoDiaNaMesmaLoja(cMeta.id, t.iso)) {
+                    
+                    t.vagas[i] = { id: cMeta.id, nome: cMeta.nome, atendimentos: 0, falta: false };
+                    cMeta.alocadosGeral++;
+                    cMeta.alocadosXepa++; 
+                    break;
+                }
+            }
+        }
+    });
+
+    // 7. MONTAR A ESCALA FINAL
     diasDaVisao.forEach(dia => {
         if (dia.isFeriado) return;
         let turnosDoDia = turnosParaPreencher.filter(t => t.iso === dia.iso);
