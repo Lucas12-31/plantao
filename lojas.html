@@ -22,7 +22,6 @@
         .legenda-box { font-size: 0.85rem; background: #ffffff; border: 1px solid #dee2e6; border-radius: 8px; padding: 10px 15px; }
         .legenda-item { display: inline-block; margin-right: 15px; margin-bottom: 0px; }
         
-        /* Ajuste para telas lado a lado */
         .table-escala { font-size: 0.9rem; }
     </style>
     <script type="module" src="auth.js"></script>
@@ -166,6 +165,7 @@
         </div>
     </div>
 
+    <!-- MODAL DE SORTEIO COM OS NOVOS BOTÕES -->
     <div class="modal fade" id="modal-sorteio" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content border-0 shadow">
@@ -176,10 +176,18 @@
                 <div class="modal-body bg-light">
                     <p class="text-muted mb-2">Marque os corretores que participarão da escala presencial desta loja neste mês.</p>
                     
-                    <div class="legenda-box mb-4 shadow-sm d-flex flex-wrap justify-content-center align-items-center gap-2">
+                    <div class="legenda-box mb-3 shadow-sm d-flex flex-wrap justify-content-center align-items-center gap-2">
                         <span class="legenda-item"><span class="badge bg-white text-success border border-success border-2 shadow-sm">VERDE</span> Vendeu PME</span>
                         <span class="legenda-item"><span class="badge bg-white text-warning border border-warning border-2 shadow-sm">AMARELO</span> Vendeu só PF</span>
                         <span class="legenda-item"><span class="badge bg-white text-danger border border-danger border-2 shadow-sm">VERMELHO</span> Não Vendeu</span>
+                    </div>
+
+                    <!-- BOTOES DE SELECAO RAPIDA -->
+                    <div class="d-flex justify-content-center gap-2 mb-4 flex-wrap">
+                        <button type="button" class="btn btn-sm btn-dark fw-bold shadow-sm" onclick="selecionarFiltros('todos')">✅ Marcar Todos</button>
+                        <button type="button" class="btn btn-sm btn-success fw-bold shadow-sm" onclick="selecionarFiltros('verdes')">🟢 Marcar Verdes</button>
+                        <button type="button" class="btn btn-sm btn-warning text-dark fw-bold shadow-sm" onclick="selecionarFiltros('amarelos')">🟡 Marcar Amarelos</button>
+                        <button type="button" class="btn btn-sm btn-outline-danger fw-bold shadow-sm" onclick="selecionarFiltros('limpar')">🧹 Limpar</button>
                     </div>
 
                     <div class="row g-2" id="lista-checkboxes-corretores">
@@ -187,13 +195,14 @@
                     </div>
                 </div>
                 <div class="modal-footer bg-white">
-                    <button type="button" class="btn btn-secondary fw-bold" onclick="marcarTodos()">Marcar Todos</button>
+                    <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
                     <button type="button" class="btn btn-primary fw-bold px-4" onclick="sortearESalvar()">🎲 Confirmar e Sortear</button>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- MODAL DETALHES -->
     <div class="modal fade" id="modal-detalhes-plantao" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg border-0">
@@ -240,6 +249,7 @@
         </div>
     </div>
 
+    <!-- MODAL TROCA -->
     <div class="modal fade" id="modal-troca" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg border-0">
