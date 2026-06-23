@@ -13,6 +13,37 @@ window.lojaSorteioAtual = null;
 window.editandoPlantao = { loja: null, iso: null, turno: null, index: null, dataFmt: null };
 
 // ==========================================
+// FUNÇÕES UNIVERSAIS DE ALERTAS BONITOS
+// ==========================================
+window.mostrarAlerta = (titulo, mensagem) => {
+    document.getElementById('modal-alerta-titulo').innerText = titulo;
+    document.getElementById('modal-alerta-mensagem').innerHTML = mensagem;
+    new bootstrap.Modal(document.getElementById('modal-alerta')).show();
+};
+
+window.mostrarConfirmacao = (titulo, mensagem, callbackSim, corBtn = 'btn-success', textoBtn = 'Confirmar') => {
+    document.getElementById('modal-confirmacao-titulo').innerText = titulo;
+    document.getElementById('modal-confirmacao-mensagem').innerHTML = mensagem;
+    
+    const btn = document.getElementById('btn-confirmar-acao');
+    btn.className = `btn fw-bold px-4 shadow-sm ${corBtn}`;
+    btn.innerText = textoBtn;
+    
+    const novoBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(novoBtn, btn);
+    
+    const modalConfirm = new bootstrap.Modal(document.getElementById('modal-confirmacao'));
+    
+    novoBtn.onclick = () => {
+        modalConfirm.hide();
+        callbackSim();
+    };
+    
+    modalConfirm.show();
+};
+
+
+// ==========================================
 // 1. INICIALIZAÇÃO E BUSCA
 // ==========================================
 window.iniciarLojas = async () => {
@@ -295,7 +326,10 @@ window.salvarDetalhesPlantao = async () => {
         await salvarEscalaNoBancoBaseadoNasDatas(loja);
         bootstrap.Modal.getInstance(document.getElementById('modal-detalhes-plantao')).hide();
         atualizarVisualizacao(); 
-    } catch (error) { console.error("Erro:", error); alert("Erro ao salvar."); }
+    } catch (error) { 
+        console.error("Erro:", error); 
+        mostrarAlerta("Erro de Sistema", "Ocorreu um erro ao salvar as alterações do plantão."); 
+    }
 }
 
 // ==========================================
@@ -311,7 +345,7 @@ window.abrirModalTroca = () => {
         if(!d.isFeriado) { options += `<option value="${d.iso}">${d.fmt} - ${d.diaSemana}</option>`; diasValidos++; }
     });
 
-    if (diasValidos === 0) return alert("Não há dias úteis visíveis para efetuar trocas.");
+    if (diasValidos === 0) return mostrarAlerta("Atenção", "Não há dias úteis visíveis para efetuar trocas.");
     document.getElementById('troca-data-1').innerHTML = options;
     document.getElementById('troca-data-2').innerHTML = options;
     new bootstrap.Modal(document.getElementById('modal-troca')).show();
@@ -327,8 +361,8 @@ window.efetuarTroca = async () => {
     const t2 = document.getElementById('troca-turno-2').value;
     const c2 = parseInt(document.getElementById('troca-cadeira-2').value);
 
-    if (d1 === d2 && t1 === t2 && c1 === c2) return alert("Selecione cadeiras diferentes.");
-    if (!estado.escala[lojaAlvo][d1] || !estado.escala[lojaAlvo][d2]) return alert("Erro: Dias sem escala gerada nesta loja.");
+    if (d1 === d2 && t1 === t2 && c1 === c2) return mostrarAlerta("Atenção", "Por favor, selecione cadeiras diferentes para trocar.");
+    if (!estado.escala[lojaAlvo][d1] || !estado.escala[lojaAlvo][d2]) return mostrarAlerta("Erro", "Você não pode trocar cadeiras em dias sem escala gerada nesta loja.");
 
     let obj1 = estado.escala[lojaAlvo][d1][t1][c1];
     let obj2 = estado.escala[lojaAlvo][d2][t2][c2];
@@ -352,10 +386,13 @@ window.efetuarTroca = async () => {
 
     try {
         await salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo);
-        alert(`✅ Troca efetuada com sucesso!\n\n${nome1} assumiu a cadeira de ${data2Fmt}.\n${nome2} assumiu a cadeira de ${data1Fmt}.`);
+        mostrarAlerta("Troca Efetuada! 🔄", `<br><b>${nome1}</b> assumiu a cadeira de ${data2Fmt}.<br><b>${nome2}</b> assumiu a cadeira de ${data1Fmt}.`);
         bootstrap.Modal.getInstance(document.getElementById('modal-troca')).hide();
         atualizarVisualizacao();
-    } catch (error) { console.error("Erro:", error); }
+    } catch (error) { 
+        console.error("Erro:", error); 
+        mostrarAlerta("Erro de Sistema", "Ocorreu um erro ao salvar a troca.");
+    }
 };
 
 filtroMes.addEventListener('change', buscarEscalaNoBanco);
@@ -458,264 +495,271 @@ async function getEscalaOutraLojaMesclada(outraLoja) {
 window.sortearESalvar = async () => {
     const lojaAlvo = window.lojaSorteioAtual;
     const checkboxes = document.querySelectorAll('.chk-corretor:checked');
-    if (checkboxes.length === 0) return alert("Selecione pelo menos um corretor!");
+    if (checkboxes.length === 0) return mostrarAlerta("Atenção", "Selecione pelo menos um corretor para participar do sorteio!");
 
     const valSemana = filtroSemana.value;
     const diasDaVisao = (valSemana === "all") ? estado.semanas.flat() : (estado.semanas[parseInt(valSemana)] || []);
-    let textoEscopo = (valSemana === "all") ? "o MÊS COMPLETO" : `a SEMANA ${parseInt(valSemana) + 1}`;
+    let textoEscopo = (valSemana === "all") ? "o <b>MÊS COMPLETO</b>" : `a <b>SEMANA ${parseInt(valSemana) + 1}</b>`;
 
-    if(!confirm(`Deseja gerar o sorteio da Loja ${lojaAlvo.toUpperCase()} para ${textoEscopo}?\n\nO sistema aplicará a meritocracia, preencherá as vagas restantes (Xepa) e evitará repetições na mesma semana sempre que possível.`)) return;
+    let msgConfirma = `Deseja gerar o sorteio da Loja <b>${lojaAlvo.toUpperCase()}</b> para ${textoEscopo}?<br><br><small class='text-muted'>O sistema aplicará a meritocracia, preencherá as vagas restantes (Xepa) e evitará repetições na mesma semana.</small>`;
 
-    let selecionados = [];
-    checkboxes.forEach(c => selecionados.push({ id: c.value, nome: c.getAttribute('data-nome') }));
+    // Substituindo o confirm nativo pela nossa versão chique
+    mostrarConfirmacao("🎲 Gerar Sorteio Automático", msgConfirma, async () => {
+        
+        let selecionados = [];
+        checkboxes.forEach(c => selecionados.push({ id: c.value, nome: c.getAttribute('data-nome') }));
 
-    const outraLoja = lojaAlvo === 'flamengo' ? 'tijuca' : 'flamengo';
-    const escalaOutraLoja = await getEscalaOutraLojaMesclada(outraLoja);
+        const outraLoja = lojaAlvo === 'flamengo' ? 'tijuca' : 'flamengo';
+        const escalaOutraLoja = await getEscalaOutraLojaMesclada(outraLoja);
 
-    let semanaDoDia = {};
-    estado.semanas.forEach((sem, index) => {
-        sem.forEach(dia => { semanaDoDia[dia.iso] = index; });
-    });
-    
-    let alocadosPorSemana = {}; 
-    let corretoresMetas = {};
+        let semanaDoDia = {};
+        estado.semanas.forEach((sem, index) => {
+            sem.forEach(dia => { semanaDoDia[dia.iso] = index; });
+        });
+        
+        let alocadosPorSemana = {}; 
+        let corretoresMetas = {};
 
-    // 1. INICIALIZAR METAS E CONTADORES
-    selecionados.forEach(c => {
-        let cData = estado.corretores.find(x => x.id === c.id);
-        let isSuspenso = cData ? cData.isSuspenso : false;
-        let pme = (cData && !isSuspenso) ? cData.pme : 0;
-        let pf = (cData && !isSuspenso) ? cData.pf : 0;
-        let pontos = (pme * 2) + pf;
+        selecionados.forEach(c => {
+            let cData = estado.corretores.find(x => x.id === c.id);
+            let isSuspenso = cData ? cData.isSuspenso : false;
+            let pme = (cData && !isSuspenso) ? cData.pme : 0;
+            let pf = (cData && !isSuspenso) ? cData.pf : 0;
+            let pontos = (pme * 2) + pf;
 
-        let total = pontos > 0 ? 1 + Math.floor(pontos / 5000) : 0;
-        total = Math.min(4, total); 
-        let solo = Math.floor(pme / 5000);
-        solo = Math.min(2, solo); 
-        solo = Math.min(solo, total);
-        let resto = pontos % 5000;
+            let total = pontos > 0 ? 1 + Math.floor(pontos / 5000) : 0;
+            total = Math.min(4, total); 
+            let solo = Math.floor(pme / 5000);
+            solo = Math.min(2, solo); 
+            solo = Math.min(solo, total);
+            let resto = pontos % 5000;
 
-        corretoresMetas[c.id] = { 
-            id: c.id, nome: c.nome, totalGeral: total, totalSolo: solo, 
-            alocadosGeral: 0, alocadosSolo: 0, alocadosXepa: 0,
-            pontos: pontos, resto: resto 
-        };
-        alocadosPorSemana[c.id] = {}; 
-    });
+            corretoresMetas[c.id] = { 
+                id: c.id, nome: c.nome, totalGeral: total, totalSolo: solo, 
+                alocadosGeral: 0, alocadosSolo: 0, alocadosXepa: 0,
+                pontos: pontos, resto: resto 
+            };
+            alocadosPorSemana[c.id] = {}; 
+        });
 
-    // 2. DESCONTAR PLANTÕES JÁ EXISTENTES COM BLINDAGEM CONTRA UNDEFINED
-    let diasParaIgnorar = diasDaVisao.map(d => d.iso);
-    for (let iso in estado.escala[lojaAlvo]) {
-        let sIdx = semanaDoDia[iso];
-        let diaEscala = estado.escala[lojaAlvo][iso];
+        let diasParaIgnorar = diasDaVisao.map(d => d.iso);
+        for (let iso in estado.escala[lojaAlvo]) {
+            let sIdx = semanaDoDia[iso];
+            let diaEscala = estado.escala[lojaAlvo][iso];
 
-        ['manha', 'tarde'].forEach(turno => {
-            if(!diaEscala[turno]) return;
-            let cad1 = diaEscala[turno][0];
-            let cad2 = diaEscala[turno][1];
-            
-            if (cad1 && cad2 && cad1.id === cad2.id) { 
-                if (corretoresMetas[cad1.id] && !diasParaIgnorar.includes(iso)) {
-                    corretoresMetas[cad1.id].alocadosGeral++;
-                    corretoresMetas[cad1.id].alocadosSolo++;
-                }
-                if (cad1.id && sIdx !== undefined) {
-                    if (!alocadosPorSemana[cad1.id]) alocadosPorSemana[cad1.id] = {};
-                    alocadosPorSemana[cad1.id][sIdx] = (alocadosPorSemana[cad1.id][sIdx] || 0) + 1;
-                }
-            } else {
-                if (cad1) {
-                    if (corretoresMetas[cad1.id] && !diasParaIgnorar.includes(iso)) corretoresMetas[cad1.id].alocadosGeral++;
-                    if (sIdx !== undefined) {
+            ['manha', 'tarde'].forEach(turno => {
+                if(!diaEscala[turno]) return;
+                let cad1 = diaEscala[turno][0];
+                let cad2 = diaEscala[turno][1];
+                
+                if (cad1 && cad2 && cad1.id === cad2.id) { 
+                    if (corretoresMetas[cad1.id] && !diasParaIgnorar.includes(iso)) {
+                        corretoresMetas[cad1.id].alocadosGeral++;
+                        corretoresMetas[cad1.id].alocadosSolo++;
+                    }
+                    if (cad1.id && sIdx !== undefined) {
                         if (!alocadosPorSemana[cad1.id]) alocadosPorSemana[cad1.id] = {};
                         alocadosPorSemana[cad1.id][sIdx] = (alocadosPorSemana[cad1.id][sIdx] || 0) + 1;
                     }
+                } else {
+                    if (cad1) {
+                        if (corretoresMetas[cad1.id] && !diasParaIgnorar.includes(iso)) corretoresMetas[cad1.id].alocadosGeral++;
+                        if (sIdx !== undefined) {
+                            if (!alocadosPorSemana[cad1.id]) alocadosPorSemana[cad1.id] = {};
+                            alocadosPorSemana[cad1.id][sIdx] = (alocadosPorSemana[cad1.id][sIdx] || 0) + 1;
+                        }
+                    }
+                    if (cad2) {
+                        if (corretoresMetas[cad2.id] && !diasParaIgnorar.includes(iso)) corretoresMetas[cad2.id].alocadosGeral++;
+                        if (sIdx !== undefined) {
+                            if (!alocadosPorSemana[cad2.id]) alocadosPorSemana[cad2.id] = {};
+                            alocadosPorSemana[cad2.id][sIdx] = (alocadosPorSemana[cad2.id][sIdx] || 0) + 1;
+                        }
+                    }
                 }
-                if (cad2) {
-                    if (corretoresMetas[cad2.id] && !diasParaIgnorar.includes(iso)) corretoresMetas[cad2.id].alocadosGeral++;
-                    if (sIdx !== undefined) {
-                        if (!alocadosPorSemana[cad2.id]) alocadosPorSemana[cad2.id] = {};
-                        alocadosPorSemana[cad2.id][sIdx] = (alocadosPorSemana[cad2.id][sIdx] || 0) + 1;
+            });
+        }
+
+        let turnosParaPreencher = [];
+        diasDaVisao.forEach(dia => {
+            if (dia.isFeriado) return;
+            turnosParaPreencher.push({ iso: dia.iso, turno: 'manha', vagas: [null, null] });
+            turnosParaPreencher.push({ iso: dia.iso, turno: 'tarde', vagas: [null, null] });
+        });
+        turnosParaPreencher.sort(() => Math.random() - 0.5); 
+
+        const isCorretorOcupadoNaOutraLoja = (corretorId, iso, turno) => {
+            if (!escalaOutraLoja[iso]) return false;
+            let eOutra = escalaOutraLoja[iso];
+            if (eOutra[turno]) {
+                if (eOutra[turno][0] && eOutra[turno][0].id === corretorId) return true;
+                if (eOutra[turno][1] && eOutra[turno][1].id === corretorId) return true;
+            }
+            return false;
+        };
+
+        const isCorretorOcupadoNoDiaNaMesmaLoja = (corretorId, iso) => {
+            let turnosDoDia = turnosParaPreencher.filter(t => t.iso === iso);
+            for(let t of turnosDoDia) {
+                if(t.vagas[0]?.id === corretorId || t.vagas[1]?.id === corretorId) return true;
+            }
+            return false;
+        };
+
+        Object.values(corretoresMetas).forEach(cMeta => {
+            while (cMeta.alocadosSolo < cMeta.totalSolo && cMeta.alocadosGeral < cMeta.totalGeral) {
+                let turnoIndex = turnosParaPreencher.findIndex(t => 
+                    t.vagas[0] === null && t.vagas[1] === null && 
+                    !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) &&
+                    !isCorretorOcupadoNoDiaNaMesmaLoja(cMeta.id, t.iso) &&
+                    (alocadosPorSemana[cMeta.id][semanaDoDia[t.iso]] || 0) === 0 
+                );
+                
+                if (turnoIndex === -1) {
+                    turnoIndex = turnosParaPreencher.findIndex(t => 
+                        t.vagas[0] === null && t.vagas[1] === null && 
+                        !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) &&
+                        !isCorretorOcupadoNoDiaNaMesmaLoja(cMeta.id, t.iso)
+                    );
+                }
+
+                if (turnoIndex !== -1) {
+                    let sIdx = semanaDoDia[turnosParaPreencher[turnoIndex].iso];
+                    turnosParaPreencher[turnoIndex].vagas[0] = { id: cMeta.id, nome: cMeta.nome, atendimentos: 0, falta: false };
+                    turnosParaPreencher[turnoIndex].vagas[1] = { id: cMeta.id, nome: cMeta.nome, atendimentos: 0, falta: false };
+                    cMeta.alocadosSolo++;
+                    cMeta.alocadosGeral++;
+                    alocadosPorSemana[cMeta.id][sIdx] = (alocadosPorSemana[cMeta.id][sIdx] || 0) + 1;
+                } else break; 
+            }
+        });
+
+        turnosParaPreencher.forEach(t => {
+            let sIdx = semanaDoDia[t.iso];
+            for (let i = 0; i < 2; i++) {
+                if (t.vagas[i] !== null) continue; 
+
+                let elegiveis = Object.values(corretoresMetas).filter(cMeta => 
+                    cMeta.alocadosGeral < cMeta.totalGeral && 
+                    t.vagas[0]?.id !== cMeta.id && 
+                    !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) && 
+                    !isCorretorOcupadoNoDiaNaMesmaLoja(cMeta.id, t.iso) 
+                );
+
+                if (elegiveis.length > 0) {
+                    elegiveis.sort((a, b) => {
+                        let vezesSemanaA = alocadosPorSemana[a.id][sIdx] || 0;
+                        let vezesSemanaB = alocadosPorSemana[b.id][sIdx] || 0;
+                        if (vezesSemanaA !== vezesSemanaB) return vezesSemanaA - vezesSemanaB; 
+
+                        let percA = a.alocadosGeral / a.totalGeral;
+                        let percB = b.alocadosGeral / b.totalGeral;
+                        if (percA === percB) return Math.random() - 0.5; 
+                        return percA - percB;
+                    });
+
+                    let escolhido = elegiveis[0];
+                    t.vagas[i] = { id: escolhido.id, nome: escolhido.nome, atendimentos: 0, falta: false };
+                    escolhido.alocadosGeral++;
+                    alocadosPorSemana[escolhido.id][sIdx] = (alocadosPorSemana[escolhido.id][sIdx] || 0) + 1;
+                }
+            }
+        });
+
+        let elegiveisXepa = Object.values(corretoresMetas).filter(c => c.pontos > 0);
+
+        turnosParaPreencher.forEach(t => {
+            let sIdx = semanaDoDia[t.iso];
+            for (let i = 0; i < 2; i++) {
+                if (t.vagas[i] !== null) continue; 
+
+                elegiveisXepa.sort((a, b) => {
+                    let vezesSemanaA = alocadosPorSemana[a.id][sIdx] || 0;
+                    let vezesSemanaB = alocadosPorSemana[b.id][sIdx] || 0;
+                    if (vezesSemanaA !== vezesSemanaB) return vezesSemanaA - vezesSemanaB;
+
+                    if (a.alocadosXepa !== b.alocadosXepa) return a.alocadosXepa - b.alocadosXepa; 
+                    if (b.resto !== a.resto) return b.resto - a.resto; 
+                    return b.pontos - a.pontos; 
+                });
+
+                for (let cMeta of elegiveisXepa) {
+                    if (cMeta.alocadosGeral < 4 && 
+                        t.vagas[0]?.id !== cMeta.id && 
+                        !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) &&
+                        !isCorretorOcupadoNoDiaNaMesmaLoja(cMeta.id, t.iso)) {
+                        
+                        t.vagas[i] = { id: cMeta.id, nome: cMeta.nome, atendimentos: 0, falta: false };
+                        cMeta.alocadosGeral++;
+                        cMeta.alocadosXepa++; 
+                        alocadosPorSemana[cMeta.id][sIdx] = (alocadosPorSemana[cMeta.id][sIdx] || 0) + 1;
+                        break;
                     }
                 }
             }
         });
-    }
 
-    // 3. PREPARAR SLOTS
-    let turnosParaPreencher = [];
-    diasDaVisao.forEach(dia => {
-        if (dia.isFeriado) return;
-        turnosParaPreencher.push({ iso: dia.iso, turno: 'manha', vagas: [null, null] });
-        turnosParaPreencher.push({ iso: dia.iso, turno: 'tarde', vagas: [null, null] });
-    });
-    turnosParaPreencher.sort(() => Math.random() - 0.5); 
+        diasDaVisao.forEach(dia => {
+            if (dia.isFeriado) return;
+            let turnosDoDia = turnosParaPreencher.filter(t => t.iso === dia.iso);
+            let manha = turnosDoDia.find(t => t.turno === 'manha');
+            let tarde = turnosDoDia.find(t => t.turno === 'tarde');
 
-    const isCorretorOcupadoNaOutraLoja = (corretorId, iso, turno) => {
-        if (!escalaOutraLoja[iso]) return false;
-        let eOutra = escalaOutraLoja[iso];
-        if (eOutra[turno]) {
-            if (eOutra[turno][0] && eOutra[turno][0].id === corretorId) return true;
-            if (eOutra[turno][1] && eOutra[turno][1].id === corretorId) return true;
+            estado.escala[lojaAlvo][dia.iso] = {
+                manha: manha ? manha.vagas : [null, null],
+                tarde: tarde ? tarde.vagas : [null, null]
+            };
+        });
+
+        try {
+            await salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo);
+            mostrarAlerta("Prontinho! ✅", "Escala Meritocrática gerada e salva com sucesso no banco de dados.");
+            bootstrap.Modal.getInstance(document.getElementById('modal-sorteio')).hide();
+            atualizarVisualizacao(); 
+        } catch (error) { 
+            console.error("Erro ao salvar:", error); 
+            mostrarAlerta("Erro Crítico", "Ocorreu um erro de conexão ao tentar salvar no banco de dados."); 
         }
-        return false;
-    };
-
-    const isCorretorOcupadoNoDiaNaMesmaLoja = (corretorId, iso) => {
-        let turnosDoDia = turnosParaPreencher.filter(t => t.iso === iso);
-        for(let t of turnosDoDia) {
-            if(t.vagas[0]?.id === corretorId || t.vagas[1]?.id === corretorId) return true;
-        }
-        return false;
-    };
-
-    // 4. DISTRIBUIÇÃO FASE 1: SOLO
-    Object.values(corretoresMetas).forEach(cMeta => {
-        while (cMeta.alocadosSolo < cMeta.totalSolo && cMeta.alocadosGeral < cMeta.totalGeral) {
-            let turnoIndex = turnosParaPreencher.findIndex(t => 
-                t.vagas[0] === null && t.vagas[1] === null && 
-                !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) &&
-                !isCorretorOcupadoNoDiaNaMesmaLoja(cMeta.id, t.iso) &&
-                (alocadosPorSemana[cMeta.id][semanaDoDia[t.iso]] || 0) === 0 
-            );
-            
-            if (turnoIndex === -1) {
-                turnoIndex = turnosParaPreencher.findIndex(t => 
-                    t.vagas[0] === null && t.vagas[1] === null && 
-                    !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) &&
-                    !isCorretorOcupadoNoDiaNaMesmaLoja(cMeta.id, t.iso)
-                );
-            }
-
-            if (turnoIndex !== -1) {
-                let sIdx = semanaDoDia[turnosParaPreencher[turnoIndex].iso];
-                turnosParaPreencher[turnoIndex].vagas[0] = { id: cMeta.id, nome: cMeta.nome, atendimentos: 0, falta: false };
-                turnosParaPreencher[turnoIndex].vagas[1] = { id: cMeta.id, nome: cMeta.nome, atendimentos: 0, falta: false };
-                cMeta.alocadosSolo++;
-                cMeta.alocadosGeral++;
-                alocadosPorSemana[cMeta.id][sIdx] = (alocadosPorSemana[cMeta.id][sIdx] || 0) + 1;
-            } else break; 
-        }
-    });
-
-    // 5. DISTRIBUIÇÃO FASE 2: NORMAL
-    turnosParaPreencher.forEach(t => {
-        let sIdx = semanaDoDia[t.iso];
-        for (let i = 0; i < 2; i++) {
-            if (t.vagas[i] !== null) continue; 
-
-            let elegiveis = Object.values(corretoresMetas).filter(cMeta => 
-                cMeta.alocadosGeral < cMeta.totalGeral && 
-                t.vagas[0]?.id !== cMeta.id && 
-                !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) && 
-                !isCorretorOcupadoNoDiaNaMesmaLoja(cMeta.id, t.iso) 
-            );
-
-            if (elegiveis.length > 0) {
-                elegiveis.sort((a, b) => {
-                    let vezesSemanaA = alocadosPorSemana[a.id][sIdx] || 0;
-                    let vezesSemanaB = alocadosPorSemana[b.id][sIdx] || 0;
-                    if (vezesSemanaA !== vezesSemanaB) return vezesSemanaA - vezesSemanaB; 
-
-                    let percA = a.alocadosGeral / a.totalGeral;
-                    let percB = b.alocadosGeral / b.totalGeral;
-                    if (percA === percB) return Math.random() - 0.5; 
-                    return percA - percB;
-                });
-
-                let escolhido = elegiveis[0];
-                t.vagas[i] = { id: escolhido.id, nome: escolhido.nome, atendimentos: 0, falta: false };
-                escolhido.alocadosGeral++;
-                alocadosPorSemana[escolhido.id][sIdx] = (alocadosPorSemana[escolhido.id][sIdx] || 0) + 1;
-            }
-        }
-    });
-
-    // 6. DISTRIBUIÇÃO FASE 3: A XEPA
-    let elegiveisXepa = Object.values(corretoresMetas).filter(c => c.pontos > 0);
-
-    turnosParaPreencher.forEach(t => {
-        let sIdx = semanaDoDia[t.iso];
-        for (let i = 0; i < 2; i++) {
-            if (t.vagas[i] !== null) continue; 
-
-            elegiveisXepa.sort((a, b) => {
-                let vezesSemanaA = alocadosPorSemana[a.id][sIdx] || 0;
-                let vezesSemanaB = alocadosPorSemana[b.id][sIdx] || 0;
-                if (vezesSemanaA !== vezesSemanaB) return vezesSemanaA - vezesSemanaB;
-
-                if (a.alocadosXepa !== b.alocadosXepa) return a.alocadosXepa - b.alocadosXepa; 
-                if (b.resto !== a.resto) return b.resto - a.resto; 
-                return b.pontos - a.pontos; 
-            });
-
-            for (let cMeta of elegiveisXepa) {
-                if (cMeta.alocadosGeral < 4 && 
-                    t.vagas[0]?.id !== cMeta.id && 
-                    !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) &&
-                    !isCorretorOcupadoNoDiaNaMesmaLoja(cMeta.id, t.iso)) {
-                    
-                    t.vagas[i] = { id: cMeta.id, nome: cMeta.nome, atendimentos: 0, falta: false };
-                    cMeta.alocadosGeral++;
-                    cMeta.alocadosXepa++; 
-                    alocadosPorSemana[cMeta.id][sIdx] = (alocadosPorSemana[cMeta.id][sIdx] || 0) + 1;
-                    break;
-                }
-            }
-        }
-    });
-
-    // 7. MONTAR A ESCALA FINAL E SALVAR
-    diasDaVisao.forEach(dia => {
-        if (dia.isFeriado) return;
-        let turnosDoDia = turnosParaPreencher.filter(t => t.iso === dia.iso);
-        let manha = turnosDoDia.find(t => t.turno === 'manha');
-        let tarde = turnosDoDia.find(t => t.turno === 'tarde');
-
-        estado.escala[lojaAlvo][dia.iso] = {
-            manha: manha ? manha.vagas : [null, null],
-            tarde: tarde ? tarde.vagas : [null, null]
-        };
-    });
-
-    try {
-        await salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo);
-        alert("✅ Escala Meritocrática gerada com sucesso!");
-        bootstrap.Modal.getInstance(document.getElementById('modal-sorteio')).hide();
-        atualizarVisualizacao(); 
-    } catch (error) { console.error("Erro ao salvar:", error); alert("Erro ao salvar no banco de dados."); }
+        
+    }, 'btn-primary', '🎲 Sim, Sortear!'); // Parâmetros do botão modal
 };
 
 window.zerarEscalaSemana = async (lojaAlvo) => {
-    try {
-        const valSemana = filtroSemana.value;
-        const diasDaVisao = (valSemana === "all") ? estado.semanas.flat() : (estado.semanas[parseInt(valSemana)] || []);
-        let textoEscopo = (valSemana === "all") ? "o MÊS COMPLETO" : `a SEMANA ${parseInt(valSemana) + 1}`;
+    const valSemana = filtroSemana.value;
+    const diasDaVisao = (valSemana === "all") ? estado.semanas.flat() : (estado.semanas[parseInt(valSemana)] || []);
+    let textoEscopo = (valSemana === "all") ? "o <b>MÊS COMPLETO</b>" : `a <b>SEMANA ${parseInt(valSemana) + 1}</b>`;
 
-        if (diasDaVisao.length === 0) return alert("Não há dias úteis visíveis para zerar.");
-        if (!confirm(`⚠️ ZERAR toda a escala para ${textoEscopo} na Loja ${lojaAlvo.toUpperCase()}?`)) return;
+    if (diasDaVisao.length === 0) return mostrarAlerta("Atenção", "Não há dias úteis visíveis para zerar.");
 
-        if (!estado.escala[lojaAlvo]) estado.escala[lojaAlvo] = {};
+    let msgConfirma = `⚠️ Tem certeza que deseja <b>ZERAR</b> toda a escala para ${textoEscopo} na Loja <b>${lojaAlvo.toUpperCase()}</b>?<br><br>Essa ação não pode ser desfeita.`;
 
-        for (let dia of diasDaVisao) {
-            let iso = dia.iso;
-            if (estado.escala[lojaAlvo][iso]) {
-                let turnos = ['manha', 'tarde'];
-                for (let t of turnos) {
-                    for (let i = 0; i < 2; i++) {
-                        let c = estado.escala[lojaAlvo][iso][t] ? estado.escala[lojaAlvo][iso][t][i] : null;
-                        if (c && c.falta && c.id) await updateDoc(doc(db, "corretores", c.id), { faltas: increment(-1) });
+    mostrarConfirmacao("Zerar Escala", msgConfirma, async () => {
+        try {
+            if (!estado.escala[lojaAlvo]) estado.escala[lojaAlvo] = {};
+
+            for (let dia of diasDaVisao) {
+                let iso = dia.iso;
+                if (estado.escala[lojaAlvo][iso]) {
+                    let turnos = ['manha', 'tarde'];
+                    for (let t of turnos) {
+                        for (let i = 0; i < 2; i++) {
+                            let c = estado.escala[lojaAlvo][iso][t] ? estado.escala[lojaAlvo][iso][t][i] : null;
+                            if (c && c.falta && c.id) await updateDoc(doc(db, "corretores", c.id), { faltas: increment(-1) });
+                        }
                     }
                 }
+                estado.escala[lojaAlvo][iso] = { manha: [null, null], tarde: [null, null] };
             }
-            estado.escala[lojaAlvo][iso] = { manha: [null, null], tarde: [null, null] };
+
+            await salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo);
+            mostrarAlerta("Escala Zerada 🗑️", "A escala foi limpa com sucesso!");
+            atualizarVisualizacao();
+
+        } catch (error) { 
+            console.error("Erro ao zerar escala:", error); 
+            mostrarAlerta("Erro de Sistema", "Ops! Erro ao tentar zerar a tabela."); 
         }
-
-        await salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo);
-        alert(`✅ Escala zerada com sucesso!`);
-        atualizarVisualizacao();
-
-    } catch (error) { console.error("Erro ao zerar escala:", error); alert("Ops! Erro ao zerar: " + error.message); }
+    }, 'btn-danger', '🗑️ Sim, Zerar!');
 };
 
 // ==========================================
@@ -738,7 +782,7 @@ function renderizarListaFeriadosModal() {
                         <span class="fw-bold text-dark">${dataFmt}</span> - 
                         <span class="text-muted small">${f.descricao}</span>
                     </div>
-                    <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="excluirFeriado('${f.id}')">🗑️</button>
+                    <button class="btn btn-sm btn-outline-danger py-0 px-2 shadow-sm" onclick="excluirFeriado('${f.id}')" title="Remover Feriado">🗑️</button>
                 </div>
             `;
         });
@@ -756,7 +800,7 @@ window.salvarNovoFeriado = async () => {
     const inputDesc = document.getElementById('feriado-desc').value.trim();
 
     if (!inputData || !inputDesc) {
-        return alert("Por favor, preencha a data e a descrição do feriado!");
+        return mostrarAlerta("Atenção", "Por favor, preencha a data e a descrição do feriado antes de salvar!");
     }
 
     try {
@@ -769,17 +813,19 @@ window.salvarNovoFeriado = async () => {
         document.getElementById('feriado-desc').value = '';
     } catch (error) {
         console.error("Erro ao salvar feriado:", error);
-        alert("Erro ao salvar feriado.");
+        mostrarAlerta("Erro", "Falha de conexão ao tentar salvar o feriado.");
     }
 };
 
 window.excluirFeriado = async (id) => {
-    if (!confirm("Deseja excluir este feriado? Os dias afetados voltarão a ter plantão normal.")) return;
-    try {
-        await deleteDoc(doc(db, "feriados", id));
-    } catch (error) {
-        console.error("Erro ao excluir feriado:", error);
-    }
+    mostrarConfirmacao("Excluir Feriado", "Deseja excluir este feriado permanentemente?<br>Os dias afetados voltarão a ter plantão normal na escala.", async () => {
+        try {
+            await deleteDoc(doc(db, "feriados", id));
+        } catch (error) {
+            console.error("Erro ao excluir feriado:", error);
+            mostrarAlerta("Erro", "Não foi possível excluir o feriado.");
+        }
+    }, 'btn-danger', '🗑️ Sim, Excluir');
 };
 
 // ==========================================
