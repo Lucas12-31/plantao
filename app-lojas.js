@@ -350,14 +350,13 @@ window.abrirModalSorteio = (loja) => {
         if (pme > 0) corBorda = 'border-success'; 
         else if (pf > 0) corBorda = 'border-warning'; 
 
-        // CÁLCULO DAS METAS E DIREITOS DE PLANTÃO PARA EXIBIR NA TELA
         let pontos = (pme * 2) + pf;
         let totalPlantoes = pontos > 0 ? 1 + Math.floor(pontos / 5000) : 0;
-        totalPlantoes = Math.min(4, totalPlantoes); // Máximo 4
+        totalPlantoes = Math.min(4, totalPlantoes); 
         
         let totalSolo = Math.floor(pme / 5000);
-        totalSolo = Math.min(2, totalSolo); // Máximo 2
-        totalSolo = Math.min(totalSolo, totalPlantoes); // Solo não pode ser maior que o total
+        totalSolo = Math.min(2, totalSolo); 
+        totalSolo = Math.min(totalSolo, totalPlantoes); 
 
         let infoDireito = '';
         if (totalPlantoes > 0) {
@@ -424,7 +423,7 @@ window.sortearESalvar = async () => {
     const outraLoja = lojaAlvo === 'flamengo' ? 'tijuca' : 'flamengo';
     const escalaOutraLoja = await getEscalaOutraLojaMesclada(outraLoja);
 
-    // 1. CALCULAR METAS (DIREITOS) DOS CORRETORES
+    // 1. CALCULAR METAS
     let corretoresMetas = {};
     selecionados.forEach(c => {
         let cData = estado.corretores.find(x => x.id === c.id);
@@ -433,18 +432,16 @@ window.sortearESalvar = async () => {
         let pontos = (pme * 2) + pf;
 
         let total = pontos > 0 ? 1 + Math.floor(pontos / 5000) : 0;
-        total = Math.min(4, total); // Cap de 4 por mês
+        total = Math.min(4, total); 
 
         let solo = Math.floor(pme / 5000);
-        solo = Math.min(2, solo); // Cap de 2 solo por mês
+        solo = Math.min(2, solo); 
         solo = Math.min(solo, total);
 
-        corretoresMetas[c.id] = {
-            id: c.id, nome: c.nome, totalGeral: total, totalSolo: solo, alocadosGeral: 0, alocadosSolo: 0
-        };
+        corretoresMetas[c.id] = { id: c.id, nome: c.nome, totalGeral: total, totalSolo: solo, alocadosGeral: 0, alocadosSolo: 0 };
     });
 
-    // 2. DESCONTAR PLANTÕES QUE JÁ EXISTEM NO MÊS (FORA DA VISÃO ATUAL) PARA NÃO PASSAR DO LIMITE DE 4
+    // 2. DESCONTAR PLANTÕES JÁ EXISTENTES 
     let diasParaIgnorar = diasDaVisao.map(d => d.iso);
     for (let iso in estado.escala[lojaAlvo]) {
         if (diasParaIgnorar.includes(iso)) continue; 
@@ -455,7 +452,6 @@ window.sortearESalvar = async () => {
             let cad1 = diaEscala[turno][0];
             let cad2 = diaEscala[turno][1];
             
-            // Checa se é Solo (Mesmo corretor nas duas cadeiras)
             if (cad1 && cad2 && cad1.id === cad2.id) {
                 if (corretoresMetas[cad1.id]) {
                     corretoresMetas[cad1.id].alocadosGeral++;
@@ -468,17 +464,17 @@ window.sortearESalvar = async () => {
         });
     }
 
-    // 3. PREPARAR OS SLOTS DE TURNO QUE VAMOS PREENCHER
+    // 3. PREPARAR SLOTS
     let turnosParaPreencher = [];
     diasDaVisao.forEach(dia => {
         if (dia.isFeriado) return;
         turnosParaPreencher.push({ iso: dia.iso, turno: 'manha', vagas: [null, null] });
         turnosParaPreencher.push({ iso: dia.iso, turno: 'tarde', vagas: [null, null] });
     });
-    // Embaralha para ficar justo e aleatório as datas
     turnosParaPreencher.sort(() => Math.random() - 0.5); 
 
-    function isCorretorOcupadoNaOutraLoja(corretorId, iso, turno) {
+    // Helper Anti-Choque
+    const isCorretorOcupadoNaOutraLoja = (corretorId, iso, turno) => {
         if (!escalaOutraLoja[iso]) return false;
         let eOutra = escalaOutraLoja[iso];
         if (eOutra[turno]) {
@@ -486,13 +482,24 @@ window.sortearESalvar = async () => {
             if (eOutra[turno][1] && eOutra[turno][1].id === corretorId) return true;
         }
         return false;
-    }
+    };
 
-    // 4. DISTRIBUIÇÃO FASE 1: GARANTIR OS PLANTÕES SOLO PRIMEIRO
+    // Helper Anti-Dobradinha (Impede o cara de trabalhar de manhã e de tarde no mesmo dia na mesma loja)
+    const isCorretorOcupadoNoDiaNaMesmaLoja = (corretorId, iso) => {
+        let turnosDoDia = turnosParaPreencher.filter(t => t.iso === iso);
+        for(let t of turnosDoDia) {
+            if(t.vagas[0]?.id === corretorId || t.vagas[1]?.id === corretorId) return true;
+        }
+        return false;
+    };
+
+    // 4. DISTRIBUIÇÃO FASE 1: SOLO
     Object.values(corretoresMetas).forEach(cMeta => {
         while (cMeta.alocadosSolo < cMeta.totalSolo && cMeta.alocadosGeral < cMeta.totalGeral) {
             let turnoIndex = turnosParaPreencher.findIndex(t => 
-                t.vagas[0] === null && t.vagas[1] === null && !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno)
+                t.vagas[0] === null && t.vagas[1] === null && 
+                !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) &&
+                !isCorretorOcupadoNoDiaNaMesmaLoja(cMeta.id, t.iso)
             );
             
             if (turnoIndex !== -1) {
@@ -500,32 +507,29 @@ window.sortearESalvar = async () => {
                 turnosParaPreencher[turnoIndex].vagas[1] = { id: cMeta.id, nome: cMeta.nome, atendimentos: 0, falta: false };
                 cMeta.alocadosSolo++;
                 cMeta.alocadosGeral++;
-            } else {
-                break; // Se não achou turno vazio, azar.
-            }
+            } else break; 
         }
     });
 
-    // 5. DISTRIBUIÇÃO FASE 2: PREENCHER AS CADEIRAS INDIVIDUAIS RESTANTES
+    // 5. DISTRIBUIÇÃO FASE 2: NORMAL
     turnosParaPreencher.forEach(t => {
         for (let i = 0; i < 2; i++) {
-            if (t.vagas[i] !== null) continue; // Cadeira já preenchida (ex: pelo plantão solo)
+            if (t.vagas[i] !== null) continue; 
 
             let elegiveis = Object.values(corretoresMetas).filter(cMeta => 
-                cMeta.alocadosGeral < cMeta.totalGeral && // Ainda tem direito a vaga no mês
-                t.vagas[0]?.id !== cMeta.id && // Não pode ser ele mesmo na outra cadeira (pra não virar solo sem querer)
-                !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) // Não chocar com a outra loja
+                cMeta.alocadosGeral < cMeta.totalGeral && 
+                t.vagas[0]?.id !== cMeta.id && // Não ser ele mesmo do lado
+                !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) && // Não chocar loja
+                !isCorretorOcupadoNoDiaNaMesmaLoja(cMeta.id, t.iso) // Anti-Dobradinha
             );
 
             if (elegiveis.length > 0) {
-                // Prioriza quem recebeu menos da sua cota até agora
                 elegiveis.sort((a, b) => {
                     let percA = a.alocadosGeral / a.totalGeral;
                     let percB = b.alocadosGeral / b.totalGeral;
-                    if (percA === percB) return Math.random() - 0.5; // Desempate aleatório
+                    if (percA === percB) return Math.random() - 0.5; 
                     return percA - percB;
                 });
-
                 let escolhido = elegiveis[0];
                 t.vagas[i] = { id: escolhido.id, nome: escolhido.nome, atendimentos: 0, falta: false };
                 escolhido.alocadosGeral++;
@@ -533,7 +537,7 @@ window.sortearESalvar = async () => {
         }
     });
 
-    // 6. MONTAR A ESCALA FINAL E SALVAR
+    // 6. MONTAR A ESCALA FINAL
     diasDaVisao.forEach(dia => {
         if (dia.isFeriado) return;
         let turnosDoDia = turnosParaPreencher.filter(t => t.iso === dia.iso);
