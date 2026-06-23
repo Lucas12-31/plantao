@@ -1,23 +1,11 @@
 import { db } from "./firebase-config.js";
 import { collection, getDocs, getDoc, updateDoc, doc, onSnapshot, addDoc, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-const selectCorretor = document.getElementById('select-corretor');
 const tabelaRanking = document.getElementById('tabela-ranking');
-const form = document.getElementById('form-producao');
-
-const inputMes = document.getElementById('mes-referencia');
-if(inputMes) {
-    const hoje = new Date();
-    const ano = hoje.getFullYear();
-    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
-    inputMes.value = `${ano}-${mes}`; 
-}
-
 const selectHistorico = document.getElementById('select-historico');
 const tabelaHistorico = document.getElementById('tabela-historico');
 
 onSnapshot(collection(db, "corretores"), (snapshot) => {
-    let htmlOptions = '<option value="">Selecione...</option>';
     let corretores = [];
 
     snapshot.forEach(d => {
@@ -26,13 +14,6 @@ onSnapshot(collection(db, "corretores"), (snapshot) => {
 
     corretores.sort((a, b) => a.nome.localeCompare(b.nome));
     
-    if(selectCorretor) {
-        corretores.forEach(c => {
-            htmlOptions += `<option value="${c.id}">${c.nome}</option>`;
-        });
-        selectCorretor.innerHTML = htmlOptions;
-    }
-
     renderizarRanking(corretores, tabelaRanking, false);
 });
 
@@ -90,7 +71,6 @@ function renderizarRanking(lista, elementoTabela, ehHistorico = false) {
                 ? `<button onclick="toggleElegibilidade('${c.id}', '${c.nome}', true, ${c.v_pme}, ${c.v_pf})" class="btn btn-sm btn-outline-success p-1 px-2 shadow-sm me-1" title="Corretor Ativo. Clique para Suspender">🟢</button>`
                 : `<button onclick="toggleElegibilidade('${c.id}', '${c.nome}', false, ${c.v_pme}, ${c.v_pf})" class="btn btn-sm btn-outline-danger p-1 px-2 shadow-sm me-1" title="Corretor Suspenso. Clique para Ativar">🔴</button>`;
 
-            // NOVO: Passando os valores de leads recebidos para a função do lápis
             acoesHtml = `
                 <td>
                     <div class="d-flex flex-nowrap justify-content-center">
@@ -126,65 +106,6 @@ function renderizarRanking(lista, elementoTabela, ehHistorico = false) {
     elementoTabela.innerHTML = html;
 }
 
-if(form) {
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-
-        const id = selectCorretor.value;
-        const nomeCorretor = selectCorretor.options[selectCorretor.selectedIndex].text;
-        const mesRef = document.getElementById('mes-referencia').value;
-        const valorPme = parseFloat(document.getElementById('valor-pme').value) || 0;
-        const valorPf = parseFloat(document.getElementById('valor-pf').value) || 0;
-
-        if (!id || !mesRef) return alert("Preencha o corretor e o mês!");
-        if (valorPme <= 0 && valorPf <= 0) return alert("Preencha um valor PME ou PF!");
-
-        try {
-            const corretorRef = doc(db, "corretores", id);
-            const docSnap = await getDoc(corretorRef);
-            const dadosAtuais = docSnap.data();
-
-            let novoPme = (parseFloat(dadosAtuais.producao_pme) || 0) + valorPme;
-            let novoPf = (parseFloat(dadosAtuais.producao_pf) || 0) + valorPf;
-            let total = novoPme + novoPf;
-            
-            let isAtivo = dadosAtuais.elegivel !== false;
-            let leadsGanhos = 0;
-            if (isAtivo && total >= 3000) {
-                leadsGanhos = 1 + Math.floor(novoPme / 2000);
-            }
-
-            if (valorPme > 0) {
-                await addDoc(collection(db, "lancamentos_producao"), {
-                    corretor_id: id, corretor_nome: nomeCorretor, tipo_produto: 'pme', valor_lancado: valorPme, mes_competencia: mesRef, data_lancamento: new Date().toISOString()
-                });
-            }
-            if (valorPf > 0) {
-                await addDoc(collection(db, "lancamentos_producao"), {
-                    corretor_id: id, corretor_nome: nomeCorretor, tipo_produto: 'pf', valor_lancado: valorPf, mes_competencia: mesRef, data_lancamento: new Date().toISOString()
-                });
-            }
-
-            await updateDoc(corretorRef, {
-                producao_pme: novoPme,
-                producao_pf: novoPf,
-                leads_ganhos_pme: leadsGanhos,
-                mes_competencia: mesRef
-            });
-            
-            alert(`✅ Produção salva! A meta de leads foi recalculada.`);
-            
-            document.getElementById('valor-pme').value = ''; 
-            document.getElementById('valor-pf').value = ''; 
-            
-            const modalEl = document.getElementById('modal-lancar-producao');
-            const modal = bootstrap.Modal.getInstance(modalEl);
-            if(modal) modal.hide();
-        } catch (error) { console.error(error); alert("Erro ao lançar."); }
-    });
-}
-
-// NOVO: A função agora aceita recPme e recPf e joga nos inputs da janelinha
 window.abrirModalEditarProducao = (id, nome, pmeAtual, pfAtual, mesAtual, recPme, recPf) => {
     document.getElementById('edit-prod-id').value = id;
     document.getElementById('edit-prod-nome').innerText = nome;
@@ -196,7 +117,6 @@ window.abrirModalEditarProducao = (id, nome, pmeAtual, pfAtual, mesAtual, recPme
     new bootstrap.Modal(document.getElementById('modal-editar-producao')).show();
 };
 
-// NOVO: A função agora capta o que você digitou de leads recebidos e manda pro banco
 window.salvarEdicaoProducao = async () => {
     const id = document.getElementById('edit-prod-id').value;
     const novoPme = parseFloat(document.getElementById('edit-prod-pme').value) || 0;
