@@ -13,7 +13,7 @@
         .card-vaga { border: 1px dashed #ccc; padding: 6px 4px; border-radius: 8px; background-color: #fcfcfc; height: 100%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; position: relative; min-height: 55px; overflow: hidden; min-width: 0; }
         .card-vaga:hover { background-color: #e9ecef; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         
-        /* NOVO: Permite que o nome quebre em duas linhas perfeitamente centralizadas */
+        /* Permite que o nome quebre em duas linhas perfeitamente centralizadas */
         .nome-corretor { font-weight: bold; font-size: 0.95rem; color: #333; white-space: normal; line-height: 1.1; word-wrap: break-word; } 
         
         .manha-bg { background-color: #e0f7fa !important; }
@@ -40,7 +40,7 @@
                 <ul class="navbar-nav ms-auto align-items-center gap-2" style="font-size: 0.85rem;">
                     <li class="nav-item"><a class="nav-link text-light" href="cadastro.html">👥 Cadastro</a></li>
                     <li class="nav-item"><a class="nav-link text-light" href="parceiros.html">🤝 Parceiros</a></li>
-                    <li class="nav-item"><a class="nav-link text-success fw-bold" href="producao.html">💰 Produção</a></li>
+                    <li class="nav-item"><a class="nav-link text-success fw-bold" href="producao.html">💰 Producão</a></li>
                     <li class="nav-item d-none d-lg-block text-secondary">|</li>
                     <li class="nav-item"><a class="nav-link text-primary fw-bold border-bottom border-success" href="lojas.html">🏪 Lojas</a></li>
                     <li class="nav-item"><a class="nav-link text-danger fw-bold" href="leads.html">🔥 Leads</a></li>
@@ -70,9 +70,14 @@
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end mb-4 border-bottom pb-3 gap-3">
             <div>
                 <h3 class="fw-bold text-dark mb-2">🏪 Escalas Presenciais (Lado a Lado)</h3>
-                <button class="btn btn-outline-secondary fw-bold border-2 shadow-sm text-nowrap" onclick="abrirModalTroca()">
-                    🔄 Efetuar Troca de Plantão
-                </button>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary fw-bold border-2 shadow-sm text-nowrap" onclick="abrirModalTroca()">
+                        🔄 Efetuar Troca de Plantão
+                    </button>
+                    <button class="btn btn-outline-dark fw-bold border-2 shadow-sm text-nowrap" onclick="abrirModalFeriados()">
+                        📅 Gerenciar Feriados
+                    </button>
+                </div>
             </div>
             
             <div class="d-flex flex-wrap gap-3 align-items-end bg-white p-3 rounded shadow-sm border">
@@ -166,7 +171,6 @@
         </div>
     </div>
 
-    <!-- MODAL DE SORTEIO -->
     <div class="modal fade" id="modal-sorteio" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content border-0 shadow">
@@ -202,7 +206,6 @@
         </div>
     </div>
 
-    <!-- MODAL DETALHES -->
     <div class="modal fade" id="modal-detalhes-plantao" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg border-0">
@@ -249,7 +252,6 @@
         </div>
     </div>
 
-    <!-- MODAL TROCA -->
     <div class="modal fade" id="modal-troca" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg border-0">
@@ -311,6 +313,42 @@
                 <div class="modal-footer bg-white">
                     <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
                     <button type="button" class="btn btn-warning fw-bold px-4 shadow-sm" onclick="efetuarTroca()">🔄 Confirmar Troca</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modal-feriados" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-0">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title fw-bold">📅 Gerenciar Feriados / Folgas Geral</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-light p-4">
+                    
+                    <h6 class="fw-bold text-secondary mb-2">➕ Cadastrar Novo Feriado</h6>
+                    <div class="row g-2 bg-white p-3 rounded border shadow-sm mb-4">
+                        <div class="col-12">
+                            <label class="small fw-bold text-muted">Data do Feriado:</label>
+                            <input type="date" id="feriado-data" class="form-control form-control-sm fw-bold">
+                        </div>
+                        <div class="col-12 mt-2">
+                            <label class="small fw-bold text-muted">Descrição / Nome:</label>
+                            <input type="text" id="feriado-desc" class="form-control form-control-sm fw-bold" placeholder="Ex: Natal, Ano Novo, Folga Coletiva">
+                        </div>
+                        <div class="col-12 mt-3 text-end">
+                            <button type="button" class="btn btn-sm btn-dark fw-bold px-3 shadow-sm" onclick="salvarNovoFeriado()">➕ Adicionar à Escala</button>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold text-secondary mb-2">📋 Feriados Cadastrados</h6>
+                    <div id="lista-feriados-modal" class="list-group shadow-sm overflow-y-auto" style="max-height: 220px;">
+                        </div>
+
+                </div>
+                <div class="modal-footer bg-white">
+                    <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Fechar</button>
                 </div>
             </div>
         </div>
