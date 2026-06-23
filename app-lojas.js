@@ -35,11 +35,15 @@ window.iniciarLojas = async () => {
         snap.forEach(d => {
             let dados = d.data();
             
-            // NOVO: Verificação BLINDADA de Suspensão (procura em vários campos)
+            // NOVO: VARREDURA TOTAL (Busca Implacável)
+            // Varre absolutamente todos os campos salvos neste corretor no Firebase
             let suspenso = false;
-            if (dados.status && String(dados.status).toLowerCase().trim() === 'suspenso') suspenso = true;
-            if (dados.situacao && String(dados.situacao).toLowerCase().trim() === 'suspenso') suspenso = true;
-            if (dados.meta_pme && String(dados.meta_pme).toLowerCase().trim() === 'suspenso') suspenso = true;
+            for (let key in dados) {
+                if (dados[key] && String(dados[key]).toLowerCase().includes('suspenso')) {
+                    suspenso = true;
+                    break;
+                }
+            }
 
             estado.corretores.push({ 
                 id: d.id, 
