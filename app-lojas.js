@@ -35,7 +35,6 @@ window.iniciarLojas = async () => {
         snap.forEach(d => {
             let dados = d.data();
             
-            // DESCOBERTA: O app-producao usa 'elegivel: false' para indicar suspensão
             let suspenso = dados.elegivel === false;
 
             estado.corretores.push({ 
@@ -44,7 +43,7 @@ window.iniciarLojas = async () => {
                 pme: parseFloat(dados.producao_pme) || 0, 
                 pf: parseFloat(dados.producao_pf) || 0, 
                 faltas: parseInt(dados.faltas) || 0,
-                isSuspenso: suspenso // Agora mapeado perfeitamente!
+                isSuspenso: suspenso 
             });
         });
         estado.corretores.sort((a, b) => a.nome.localeCompare(b.nome));
@@ -93,7 +92,7 @@ async function salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo) {
     const promessas = Object.keys(lotesPorMes).map(mesKey => {
         const docId = `${lojaAlvo}_${mesKey}`;
         return setDoc(doc(db, "escala_lojas", docId), {
-            loja: lojaAlvo, mes: mesKey, escala: lotesPorMes[mesKey], updatedEm: new Date().toISOString()
+            loja: lojaAlvo, mes: mesKey, escala: lotesPorMes[mesKey], atualizadoEm: new Date().toISOString()
         }, { merge: true }); 
     });
 
@@ -378,21 +377,25 @@ window.abrirModalSorteio = (loja) => {
 
         let infoDireito = '';
         if (isSuspenso) {
-            infoDireito = `<span class="badge bg-dark text-white ms-1" style="font-size: 0.7rem;" title="Corretor Suspenso">⛔ SUSPENSO (0 Vagas)</span>`;
+            // Texto reduzido para não quebrar a linha e estragar o design
+            infoDireito = `<span class="badge bg-dark text-white" style="font-size: 0.65rem;" title="Corretor Suspenso">⛔ SUSPENSO</span>`;
         } else if (totalPlantoes > 0) {
-            infoDireito = `<span class="badge bg-primary ms-1" style="font-size: 0.7rem;" title="Direito de Plantões no Mês">🏆 ${totalPlantoes} Vagas ${totalSolo > 0 ? `(${totalSolo} Solo)` : ''}</span>`;
+            // Adaptação para Vgs em vez de Vagas e (2S) para economizar espaço
+            infoDireito = `<span class="badge bg-primary" style="font-size: 0.7rem;" title="Direito de Plantões no Mês">🏆 ${totalPlantoes} Vagas ${totalSolo > 0 ? `(${totalSolo} Solo)` : ''}</span>`;
         } else {
-            infoDireito = `<span class="badge bg-secondary ms-1" style="font-size: 0.7rem;" title="Sem produção no mês">🚫 0 Vagas</span>`;
+            infoDireito = `<span class="badge bg-secondary" style="font-size: 0.7rem;" title="Sem produção no mês">🚫 0 Vagas</span>`;
         }
 
-        let badgeFaltas = c.faltas > 0 ? `<span class="badge bg-danger ms-2" title="Acúmulo de Faltas">${c.faltas} ⚠️</span>` : '';
+        let badgeFaltas = c.faltas > 0 ? `<span class="badge bg-danger ms-1" title="Acúmulo de Faltas">${c.faltas} ⚠️</span>` : '';
 
+        // NOVO DESIGN: Adicionado d-flex com justify-content-between e trava h-100 para garantir que tudo fique na mesma linha e do mesmo tamanho
         html += `
             <div class="col-md-4">
-                <div class="form-check border ${corBorda} border-2 rounded p-2 bg-white shadow-sm d-flex align-items-center">
-                    <input class="form-check-input ms-1 me-2 chk-corretor" type="checkbox" value="${c.id}" id="chk_${c.id}" data-nome="${c.nome}" data-cor="${dataCor}">
-                    <label class="form-check-label fw-bold w-100" style="cursor: pointer;" for="chk_${c.id}">
-                        ${c.nome.split(' ')[0]} ${infoDireito} ${badgeFaltas}
+                <div class="form-check border ${corBorda} border-2 rounded p-2 bg-white shadow-sm d-flex align-items-center h-100">
+                    <input class="form-check-input ms-1 me-2 chk-corretor flex-shrink-0" type="checkbox" value="${c.id}" id="chk_${c.id}" data-nome="${c.nome}" data-cor="${dataCor}">
+                    <label class="form-check-label fw-bold w-100 d-flex justify-content-between align-items-center" style="cursor: pointer;" for="chk_${c.id}">
+                        <span class="text-truncate pe-1">${c.nome.split(' ')[0]}</span>
+                        <span class="text-nowrap">${infoDireito}${badgeFaltas}</span>
                     </label>
                 </div>
             </div>
@@ -457,7 +460,7 @@ window.sortearESalvar = async () => {
     checkboxes.forEach(c => selecionados.push({ id: c.value, nome: c.getAttribute('data-nome') }));
 
     const outraLoja = lojaAlvo === 'flamengo' ? 'tijuca' : 'flamengo';
-    const scalaOutraLoja = await getEscalaOutraLojaMesclada(outraLoja);
+    const escalaOutraLoja = await getEscalaOutraLojaMesclada(outraLoja);
 
     // 1. CALCULAR METAS
     let corretoresMetas = {};
@@ -519,8 +522,8 @@ window.sortearESalvar = async () => {
     turnosParaPreencher.sort(() => Math.random() - 0.5); 
 
     const isCorretorOcupadoNaOutraLoja = (corretorId, iso, turno) => {
-        if (!scalaOutraLoja[iso]) return false;
-        let eOutra = scalaOutraLoja[iso];
+        if (!escalaOutraLoja[iso]) return false;
+        let eOutra = escalaOutraLoja[iso];
         if (eOutra[turno]) {
             if (eOutra[turno][0] && eOutra[turno][0].id === corretorId) return true;
             if (eOutra[turno][1] && eOutra[turno][1].id === corretorId) return true;
