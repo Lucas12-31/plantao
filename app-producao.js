@@ -1,11 +1,57 @@
 import { db } from "./firebase-config.js";
 import { collection, getDocs, getDoc, updateDoc, doc, onSnapshot, addDoc, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+const selectCorretor = document.getElementById('select-corretor');
 const tabelaRanking = document.getElementById('tabela-ranking');
+const form = document.getElementById('form-producao');
+
+const inputMes = document.getElementById('mes-referencia');
+if(inputMes) {
+    const hoje = new Date();
+    const ano = hoje.getFullYear();
+    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+    inputMes.value = `${ano}-${mes}`; 
+}
+
 const selectHistorico = document.getElementById('select-historico');
 const tabelaHistorico = document.getElementById('tabela-historico');
 
+// ==========================================
+// FUNÇÕES UNIVERSAIS DE ALERTAS BONITOS
+// ==========================================
+window.mostrarAlerta = (titulo, mensagem) => {
+    document.getElementById('modal-alerta-titulo').innerText = titulo;
+    document.getElementById('modal-alerta-mensagem').innerHTML = mensagem;
+    new bootstrap.Modal(document.getElementById('modal-alerta')).show();
+};
+
+window.mostrarConfirmacao = (titulo, mensagem, callbackSim, corBtn = 'btn-success', textoBtn = 'Confirmar') => {
+    document.getElementById('modal-confirmacao-titulo').innerText = titulo;
+    document.getElementById('modal-confirmacao-mensagem').innerHTML = mensagem;
+    
+    const btn = document.getElementById('btn-confirmar-acao');
+    btn.className = `btn fw-bold px-4 shadow-sm ${corBtn}`;
+    btn.innerText = textoBtn;
+    
+    const novoBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(novoBtn, btn);
+    
+    const modalConfirm = new bootstrap.Modal(document.getElementById('modal-confirmacao'));
+    
+    novoBtn.onclick = () => {
+        modalConfirm.hide();
+        callbackSim();
+    };
+    
+    modalConfirm.show();
+};
+
+
+// ==========================================
+// INICIALIZAÇÃO DA TABELA
+// ==========================================
 onSnapshot(collection(db, "corretores"), (snapshot) => {
+    let htmlOptions = '<option value="">Selecione...</option>';
     let corretores = [];
 
     snapshot.forEach(d => {
@@ -14,6 +60,13 @@ onSnapshot(collection(db, "corretores"), (snapshot) => {
 
     corretores.sort((a, b) => a.nome.localeCompare(b.nome));
     
+    if(selectCorretor) {
+        corretores.forEach(c => {
+            htmlOptions += `<option value="${c.id}">${c.nome}</option>`;
+        });
+        selectCorretor.innerHTML = htmlOptions;
+    }
+
     renderizarRanking(corretores, tabelaRanking, false);
 });
 
@@ -106,6 +159,73 @@ function renderizarRanking(lista, elementoTabela, ehHistorico = false) {
     elementoTabela.innerHTML = html;
 }
 
+// ==========================================
+// LANÇAMENTO DE PRODUÇÃO
+// ==========================================
+if(form) {
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const id = selectCorretor.value;
+        const nomeCorretor = selectCorretor.options[selectCorretor.selectedIndex].text;
+        const mesRef = document.getElementById('mes-referencia').value;
+        const valorPme = parseFloat(document.getElementById('valor-pme').value) || 0;
+        const valorPf = parseFloat(document.getElementById('valor-pf').value) || 0;
+
+        if (!id || !mesRef) return window.mostrarAlerta("Atenção", "Preencha o corretor e o mês da produção!");
+        if (valorPme <= 0 && valorPf <= 0) return window.mostrarAlerta("Atenção", "Preencha um valor válido para PME ou PF!");
+
+        try {
+            const corretorRef = doc(db, "corretores", id);
+            const docSnap = await getDoc(corretorRef);
+            const dadosAtuais = docSnap.data();
+
+            let novoPme = (parseFloat(dadosAtuais.producao_pme) || 0) + valorPme;
+            let novoPf = (parseFloat(dadosAtuais.producao_pf) || 0) + valorPf;
+            let total = novoPme + novoPf;
+            
+            let isAtivo = dadosAtuais.elegivel !== false;
+            let leadsGanhos = 0;
+            if (isAtivo && total >= 3000) {
+                leadsGanhos = 1 + Math.floor(novoPme / 2000);
+            }
+
+            if (valorPme > 0) {
+                await addDoc(collection(db, "lancamentos_producao"), {
+                    corretor_id: id, corretor_nome: nomeCorretor, tipo_produto: 'pme', valor_lancado: valorPme, mes_competencia: mesRef, data_lancamento: new Date().toISOString()
+                });
+            }
+            if (valorPf > 0) {
+                await addDoc(collection(db, "lancamentos_producao"), {
+                    corretor_id: id, corretor_nome: nomeCorretor, tipo_produto: 'pf', valor_lancado: valorPf, mes_competencia: mesRef, data_lancamento: new Date().toISOString()
+                });
+            }
+
+            await updateDoc(corretorRef, {
+                producao_pme: novoPme,
+                producao_pf: novoPf,
+                leads_ganhos_pme: leadsGanhos,
+                mes_competencia: mesRef
+            });
+            
+            window.mostrarAlerta("Sucesso ✅", "Produção salva! A meta de leads do corretor foi recalculada.");
+            
+            document.getElementById('valor-pme').value = ''; 
+            document.getElementById('valor-pf').value = ''; 
+            
+            const modalEl = document.getElementById('modal-lancar-producao');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if(modal) modal.hide();
+        } catch (error) { 
+            console.error(error); 
+            window.mostrarAlerta("Erro", "Ocorreu um erro ao lançar a produção."); 
+        }
+    });
+}
+
+// ==========================================
+// EDIÇÃO E ZERAR PRODUÇÃO (LÁPIS E LIXEIRA)
+// ==========================================
 window.abrirModalEditarProducao = (id, nome, pmeAtual, pfAtual, mesAtual, recPme, recPf) => {
     document.getElementById('edit-prod-id').value = id;
     document.getElementById('edit-prod-nome').innerText = nome;
@@ -144,67 +264,86 @@ window.salvarEdicaoProducao = async () => {
             leads_recebidos_pf: novoRecPf
         });
         bootstrap.Modal.getInstance(document.getElementById('modal-editar-producao')).hide();
-    } catch (error) { console.error(error); alert("Erro ao atualizar a produção."); }
+        window.mostrarAlerta("Atualizado", "A ficha do corretor foi ajustada com sucesso.");
+    } catch (error) { 
+        console.error(error); 
+        window.mostrarAlerta("Erro", "Erro ao atualizar a produção manual."); 
+    }
 };
 
 window.zerarProducaoCorretor = async (id, nome) => {
-    if(confirm(`⚠️ ZERAR toda a produção e leads recebidos de ${nome} neste mês?`)) {
+    window.mostrarConfirmacao("Zerar Corretor", `⚠️ Tem certeza que deseja <b>ZERAR</b> toda a produção e leads recebidos de <b>${nome}</b> neste mês?`, async () => {
         try {
             await updateDoc(doc(db, "corretores", id), {
                 producao_pme: 0, producao_pf: 0, leads_ganhos_pme: 0, leads_recebidos_pme: 0, leads_recebidos_pf: 0, mes_competencia: "" 
             });
-        } catch (error) { console.error(error); }
-    }
+            window.mostrarAlerta("Zerado", `A produção de ${nome} foi apagada.`);
+        } catch (error) { 
+            console.error(error); 
+            window.mostrarAlerta("Erro", "Falha ao zerar corretor.");
+        }
+    }, 'btn-danger', '🗑️ Sim, Zerar');
 };
 
 window.toggleElegibilidade = async (id, nome, statusAtual, pme, pf) => {
     let novoStatus = !statusAtual;
     let acao = novoStatus ? "ATIVAR" : "SUSPENDER";
-    if(confirm(`Deseja ${acao} o corretor ${nome} do recebimento de Leads?`)) {
+    let cor = novoStatus ? "btn-success" : "btn-danger";
+    let icon = novoStatus ? "🟢" : "🔴";
+
+    window.mostrarConfirmacao("Alterar Status", `Deseja <b>${acao}</b> o corretor ${nome} do recebimento de Leads e da Escala Presencial?`, async () => {
         try {
             let leadsGanhos = 0;
             let total = pme + pf;
             if (novoStatus && total >= 3000) { leadsGanhos = 1 + Math.floor(pme / 2000); }
             await updateDoc(doc(db, "corretores", id), { elegivel: novoStatus, leads_ganhos_pme: leadsGanhos });
-        } catch(e) { console.error(e); }
-    }
+        } catch(e) { 
+            console.error(e); 
+            window.mostrarAlerta("Erro", "Falha ao alterar o status do corretor.");
+        }
+    }, cor, `${icon} Sim, ${acao}`);
 };
 
+// ==========================================
+// INICIAR NOVO CICLO (Com Campo de Senha)
+// ==========================================
 export async function iniciarNovoCiclo() {
-    const confirmacao = confirm(
-        "📅 INICIAR NOVO CICLO DE VENDAS\n\n" +
-        "1. Salva a Produção Atual no Histórico.\n" +
-        "2. ZERA os Totais Financeiros E OS LEADS RECEBIDOS para o novo mês.\n\n" +
-        "Deseja continuar?"
-    );
+    let msg = `1. Salva a Produção Atual no Histórico.<br>2. ZERA os Totais Financeiros E OS LEADS RECEBIDOS para o novo mês.<br><br><b>Digite a senha de administrador para continuar:</b><br><input type="password" id="input-senha-ciclo" class="form-control mt-3 text-center fw-bold" placeholder="******">`;
 
-    if(!confirmacao) return;
+    window.mostrarConfirmacao("📅 INICIAR NOVO CICLO DE VENDAS", msg, async () => {
+        const senha = document.getElementById('input-senha-ciclo').value;
+        if (senha !== "limao123") return window.mostrarAlerta("Acesso Negado ⛔", "A senha digitada está incorreta.");
 
-    const senha = prompt("Digite a senha de administrador (limao123):");
-    if (senha !== "limao123") return alert("Senha incorreta.");
+        try {
+            const snapshot = await getDocs(collection(db, "corretores"));
+            const dataHoje = new Date().toLocaleDateString('pt-BR');
+            const referenciaCiclo = `Ciclo encerrado em ${dataHoje}`;
 
-    try {
-        const snapshot = await getDocs(collection(db, "corretores"));
-        const dataHoje = new Date().toLocaleDateString('pt-BR');
-        const referenciaCiclo = `Ciclo encerrado em ${dataHoje}`;
-
-        for (const d of snapshot.docs) {
-            const dados = d.data();
-            if(dados.producao_pme > 0 || dados.producao_pf > 0) {
-                await addDoc(collection(db, "historico_fechamentos"), {
-                    data_fechamento: new Date().toISOString(), referencia: referenciaCiclo,
-                    corretor: dados.nome, producao_final_pme: dados.producao_pme, producao_final_pf: dados.producao_pf
+            for (const d of snapshot.docs) {
+                const dados = d.data();
+                if(dados.producao_pme > 0 || dados.producao_pf > 0) {
+                    await addDoc(collection(db, "historico_fechamentos"), {
+                        data_fechamento: new Date().toISOString(), referencia: referenciaCiclo,
+                        corretor: dados.nome, producao_final_pme: dados.producao_pme, producao_final_pf: dados.producao_pf
+                    });
+                }
+                await updateDoc(doc(db, "corretores", d.id), {
+                    producao_pme: 0, producao_pf: 0, leads_ganhos_pme: 0, leads_recebidos_pme: 0, leads_recebidos_pf: 0, mes_competencia: "" 
                 });
             }
-            await updateDoc(doc(db, "corretores", d.id), {
-                producao_pme: 0, producao_pf: 0, leads_ganhos_pme: 0, leads_recebidos_pme: 0, leads_recebidos_pf: 0, mes_competencia: "" 
-            });
+            window.mostrarAlerta("Sucesso! ✅", "Novo ciclo iniciado! O histórico foi salvo e a roleta financeira foi zerada.");
+            carregarOpcoesHistorico(); 
+        } catch (error) { 
+            console.error(error); 
+            window.mostrarAlerta("Erro Crítico", "Falha de conexão ao tentar processar o novo ciclo."); 
         }
-        alert("✅ Novo ciclo iniciado! O histórico foi salvo e a roleta zerada.");
-        carregarOpcoesHistorico(); 
-    } catch (error) { console.error(error); }
+
+    }, "btn-danger", "🛑 Encerrar Mês");
 }
 
+// ==========================================
+// HISTÓRICO
+// ==========================================
 async function carregarOpcoesHistorico() {
     if(!selectHistorico) return;
     try {
@@ -240,7 +379,7 @@ if(selectHistorico) {
                 });
             });
             renderizarRanking(corretoresAntigos, tabelaHistorico, true);
-        } catch (error) { tabelaHistorico.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">Erro.</td></tr>'; }
+        } catch (error) { tabelaHistorico.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">Erro de conexão.</td></tr>'; }
     });
 }
 carregarOpcoesHistorico();
