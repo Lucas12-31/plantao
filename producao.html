@@ -219,6 +219,45 @@
         </div>
     </div>
 
+    <!-- ==============================================
+         MODAIS UNIVERSAIS (ALERTA E CONFIRMAÇÃO)
+         ============================================== -->
+         
+    <!-- Modal Alerta Bonito -->
+    <div class="modal fade" id="modal-alerta" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content shadow-lg border-0 text-center">
+                <div class="modal-header bg-warning border-0 p-3 pb-0 d-flex justify-content-center">
+                    <h5 class="modal-title fw-bold text-dark w-100" id="modal-alerta-titulo">Aviso</h5>
+                </div>
+                <div class="modal-body bg-white p-4">
+                    <p id="modal-alerta-mensagem" class="mb-0 fw-bold text-secondary"></p>
+                </div>
+                <div class="modal-footer border-0 justify-content-center bg-white pb-4 pt-0">
+                    <button type="button" class="btn btn-warning fw-bold px-4 shadow-sm" data-bs-dismiss="modal">Entendi</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Confirmação Bonito -->
+    <div class="modal fade" id="modal-confirmacao" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-0 text-center">
+                <div class="modal-header bg-dark border-0 p-3 pb-0 d-flex justify-content-center">
+                    <h5 class="modal-title fw-bold text-white w-100" id="modal-confirmacao-titulo">Confirmação</h5>
+                </div>
+                <div class="modal-body bg-white p-4">
+                    <p id="modal-confirmacao-mensagem" class="mb-0 fw-bold text-secondary" style="white-space: normal;"></p>
+                </div>
+                <div class="modal-footer border-0 justify-content-center bg-white pb-4 pt-0 gap-2">
+                    <button type="button" class="btn btn-outline-secondary fw-bold px-4" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn fw-bold px-4 shadow-sm" id="btn-confirmar-acao">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="app-producao.js"></script>
     <script type="module" src="app-notificacoes.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
