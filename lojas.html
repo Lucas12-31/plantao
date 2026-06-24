@@ -222,6 +222,7 @@
                         </select>
                     </div>
 
+                    <!-- NOVO LAYOUT DOS BOTÕES DE FALTA E REPOSIÇÃO -->
                     <div class="row g-3 align-items-center">
                         <div class="col-6 border-end">
                             <label class="form-label fw-bold text-muted small text-uppercase text-center w-100">Contador Atendimentos:</label>
@@ -231,10 +232,14 @@
                                 <button class="btn btn-primary fw-bold px-3" type="button" onclick="mudarAtendimentos(1)">+</button>
                             </div>
                         </div>
-                        <div class="col-6 text-center">
-                            <div class="form-check form-switch fs-4 d-inline-block mt-2">
-                                <input class="form-check-input shadow-sm" type="checkbox" id="check-falta" style="cursor: pointer;">
-                                <label class="form-check-label fw-bold text-danger fs-6 ms-2" for="check-falta" style="cursor: pointer;">MARCAR FALTA</label>
+                        <div class="col-6 d-flex flex-column justify-content-center align-items-start ps-4">
+                            <div class="form-check form-switch fs-5 mb-2">
+                                <input class="form-check-input shadow-sm border-danger" type="checkbox" id="check-falta" style="cursor: pointer;">
+                                <label class="form-check-label fw-bold text-danger fs-6 ms-1" for="check-falta" style="cursor: pointer;">MARCAR FALTA</label>
+                            </div>
+                            <div class="form-check form-switch fs-5">
+                                <input class="form-check-input shadow-sm border-success" type="checkbox" id="check-reposicao" style="cursor: pointer;">
+                                <label class="form-check-label fw-bold text-success fs-6 ms-1" for="check-reposicao" style="cursor: pointer;">REPOSIÇÃO (+1)</label>
                             </div>
                         </div>
                     </div>
@@ -346,7 +351,6 @@
 
                     <h6 class="fw-bold text-secondary mb-2">📋 Feriados Cadastrados</h6>
                     <div id="lista-feriados-modal" class="list-group shadow-sm overflow-y-auto" style="max-height: 220px;">
-                        <!-- Injetado via JS -->
                     </div>
 
                 </div>
@@ -357,11 +361,7 @@
         </div>
     </div>
 
-    <!-- ==============================================
-         NOVOS MODAIS UNIVERSAIS (ALERTA E CONFIRMAÇÃO)
-         ============================================== -->
-         
-    <!-- Modal Alerta Bonito -->
+    <!-- MODAIS UNIVERSAIS -->
     <div class="modal fade" id="modal-alerta" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
         <div class="modal-dialog modal-dialog-centered modal-sm">
             <div class="modal-content shadow-lg border-0 text-center">
@@ -378,7 +378,6 @@
         </div>
     </div>
 
-    <!-- Modal Confirmação Bonito -->
     <div class="modal fade" id="modal-confirmacao" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg border-0 text-center">
