@@ -66,31 +66,23 @@ window.iniciarLojas = async () => {
     });
 
     onSnapshot(collection(db, "corretores"), (snap) => {
-        estado.corretores = [];
-        snap.forEach(d => {
-            let dados = d.data();
-            
-            let suspenso = false;
-            for (let key in dados) {
-                if (dados[key] && String(dados[key]).toLowerCase().includes('suspenso')) {
-                    suspenso = true; break;
-                }
-            }
-            if (dados.elegivel === false) suspenso = true;
-
+    estado.corretores = [];
+    snap.forEach(d => {
+        let dados = d.data();
+        // SÓ MOSTRA SE FOR ATIVO (na equipe) E PARTICIPAR DE PLANTÃO
+        if (dados.ativo !== false && dados.participa_plantao !== false) {
             estado.corretores.push({ 
                 id: d.id, 
                 nome: dados.nome, 
                 pme: parseFloat(dados.producao_pme) || 0, 
                 pf: parseFloat(dados.producao_pf) || 0, 
                 faltas: parseInt(dados.faltas) || 0,
-                reposicoes: parseInt(dados.reposicoes) || 0, // NOVO: Mapeando Reposições
-                isSuspenso: suspenso
+                reposicoes: parseInt(dados.reposicoes) || 0
             });
-        });
-        estado.corretores.sort((a, b) => a.nome.localeCompare(b.nome));
+        }
     });
-
+    estado.corretores.sort((a, b) => a.nome.localeCompare(b.nome));
+});
     buscarEscalaNoBanco();
 };
 
