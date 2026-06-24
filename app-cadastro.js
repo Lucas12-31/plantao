@@ -79,10 +79,8 @@ form.addEventListener('submit', async (e) => {
 });
 
 // ==========================================
-// 2. LISTAR EQUIPE EM TEMPO REAL
+// 2. LISTAR EQUIPE COM BOTÕES SEPARADOS
 // ==========================================
-const q = query(collection(db, "corretores"), orderBy("nome", "asc"));
-
 onSnapshot(q, (snapshot) => {
     let html = '';
     
@@ -94,71 +92,59 @@ onSnapshot(q, (snapshot) => {
     snapshot.forEach((docSnap) => {
         const id = docSnap.id;
         const dados = docSnap.data();
-        const telefone = dados.telefone || '';
-        const email = dados.email || '';
         
-        // Verifica se ele está inativo/suspenso
-        let isAtivo = dados.elegivel !== false && dados.status !== 'inativo';
-        
-        const telBadge = telefone ? `<span class="fw-bold text-secondary">${telefone}</span>` : `<span class="badge bg-light text-muted border">Sem número</span>`;
-        const emailBadge = email ? `<span class="text-muted small">${email}</span>` : `<span class="badge bg-light text-muted border">Sem e-mail</span>`;
+        // Regras de Status
+        const isAtivo = dados.ativo !== false; // Se undefined, considera true
+        const participaPlantao = dados.participa_plantao !== false;
 
-        // Botões de Ação
-        let btnAcesso = '';
-        if (email && isAtivo) {
-            btnAcesso = `<button onclick="gerarAcessoCorretor('${dados.nome}', '${email}')" class="btn btn-outline-info btn-sm me-1 fw-bold shadow-sm" title="Criar Login para o Corretor">🔑</button>`;
-        }
-        
-        let btnInativar = isAtivo 
-            ? `<button onclick="toggleStatusCorretor('${id}', '${dados.nome}', true)" class="btn btn-outline-secondary btn-sm me-1 fw-bold shadow-sm" title="Inativar Corretor">⏸️</button>`
-            : `<button onclick="toggleStatusCorretor('${id}', '${dados.nome}', false)" class="btn btn-outline-success btn-sm me-1 fw-bold shadow-sm" title="Reativar Corretor">▶️</button>`;
+        const telBadge = dados.telefone ? `<span class="fw-bold text-secondary">${dados.telefone}</span>` : `<span class="badge bg-light text-muted border">Sem número</span>`;
+        const emailBadge = dados.email ? `<span class="text-muted small">${dados.email}</span>` : `<span class="badge bg-light text-muted border">Sem e-mail</span>`;
 
+        // Estilo Visual
         let nomeDisplay = isAtivo ? dados.nome : `<span class="text-decoration-line-through text-muted">${dados.nome}</span> <span class="badge bg-secondary ms-1" style="font-size:0.6rem;">INATIVO</span>`;
         let classRow = isAtivo ? "" : "bg-light opacity-75";
 
+        // Botões
+        let btnAcesso = dados.email && isAtivo ? `<button onclick="gerarAcessoCorretor('${dados.nome}', '${dados.email}')" class="btn btn-outline-info btn-sm me-1 fw-bold shadow-sm" title="Criar Login">🔑</button>` : '';
+        let btnStatusEquipe = isAtivo 
+            ? `<button onclick="toggleAtivo('${id}', '${dados.nome}', true)" class="btn btn-outline-secondary btn-sm me-1 fw-bold shadow-sm" title="Inativar da Equipe">⏸️</button>`
+            : `<button onclick="toggleAtivo('${id}', '${dados.nome}', false)" class="btn btn-outline-success btn-sm me-1 fw-bold shadow-sm" title="Reativar na Equipe">▶️</button>`;
+        
+        let btnStatusPlantao = participaPlantao
+            ? `<button onclick="togglePlantao('${id}', '${dados.nome}', true)" class="btn btn-outline-warning btn-sm me-1 fw-bold shadow-sm" title="Suspender do Plantão">⛔</button>`
+            : `<button onclick="togglePlantao('${id}', '${dados.nome}', false)" class="btn btn-outline-primary btn-sm me-1 fw-bold shadow-sm" title="Permitir no Plantão">✅</button>`;
+
         html += `
             <tr class="${classRow}">
-                <td class="text-start ps-4 fw-bold text-uppercase text-dark">${nomeDisplay}</td>
+                <td class="text-start ps-4 fw-bold text-uppercase text-dark">${nomeDisplay} ${participaPlantao ? '' : '<span class="badge bg-warning text-dark ms-1" style="font-size:0.6rem;">SUSPENSO PLANTÃO</span>'}</td>
                 <td class="align-middle">${telBadge}</td>
                 <td class="align-middle">${emailBadge}</td>
                 <td class="align-middle text-nowrap">
                     ${btnAcesso}
-                    <button onclick="abrirModalEditarCorretor('${id}', '${dados.nome}', '${telefone}', '${email}')" class="btn btn-outline-warning btn-sm me-1 fw-bold shadow-sm" title="Editar Corretor">✏️</button>
-                    ${btnInativar}
-                    <button onclick="deletarCorretor('${id}', '${dados.nome}')" class="btn btn-outline-danger btn-sm fw-bold shadow-sm" title="Excluir Corretor Permanentemente">🗑️</button>
+                    <button onclick="abrirModalEditarCorretor('${id}', '${dados.nome}', '${dados.telefone || ''}', '${dados.email || ''}')" class="btn btn-outline-warning btn-sm me-1 fw-bold shadow-sm" title="Editar">✏️</button>
+                    ${btnStatusEquipe}
+                    ${btnStatusPlantao}
+                    <button onclick="deletarCorretor('${id}', '${dados.nome}')" class="btn btn-outline-danger btn-sm fw-bold shadow-sm" title="Excluir Definitivamente">🗑️</button>
                 </td>
             </tr>
         `;
     });
-
     lista.innerHTML = html;
 });
 
 // ==========================================
-// 3. INATIVAR / REATIVAR CORRETOR (SOFT DELETE)
+// 3. FUNÇÕES DE CONTROLE DE STATUS
 // ==========================================
-window.toggleStatusCorretor = async (id, nome, isAtivo) => {
-    let acao = isAtivo ? "INATIVAR" : "REATIVAR";
-    let corBtn = isAtivo ? "btn-warning" : "btn-success";
-    let icone = isAtivo ? "⏸️" : "▶️";
+window.toggleAtivo = async (id, nome, ativoAtual) => {
+    window.mostrarConfirmacao("Status Equipe", `Deseja ${ativoAtual ? 'inativar' : 'reativar'} o corretor <b>${nome}</b>?`, async () => {
+        await updateDoc(doc(db, "corretores", id), { ativo: !ativoAtual });
+    }, ativoAtual ? 'btn-secondary' : 'btn-success', ativoAtual ? '⏸️ Inativar' : '▶️ Reativar');
+};
 
-    let msg = isAtivo 
-        ? `Deseja inativar o corretor <b>${nome}</b>?<br><br><small class="text-muted">Ele será suspenso e não aparecerá mais nas escalas e rankings, mas o histórico financeiro dele continuará a salvo no sistema.</small>` 
-        : `Deseja reativar o corretor <b>${nome}</b>?<br><br><small class="text-muted">Ele voltará a participar das escalas e da tabela de produção normalmente.</small>`;
-
-    window.mostrarConfirmacao(`${icone} ${acao} Corretor`, msg, async () => {
-        try {
-            // Utilizamos 'elegivel: false' para que a trava nativa do sistema já bloqueie ele em Lojas e Produção!
-            await updateDoc(doc(db, "corretores", id), {
-                elegivel: !isAtivo,
-                status: !isAtivo ? 'ativo' : 'inativo'
-            });
-            window.mostrarAlerta("Atualizado ✨", `O corretor ${nome} foi ${isAtivo ? 'inativado' : 'reativado'} com sucesso.`);
-        } catch (error) {
-            console.error(error);
-            window.mostrarAlerta("Erro", "Falha ao tentar alterar o status do corretor.");
-        }
-    }, corBtn, `${icone} Sim, ${acao}`);
+window.togglePlantao = async (id, nome, participaAtual) => {
+    window.mostrarConfirmacao("Status Plantão", `Deseja ${participaAtual ? 'suspender' : 'permitir'} o corretor <b>${nome}</b> nas escalas?`, async () => {
+        await updateDoc(doc(db, "corretores", id), { participa_plantao: !participaAtual });
+    }, participaAtual ? 'btn-warning' : 'btn-primary', participaAtual ? '⛔ Suspender' : '✅ Permitir');
 };
 
 // ==========================================
