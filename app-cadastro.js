@@ -81,7 +81,12 @@ form.addEventListener('submit', async (e) => {
 // ==========================================
 // 2. LISTAR EQUIPE COM BOTÕES SEPARADOS
 // ==========================================
-onSnapshot(q, (snapshot) => {
+
+// Definimos a query aqui para garantir que ela exista sempre
+const lista = document.getElementById('lista-corretores');
+const queryCorretores = query(collection(db, "corretores"), orderBy("nome", "asc"));
+
+onSnapshot(queryCorretores, (snapshot) => {
     let html = '';
     
     if (snapshot.empty) {
@@ -93,18 +98,16 @@ onSnapshot(q, (snapshot) => {
         const id = docSnap.id;
         const dados = docSnap.data();
         
-        // Regras de Status
-        const isAtivo = dados.ativo !== false; // Se undefined, considera true
+        // Proteção: Garante que os campos existam mesmo para cadastros antigos
+        const isAtivo = dados.ativo !== false; 
         const participaPlantao = dados.participa_plantao !== false;
 
         const telBadge = dados.telefone ? `<span class="fw-bold text-secondary">${dados.telefone}</span>` : `<span class="badge bg-light text-muted border">Sem número</span>`;
         const emailBadge = dados.email ? `<span class="text-muted small">${dados.email}</span>` : `<span class="badge bg-light text-muted border">Sem e-mail</span>`;
 
-        // Estilo Visual
         let nomeDisplay = isAtivo ? dados.nome : `<span class="text-decoration-line-through text-muted">${dados.nome}</span> <span class="badge bg-secondary ms-1" style="font-size:0.6rem;">INATIVO</span>`;
         let classRow = isAtivo ? "" : "bg-light opacity-75";
 
-        // Botões
         let btnAcesso = dados.email && isAtivo ? `<button onclick="gerarAcessoCorretor('${dados.nome}', '${dados.email}')" class="btn btn-outline-info btn-sm me-1 fw-bold shadow-sm" title="Criar Login">🔑</button>` : '';
         let btnStatusEquipe = isAtivo 
             ? `<button onclick="toggleAtivo('${id}', '${dados.nome}', true)" class="btn btn-outline-secondary btn-sm me-1 fw-bold shadow-sm" title="Inativar da Equipe">⏸️</button>`
@@ -131,7 +134,6 @@ onSnapshot(q, (snapshot) => {
     });
     lista.innerHTML = html;
 });
-
 // ==========================================
 // 3. FUNÇÕES DE CONTROLE DE STATUS
 // ==========================================
