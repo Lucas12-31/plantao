@@ -84,6 +84,7 @@ window.iniciarLojas = async () => {
                 pme: parseFloat(dados.producao_pme) || 0, 
                 pf: parseFloat(dados.producao_pf) || 0, 
                 faltas: parseInt(dados.faltas) || 0,
+                reposicoes: parseInt(dados.reposicoes) || 0, // NOVO: Mapeando Reposições
                 isSuspenso: suspenso
             });
         });
@@ -253,7 +254,7 @@ function atualizarVisualizacao() {
 }
 
 // ==========================================
-// 3. GERENCIAMENTO E SALVAMENTO DE FALTAS
+// 3. GERENCIAMENTO E SALVAMENTO DE FALTAS/REPOSIÇÕES
 // ==========================================
 window.abrirDetalhesPlantao = (loja, iso, turno, index, dataFmt) => {
     window.editandoPlantao = { loja, iso, turno, index, dataFmt };
@@ -271,7 +272,9 @@ window.abrirDetalhesPlantao = (loja, iso, turno, index, dataFmt) => {
     });
     document.getElementById('select-alterar-corretor').innerHTML = selectHtml;
     document.getElementById('input-atendimentos').value = corretorAtual && corretorAtual.atendimentos ? corretorAtual.atendimentos : 0;
+    
     document.getElementById('check-falta').checked = corretorAtual && corretorAtual.falta === true;
+    document.getElementById('check-reposicao').checked = corretorAtual && corretorAtual.reposicao === true; // NOVO: Mapeia o botão de reposição
 
     const divTroca = document.getElementById('info-troca-container');
     const textoTroca = document.getElementById('texto-info-troca');
@@ -299,25 +302,46 @@ window.salvarDetalhesPlantao = async () => {
     let corretorOriginal = estado.escala[loja][iso][turno][index];
     let infoTrocaExistente = corretorOriginal ? corretorOriginal.trocaInfo : null;
     let idAntigo = corretorOriginal ? corretorOriginal.id : null;
+    
     let faltaAntiga = corretorOriginal ? (corretorOriginal.falta === true) : false;
+    let reposicaoAntiga = corretorOriginal ? (corretorOriginal.reposicao === true) : false; // Lê antiga
+
     const faltaNova = document.getElementById('check-falta').checked;
+    const reposicaoNova = document.getElementById('check-reposicao').checked; // Lê nova
 
     try {
         if (idSelecionado) {
             if (idSelecionado === idAntigo) {
-                if (faltaNova !== faltaAntiga) await updateDoc(doc(db, "corretores", idSelecionado), { faltas: increment(faltaNova ? 1 : -1) });
+                let updates = {};
+                if (faltaNova !== faltaAntiga) updates.faltas = increment(faltaNova ? 1 : -1);
+                if (reposicaoNova !== reposicaoAntiga) updates.reposicoes = increment(reposicaoNova ? 1 : -1);
+                if (Object.keys(updates).length > 0) await updateDoc(doc(db, "corretores", idSelecionado), updates);
             } else {
-                if (idAntigo && faltaAntiga) await updateDoc(doc(db, "corretores", idAntigo), { faltas: increment(-1) });
-                if (faltaNova) await updateDoc(doc(db, "corretores", idSelecionado), { faltas: increment(1) });
+                if (idAntigo) {
+                    let updatesAntigo = {};
+                    if (faltaAntiga) updatesAntigo.faltas = increment(-1);
+                    if (reposicaoAntiga) updatesAntigo.reposicoes = increment(-1);
+                    if (Object.keys(updatesAntigo).length > 0) await updateDoc(doc(db, "corretores", idAntigo), updatesAntigo);
+                }
+                let updatesNovo = {};
+                if (faltaNova) updatesNovo.faltas = increment(1);
+                if (reposicaoNova) updatesNovo.reposicoes = increment(1);
+                if (Object.keys(updatesNovo).length > 0) await updateDoc(doc(db, "corretores", idSelecionado), updatesNovo);
             }
         } else {
-            if (idAntigo && faltaAntiga) await updateDoc(doc(db, "corretores", idAntigo), { faltas: increment(-1) });
+            if (idAntigo) {
+                let updatesAntigo = {};
+                if (faltaAntiga) updatesAntigo.faltas = increment(-1);
+                if (reposicaoAntiga) updatesAntigo.reposicoes = increment(-1);
+                if (Object.keys(updatesAntigo).length > 0) await updateDoc(doc(db, "corretores", idAntigo), updatesAntigo);
+            }
         }
 
         if (idSelecionado) {
             const nomeSelecionado = select.options[select.selectedIndex].getAttribute('data-nome');
             const atendimentos = parseInt(document.getElementById('input-atendimentos').value) || 0;
-            estado.escala[loja][iso][turno][index] = { id: idSelecionado, nome: nomeSelecionado, atendimentos: atendimentos, falta: faltaNova };
+            // NOVO: Adiciona a flag de reposicao ao banco
+            estado.escala[loja][iso][turno][index] = { id: idSelecionado, nome: nomeSelecionado, atendimentos: atendimentos, falta: faltaNova, reposicao: reposicaoNova };
             if (infoTrocaExistente && idSelecionado === idAntigo) estado.escala[loja][iso][turno][index].trocaInfo = infoTrocaExistente;
         } else {
             estado.escala[loja][iso][turno][index] = null;
@@ -398,9 +422,22 @@ window.efetuarTroca = async () => {
 filtroMes.addEventListener('change', buscarEscalaNoBanco);
 filtroSemana.addEventListener('change', atualizarVisualizacao);
 
+
 // ==========================================
 // 6. MODAL E SORTEIO INTELIGENTE
 // ==========================================
+window.zerarReposicoes = (id, nome) => {
+    mostrarConfirmacao("Zerar Reposições", `O corretor <b>${nome}</b> já utilizou a reposição neste mês?<br><br>Deseja zerar o contador de Reposições Pendentes dele?`, async () => {
+        try {
+            await updateDoc(doc(db, "corretores", id), { reposicoes: 0 });
+            mostrarAlerta("Tudo Certo ✨", `O contador de reposições de ${nome} foi zerado com sucesso!`);
+        } catch (error) {
+            console.error(error);
+            mostrarAlerta("Erro", "Erro ao tentar zerar reposições.");
+        }
+    }, "btn-success", "✨ Sim, Zerar!");
+};
+
 window.abrirModalSorteio = (loja) => {
     window.lojaSorteioAtual = loja;
     document.getElementById('modal-sorteio-titulo').innerText = `Sorteio - Loja ${loja.charAt(0).toUpperCase() + loja.slice(1)}`;
@@ -412,6 +449,7 @@ window.abrirModalSorteio = (loja) => {
         let isSuspenso = c.isSuspenso === true;
         let pme = isSuspenso ? 0 : (c.pme || 0);
         let pf = isSuspenso ? 0 : (c.pf || 0);
+        let reposicoes = c.reposicoes || 0; // Pega o saldo de reposições do BD
         
         let corBorda = 'border-danger'; 
         let dataCor = 'vermelho';
@@ -432,13 +470,21 @@ window.abrirModalSorteio = (loja) => {
         totalSolo = Math.min(2, totalSolo); 
         totalSolo = Math.min(totalSolo, totalPlantoes); 
 
+        // NOVO: Design da etiqueta combinando Vagas Normais + Reposições
         let infoDireito = '';
         if (isSuspenso) {
             infoDireito = `<span class="badge bg-dark text-white" style="font-size: 0.65rem;" title="Corretor Suspenso">⛔ SUSPENSO</span>`;
-        } else if (totalPlantoes > 0) {
-            infoDireito = `<span class="badge bg-primary" style="font-size: 0.7rem;" title="Direito de Plantões no Mês">🏆 ${totalPlantoes} Vgs ${totalSolo > 0 ? `(${totalSolo} S)` : ''}</span>`;
         } else {
-            infoDireito = `<span class="badge bg-secondary" style="font-size: 0.7rem;" title="Sem produção no mês">🚫 0 Vagas</span>`;
+            if (totalPlantoes > 0) {
+                infoDireito = `<span class="badge bg-primary" style="font-size: 0.7rem;" title="Direito de Plantões no Mês">🏆 ${totalPlantoes} Vgs ${totalSolo > 0 ? `(${totalSolo} S)` : ''}</span>`;
+            } else {
+                infoDireito = `<span class="badge bg-secondary" style="font-size: 0.7rem;" title="Sem produção no mês">🚫 0 Vagas</span>`;
+            }
+            
+            // O botão secreto que zera o contador!
+            if (reposicoes > 0) {
+                infoDireito += ` <span class="badge bg-success shadow-sm" style="font-size: 0.7rem; cursor: pointer;" title="Clique para zerar esse bônus após gerado!" onclick="event.preventDefault(); event.stopPropagation(); zerarReposicoes('${c.id}', '${c.nome}')">✨ +${reposicoes} Rep</span>`;
+            }
         }
 
         let badgeFaltas = c.faltas > 0 ? `<span class="badge bg-danger ms-1" title="Acúmulo de Faltas">${c.faltas} ⚠️</span>` : '';
@@ -503,7 +549,6 @@ window.sortearESalvar = async () => {
 
     let msgConfirma = `Deseja gerar o sorteio da Loja <b>${lojaAlvo.toUpperCase()}</b> para ${textoEscopo}?<br><br><small class='text-muted'>O sistema aplicará a meritocracia, preencherá as vagas restantes (Xepa) e evitará repetições na mesma semana.</small>`;
 
-    // Substituindo o confirm nativo pela nossa versão chique
     mostrarConfirmacao("🎲 Gerar Sorteio Automático", msgConfirma, async () => {
         
         let selecionados = [];
@@ -525,10 +570,15 @@ window.sortearESalvar = async () => {
             let isSuspenso = cData ? cData.isSuspenso : false;
             let pme = (cData && !isSuspenso) ? cData.pme : 0;
             let pf = (cData && !isSuspenso) ? cData.pf : 0;
+            let reposicoes = (cData && !isSuspenso) ? cData.reposicoes : 0; // Lê reposições
             let pontos = (pme * 2) + pf;
 
             let total = pontos > 0 ? 1 + Math.floor(pontos / 5000) : 0;
-            total = Math.min(4, total); 
+            total = Math.min(4, total); // Trava máxima natural
+            
+            // NOVO: Bônus de Reposição burla a trava máxima! (Ex: Se tem 4 + 1 Rep, ganha 5)
+            total += reposicoes; 
+
             let solo = Math.floor(pme / 5000);
             solo = Math.min(2, solo); 
             solo = Math.min(solo, total);
@@ -666,7 +716,7 @@ window.sortearESalvar = async () => {
             }
         });
 
-        let elegiveisXepa = Object.values(corretoresMetas).filter(c => c.pontos > 0);
+        let elegiveisXepa = Object.values(corretoresMetas).filter(c => c.pontos > 0 || c.totalGeral > 0);
 
         turnosParaPreencher.forEach(t => {
             let sIdx = semanaDoDia[t.iso];
@@ -721,7 +771,7 @@ window.sortearESalvar = async () => {
             mostrarAlerta("Erro Crítico", "Ocorreu um erro de conexão ao tentar salvar no banco de dados."); 
         }
         
-    }, 'btn-primary', '🎲 Sim, Sortear!'); // Parâmetros do botão modal
+    }, 'btn-primary', '🎲 Sim, Sortear!'); 
 };
 
 window.zerarEscalaSemana = async (lojaAlvo) => {
@@ -744,7 +794,14 @@ window.zerarEscalaSemana = async (lojaAlvo) => {
                     for (let t of turnos) {
                         for (let i = 0; i < 2; i++) {
                             let c = estado.escala[lojaAlvo][iso][t] ? estado.escala[lojaAlvo][iso][t][i] : null;
-                            if (c && c.falta && c.id) await updateDoc(doc(db, "corretores", c.id), { faltas: increment(-1) });
+                            
+                            // Remove as faltas e reposições do BD se você zerar a escala
+                            let updates = {};
+                            if (c && c.id) {
+                                if (c.falta) updates.faltas = increment(-1);
+                                if (c.reposicao) updates.reposicoes = increment(-1);
+                                if (Object.keys(updates).length > 0) await updateDoc(doc(db, "corretores", c.id), updates);
+                            }
                         }
                     }
                 }
