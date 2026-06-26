@@ -811,6 +811,33 @@ window.zerarEscalaSemana = async (lojaAlvo) => {
     }, 'btn-danger', '🗑️ Sim, Zerar!');
 };
 
+window.abrirModalRelatorio = async (nomeLoja) => {
+    document.getElementById('nome-loja-relatorio').innerText = nomeLoja;
+    
+    // 1. Aqui você deve buscar seus dados do Firestore ou LocalStorage
+    // Exemplo simulado da estrutura de dados:
+    const registros = await buscarDadosAtendimentos(nomeLoja); 
+    
+    // 2. Calcular Totais
+    const totalMes = registros.reduce((acc, curr) => acc + (curr.qtd || 0), 0);
+    document.getElementById('total-mes').innerText = totalMes;
+
+    // 3. Agrupar por corretor
+    const ranking = {};
+    registros.forEach(r => {
+        ranking[r.corretor] = (ranking[r.corretor] || 0) + (r.qtd || 0);
+    });
+
+    // 4. Renderizar lista
+    const tbody = document.getElementById('lista-corretores-atendimentos');
+    tbody.innerHTML = Object.entries(ranking)
+        .sort((a, b) => b[1] - a[1]) // Do maior para o menor
+        .map(([nome, qtd]) => `<tr><td>${nome}</td><td><span class="badge bg-dark">${qtd}</span></td></tr>`)
+        .join('');
+
+    new bootstrap.Modal(document.getElementById('modal-relatorio-atendimentos')).show();
+};
+
 // ==========================================
 // 8. GERENCIAMENTO DE FERIADOS
 // ==========================================
