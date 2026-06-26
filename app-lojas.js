@@ -811,32 +811,58 @@ window.zerarEscalaSemana = async (lojaAlvo) => {
     }, 'btn-danger', '🗑️ Sim, Zerar!');
 };
 
+// Adicione esta lógica no final do seu arquivo app-lojas.js
+
 window.abrirModalRelatorio = async (nomeLoja) => {
     document.getElementById('nome-loja-relatorio').innerText = nomeLoja;
     
-    // 1. Aqui você deve buscar seus dados do Firestore ou LocalStorage
-    // Exemplo simulado da estrutura de dados:
+    // Busca dados filtrados
     const registros = await buscarDadosAtendimentos(nomeLoja); 
     
-    // 2. Calcular Totais
+    // Calcula Totais
     const totalMes = registros.reduce((acc, curr) => acc + (curr.qtd || 0), 0);
     document.getElementById('total-mes').innerText = totalMes;
 
-    // 3. Agrupar por corretor
+    // Agrupa por corretor
     const ranking = {};
     registros.forEach(r => {
         ranking[r.corretor] = (ranking[r.corretor] || 0) + (r.qtd || 0);
     });
 
-    // 4. Renderizar lista
+    // Renderiza a lista no modal
     const tbody = document.getElementById('lista-corretores-atendimentos');
     tbody.innerHTML = Object.entries(ranking)
-        .sort((a, b) => b[1] - a[1]) // Do maior para o menor
+        .sort((a, b) => b[1] - a[1])
         .map(([nome, qtd]) => `<tr><td>${nome}</td><td><span class="badge bg-dark">${qtd}</span></td></tr>`)
-        .join('');
+        .join('') || '<tr><td colspan="2" class="text-center text-muted">Nenhum atendimento registrado.</td></tr>';
 
     new bootstrap.Modal(document.getElementById('modal-relatorio-atendimentos')).show();
 };
+
+async function buscarDadosAtendimentos(nomeLoja) {
+    const lojaId = nomeLoja.toLowerCase().includes('flamengo') ? 'flamengo' : 'tijuca';
+    const escala = estado.escala[lojaId];
+    const listaAtendimentos = [];
+
+    // Percorre todos os dias da escala carregada
+    for (let iso in escala) {
+        // Filtra apenas pelo mês selecionado no filtro
+        if (iso.startsWith(filtroMes.value)) {
+            const turnos = escala[iso];
+            ['manha', 'tarde'].forEach(turno => {
+                turnos[turno].forEach(corretor => {
+                    if (corretor && corretor.atendimentos > 0) {
+                        listaAtendimentos.push({
+                            corretor: corretor.nome,
+                            qtd: corretor.atendimentos
+                        });
+                    }
+                });
+            });
+        }
+    }
+    return listaAtendimentos;
+}
 
 // ==========================================
 // 8. GERENCIAMENTO DE FERIADOS
