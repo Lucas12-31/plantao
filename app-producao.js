@@ -196,4 +196,43 @@ if(selectHistorico) {
         renderizarRanking(hist, tabelaHistorico, true);
     });
 }
+
+form.addEventListener('submit', async (e) => {
+    e.preventDefault(); // Impede o recarregamento da página
+
+    const idCorretor = document.getElementById('select-corretor').value;
+    const mesRef = document.getElementById('mes-referencia').value;
+    const valorPme = parseFloat(document.getElementById('valor-pme').value) || 0;
+    const valorPf = parseFloat(document.getElementById('valor-pf').value) || 0;
+
+    if (!idCorretor) {
+        window.mostrarAlerta("Erro", "Por favor, selecione um corretor.");
+        return;
+    }
+
+    try {
+        // Busca os dados atuais do corretor para somar
+        const docRef = doc(db, "corretores", idCorretor);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+            const dadosAtuais = docSnap.data();
+            
+            // Realiza a atualização somando aos valores existentes
+            await updateDoc(docRef, {
+                producao_pme: (parseFloat(dadosAtuais.producao_pme) || 0) + valorPme,
+                producao_pf: (parseFloat(dadosAtuais.producao_pf) || 0) + valorPf,
+                mes_competencia: mesRef
+            });
+
+            // Fecha o modal e limpa o form
+            bootstrap.Modal.getInstance(document.getElementById('modal-lancar-producao')).hide();
+            form.reset();
+            window.mostrarAlerta("Sucesso", "Produção lançada com sucesso!");
+        }
+    } catch (error) {
+        console.error("Erro ao salvar:", error);
+        window.mostrarAlerta("Erro", "Não foi possível salvar os dados.");
+    }
+});
 carregarOpcoesHistorico();
