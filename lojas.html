@@ -397,6 +397,34 @@
         </div>
     </div>
 
+    <div class="modal fade" id="modal-relatorio-atendimentos" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title">📊 Relatório de Atendimentos: <span id="nome-loja-relatorio"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row text-center mb-4">
+                    <div class="col-6 p-3 bg-light border">
+                        <h6 class="text-muted">Total Semana</h6>
+                        <h3 id="total-semana" class="text-primary">0</h3>
+                    </div>
+                    <div class="col-6 p-3 bg-light border">
+                        <h6 class="text-muted">Total Mês</h6>
+                        <h3 id="total-mes" class="text-success">0</h3>
+                    </div>
+                </div>
+                <h6>Top Corretores (Mês)</h6>
+                <table class="table table-sm">
+                    <thead><tr><th>Corretor</th><th>Atendimentos</th></tr></thead>
+                    <tbody id="lista-corretores-atendimentos"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
     <script type="module" src="app-lojas.js"></script>
     <script type="module" src="app-notificacoes.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
