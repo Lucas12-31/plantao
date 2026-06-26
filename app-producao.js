@@ -91,8 +91,10 @@ function renderizarRanking(lista, elementoTabela, ehHistorico = false) {
                 <td>${fmtMoney(c.v_pme)}</td>
                 <td>${fmtMoney(c.v_pf)}</td>
                 <td>${fmtMoney(c.totalMoney)}</td>
-                <td><span class="badge bg-dark">${Math.floor(c.pontos)}</span></td>
-                ${ehHistorico ? '' : `
+                ${ehHistorico ? `
+                    <td class="text-muted fw-bold">${c.mes_competencia || '-'}</td>
+                ` : `
+                    <td><span class="badge bg-dark">${Math.floor(c.pontos)}</span></td>
                     <td class="bg-warning fw-bold">${c.leadsPmeCalculados}</td>
                     <td class="bg-info text-white fw-bold">${recPme}</td>
                     <td class="bg-primary text-white fw-bold">${recPf}</td>
@@ -168,7 +170,11 @@ export async function iniciarNovoCiclo() {
             if(dados.producao_pme > 0 || dados.producao_pf > 0) {
                 await addDoc(collection(db, "historico_fechamentos"), {
                     data_fechamento: new Date().toISOString(),
-                    corretor: dados.nome, producao_final_pme: dados.producao_pme, producao_final_pf: dados.producao_pf
+                    corretor: dados.nome, 
+                    producao_final_pme: dados.producao_pme, 
+                    producao_final_pf: dados.producao_pf,
+                    mes_competencia: dados.mes_competencia || "",
+                    referencia: dados.mes_competencia || ""
                 });
             }
             await updateDoc(doc(db, "corretores", d.id), { producao_pme: 0, producao_pf: 0, leads_recebidos_pme: 0, leads_recebidos_pf: 0, mes_competencia: "" });
@@ -192,7 +198,12 @@ if(selectHistorico) {
     selectHistorico.addEventListener('change', async (e) => {
         const snap = await getDocs(query(collection(db, "historico_fechamentos"), where("referencia", "==", e.target.value)));
         let hist = [];
-        snap.forEach(d => hist.push({ nome: d.data().corretor, producao_pme: d.data().producao_final_pme, producao_pf: d.data().producao_final_pf }));
+        snap.forEach(d => hist.push({ 
+            nome: d.data().corretor, 
+            producao_pme: d.data().producao_final_pme, 
+            producao_pf: d.data().producao_final_pf,
+            mes_competencia: d.data().mes_competencia || d.data().referencia || '-'
+        }));
         renderizarRanking(hist, tabelaHistorico, true);
     });
 }
