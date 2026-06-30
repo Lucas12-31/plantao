@@ -16,6 +16,13 @@ const selectHistorico = document.getElementById('select-historico');
 const tabelaHistorico = document.getElementById('tabela-historico');
 
 // ==========================================
+// VARIÁVEIS GLOBAIS DE ORDENAÇÃO
+// ==========================================
+let listaCorretoresAtual = [];
+let criterioOrdenacao = 'pontos'; // Padrão: 'pontos', mas aceita 'pme', 'pf' ou 'total'
+let ordemDecrescente = true;
+
+// ==========================================
 // FUNÇÕES DE APOIO (ALERTAS BONITOS)
 // ==========================================
 window.mostrarAlerta = (titulo, mensagem) => {
@@ -38,6 +45,39 @@ window.mostrarConfirmacao = (titulo, mensagem, callbackSim, corBtn = 'btn-succes
 };
 
 // ==========================================
+// FUNÇÃO DE ORDENAÇÃO DINÂMICA
+// ==========================================
+window.ordenarTabela = (criterio) => {
+    if (criterioOrdenacao === criterio) {
+        ordemDecrescente = !ordemDecrescente; // Inverte se clicar na mesma coluna
+    } else {
+        criterioOrdenacao = criterio;
+        ordemDecrescente = true; // Volta para o decrescente se mudar de coluna
+    }
+    
+    // Reseta visual das setinhas
+    document.getElementById('seta-pme').innerText = '';
+    document.getElementById('seta-pme').className = 'text-muted ms-1';
+    document.getElementById('seta-pf').innerText = '';
+    document.getElementById('seta-pf').className = 'text-muted ms-1';
+    document.getElementById('seta-total').innerText = '';
+    document.getElementById('seta-total').className = 'text-muted ms-1';
+    document.getElementById('seta-pontos').innerText = '';
+    document.getElementById('seta-pontos').className = 'text-muted ms-1';
+    
+    // Destaca a seta ativa
+    const seta = ordemDecrescente ? '▼' : '▲';
+    const el = document.getElementById(`seta-${criterio}`);
+    if (el) {
+        el.innerText = seta;
+        el.className = 'text-dark ms-1 fw-bold';
+    }
+
+    // Re-renderiza a tabela
+    renderizarRanking(listaCorretoresAtual, tabelaRanking, false);
+};
+
+// ==========================================
 // INICIALIZAÇÃO DA TABELA (COM FILTRO)
 // ==========================================
 onSnapshot(collection(db, "corretores"), (snapshot) => {
@@ -57,7 +97,9 @@ onSnapshot(collection(db, "corretores"), (snapshot) => {
         selectCorretor.innerHTML = htmlOptions;
     }
 
-    renderizarRanking(corretores, tabelaRanking, false);
+    // Salva a lista na variável global para poder ordenar depois sem recarregar banco
+    listaCorretoresAtual = corretores;
+    renderizarRanking(listaCorretoresAtual, tabelaRanking, false);
 });
 
 // ==========================================
@@ -66,6 +108,7 @@ onSnapshot(collection(db, "corretores"), (snapshot) => {
 function renderizarRanking(lista, elementoTabela, ehHistorico = false) {
     if(!elementoTabela) return;
 
+    // Calcula os valores antes de ordenar
     lista.forEach(c => {
         c.v_pme = parseFloat(c.producao_pme) || 0;
         c.v_pf = parseFloat(c.producao_pf) || 0;
@@ -75,7 +118,16 @@ function renderizarRanking(lista, elementoTabela, ehHistorico = false) {
         c.leadsPmeCalculados = (c.isParticipante && c.totalMoney >= 3000) ? 1 + Math.floor(c.v_pme / 2000) : 0;
     });
 
-    lista.sort((a, b) => b.pontos - a.pontos);
+    // Ordenação dinâmica aplicando o critério escolhido
+    lista.sort((a, b) => {
+        let valA, valB;
+        if (criterioOrdenacao === 'pme') { valA = a.v_pme; valB = b.v_pme; }
+        else if (criterioOrdenacao === 'pf') { valA = a.v_pf; valB = b.v_pf; }
+        else if (criterioOrdenacao === 'total') { valA = a.totalMoney; valB = b.totalMoney; }
+        else { valA = a.pontos; valB = b.pontos; } // Default: pontos
+
+        return ordemDecrescente ? (valB - valA) : (valA - valB);
+    });
 
     let html = '';
     const fmtMoney = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -204,12 +256,13 @@ if(selectHistorico) {
             producao_pf: d.data().producao_final_pf,
             mes_competencia: d.data().mes_competencia || d.data().referencia || '-'
         }));
+        // O histórico também obedece a ordenação escolhida nos botões!
         renderizarRanking(hist, tabelaHistorico, true);
     });
 }
 
 form.addEventListener('submit', async (e) => {
-    e.preventDefault(); // Impede o recarregamento da página
+    e.preventDefault(); 
 
     const idCorretor = document.getElementById('select-corretor').value;
     const mesRef = document.getElementById('mes-referencia').value;
@@ -222,21 +275,18 @@ form.addEventListener('submit', async (e) => {
     }
 
     try {
-        // Busca os dados atuais do corretor para somar
         const docRef = doc(db, "corretores", idCorretor);
         const docSnap = await getDoc(docRef);
         
         if (docSnap.exists()) {
             const dadosAtuais = docSnap.data();
             
-            // Realiza a atualização somando aos valores existentes
             await updateDoc(docRef, {
                 producao_pme: (parseFloat(dadosAtuais.producao_pme) || 0) + valorPme,
                 producao_pf: (parseFloat(dadosAtuais.producao_pf) || 0) + valorPf,
                 mes_competencia: mesRef
             });
 
-            // Fecha o modal e limpa o form
             bootstrap.Modal.getInstance(document.getElementById('modal-lancar-producao')).hide();
             form.reset();
             window.mostrarAlerta("Sucesso", "Produção lançada com sucesso!");
