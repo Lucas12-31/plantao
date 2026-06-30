@@ -71,10 +71,11 @@
                             <thead>
                                 <tr>
                                     <th class="text-start ps-4">Corretor</th>
-                                    <th>Prod. PME</th>
-                                    <th>Prod. PF</th>
-                                    <th>Total (R$)</th>
-                                    <th>Pontos</th>
+                                    <th style="cursor: pointer; user-select: none;" onclick="ordenarTabela('pme')" title="Clique para ordenar">Prod. PME <span id="seta-pme" class="text-muted ms-1"></span></th>
+                                    <th style="cursor: pointer; user-select: none;" onclick="ordenarTabela('pf')" title="Clique para ordenar">Prod. PF <span id="seta-pf" class="text-muted ms-1"></span></th>
+                                    <th style="cursor: pointer; user-select: none;" onclick="ordenarTabela('total')" title="Clique para ordenar">Total (R$) <span id="seta-total" class="text-muted ms-1"></span></th>
+                                    <th style="cursor: pointer; user-select: none;" onclick="ordenarTabela('pontos')" title="Clique para ordenar">Pontos <span id="seta-pontos" class="text-dark ms-1 fw-bold">▼</span></th>
+                                    
                                     <th class="bg-warning text-dark border-start border-white">Meta PME</th>
                                     <th class="bg-info text-white">Rec. PME</th>
                                     <th class="bg-primary text-white border-end border-white">Rec. PF</th>
