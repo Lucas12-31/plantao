@@ -23,9 +23,7 @@
         .legenda-box { font-size: 0.85rem; background: #ffffff; border: 1px solid #dee2e6; border-radius: 8px; padding: 10px 15px; }
         .legenda-item { display: inline-block; margin-right: 15px; margin-bottom: 0px; }
 
-        /* =========================================
-           CSS PARA IMPRESSÃO / PDF
-           ========================================= */
+        /* CSS PARA IMPRESSÃO / PDF */
         @media print {
             @page { size: A4 landscape; margin: 10mm; }
             nav, button, .modal, .d-flex.flex-wrap.gap-3 { display: none !important; }
@@ -377,8 +375,7 @@
                     </div>
 
                     <h6 class="fw-bold text-secondary mb-2">📋 Feriados Cadastrados</h6>
-                    <div id="lista-feriados-modal" class="list-group shadow-sm overflow-y-auto" style="max-height: 220px;">
-                    </div>
+                    <div id="lista-feriados-modal" class="list-group shadow-sm overflow-y-auto" style="max-height: 220px;"></div>
 
                 </div>
                 <div class="modal-footer bg-white">
@@ -423,32 +420,32 @@
     </div>
 
     <div class="modal fade" id="modal-relatorio-atendimentos" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header bg-dark text-white">
-                <h5 class="modal-title">📊 Relatório de Atendimentos: <span id="nome-loja-relatorio"></span></h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="row text-center mb-4">
-                    <div class="col-6 p-3 bg-light border">
-                        <h6 class="text-muted">Total Semana</h6>
-                        <h3 id="total-semana" class="text-primary">0</h3>
-                    </div>
-                    <div class="col-6 p-3 bg-light border">
-                        <h6 class="text-muted">Total Mês</h6>
-                        <h3 id="total-mes" class="text-success">0</h3>
-                    </div>
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title">📊 Relatório de Atendimentos: <span id="nome-loja-relatorio"></span></h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <h6>Top Corretores (Mês)</h6>
-                <table class="table table-sm">
-                    <thead><tr><th>Corretor</th><th>Atendimentos</th></tr></thead>
-                    <tbody id="lista-corretores-atendimentos"></tbody>
-                </table>
+                <div class="modal-body">
+                    <div class="row text-center mb-4">
+                        <div class="col-6 p-3 bg-light border">
+                            <h6 class="text-muted">Total Semana</h6>
+                            <h3 id="total-semana" class="text-primary">0</h3>
+                        </div>
+                        <div class="col-6 p-3 bg-light border">
+                            <h6 class="text-muted">Total Mês</h6>
+                            <h3 id="total-mes" class="text-success">0</h3>
+                        </div>
+                    </div>
+                    <h6>Top Corretores (Mês)</h6>
+                    <table class="table table-sm">
+                        <thead><tr><th>Corretor</th><th>Atendimentos</th></tr></thead>
+                        <tbody id="lista-corretores-atendimentos"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
     <script type="module" src="app-lojas.js"></script>
     <script type="module" src="app-notificacoes.js"></script>
