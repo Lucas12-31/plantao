@@ -24,55 +24,22 @@
         .legenda-item { display: inline-block; margin-right: 15px; margin-bottom: 0px; }
 
         /* =========================================
-           CSS PARA IMPRESSÃO / PDF (NOVO)
+           CSS PARA IMPRESSÃO / PDF
            ========================================= */
         @media print {
-            /* Esconde a Navbar, todos os botões modais e os filtros de data */
-            nav, button, .modal, .d-flex.flex-wrap.gap-3 {
-                display: none !important;
-            }
-
-            /* Remove fundo cinza e margens */
-            body {
-                background-color: white !important;
-                margin: 0 !important;
-                padding: 0 !important;
-            }
-
-            /* Tira sombras e bordas grossas dos cards */
-            .card {
-                border: none !important;
-                box-shadow: none !important;
-            }
-
-            /* Ajusta os cabeçalhos das lojas */
-            .card-header {
-                background-color: transparent !important;
-                color: black !important;
-                border-bottom: 2px solid #000 !important;
-                padding-left: 0 !important;
-            }
-
-            .card-header * {
-                color: black !important;
-            }
-
-            /* Força as cores de fundo aparecerem no PDF (Azul/Amarelo) */
-            * {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-
-            /* Evita quebra de linha no meio da tabela */
-            tr {
-                page-break-inside: avoid;
-            }
-            
-            /* Coloca as tabelas em bloco total (uma embaixo da outra se necessário) */
-            .col-xl-6 {
-                width: 100% !important;
-                margin-bottom: 2rem !important;
-            }
+            @page { size: A4 landscape; margin: 10mm; }
+            nav, button, .modal, .d-flex.flex-wrap.gap-3 { display: none !important; }
+            .row { display: flex !important; flex-wrap: nowrap !important; flex-direction: row !important; width: 100% !important; }
+            .col-xl-6 { width: 50% !important; flex: 0 0 50% !important; max-width: 50% !important; padding: 0 10px !important; margin-bottom: 0 !important; }
+            body { background-color: white !important; margin: 0 !important; padding: 0 !important; }
+            .card { border: none !important; box-shadow: none !important; }
+            .card-header { background-color: transparent !important; color: black !important; border-bottom: 2px solid #000 !important; padding-left: 0 !important; }
+            .card-header * { color: black !important; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+            tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+            .table-escala th, .table-escala td { padding: 0.15rem !important; font-size: 0.75rem !important; }
+            .card-vaga { min-height: 40px !important; padding: 2px !important; }
+            .nome-corretor { font-size: 0.7rem !important; }
         }
     </style>
     <script type="module" src="auth.js"></script>
@@ -156,6 +123,8 @@
                             <small class="fw-normal opacity-75">Manhã: 09h às 13h30 | Tarde: 13h30 às 18h</small>
                         </div>
                         <div class="d-flex gap-2">
+                            <!-- BOTAO TRAVAR -->
+                            <button class="btn btn-sm btn-warning fw-bold shadow-sm text-dark" id="btn-lock-flamengo" onclick="toggleTravarSemana('flamengo')" style="display: none;">🔓 Travar</button>
                             <button class="btn btn-sm btn-light fw-bold shadow-sm" onclick="abrirModalSorteio('flamengo')">🎲 Gerar</button>
                             <button class="btn btn-sm btn-outline-light fw-bold shadow-sm" onclick="zerarEscalaSemana('flamengo')">🗑️ Zerar</button>
                             <button class="btn btn-sm btn-info text-white" onclick="abrirModalRelatorio('Loja Flamengo')">📊 Relatório</button>
@@ -194,6 +163,8 @@
                             <small class="fw-normal opacity-75">Manhã: 09h às 13h30 | Tarde: 13h30 às 18h</small>
                         </div>
                         <div class="d-flex gap-2">
+                            <!-- BOTAO TRAVAR -->
+                            <button class="btn btn-sm btn-warning fw-bold shadow-sm text-dark" id="btn-lock-tijuca" onclick="toggleTravarSemana('tijuca')" style="display: none;">🔓 Travar</button>
                             <button class="btn btn-sm btn-light fw-bold shadow-sm text-danger" onclick="abrirModalSorteio('tijuca')">🎲 Gerar</button>
                             <button class="btn btn-sm btn-outline-light fw-bold shadow-sm" onclick="zerarEscalaSemana('tijuca')">🗑️ Zerar</button>
                             <button class="btn btn-sm btn-info text-white" onclick="abrirModalRelatorio('Loja Tijuca')">📊 Relatório</button>
@@ -226,6 +197,7 @@
         </div>
     </div>
 
+    <!-- MODAL DE SORTEIO -->
     <div class="modal fade" id="modal-sorteio" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content border-0 shadow">
@@ -261,6 +233,7 @@
         </div>
     </div>
 
+    <!-- MODAL DETALHES -->
     <div class="modal fade" id="modal-detalhes-plantao" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg border-0">
@@ -311,6 +284,7 @@
         </div>
     </div>
 
+    <!-- MODAL TROCA -->
     <div class="modal fade" id="modal-troca" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg border-0">
@@ -377,6 +351,7 @@
         </div>
     </div>
 
+    <!-- MODAL FERIADOS -->
     <div class="modal fade" id="modal-feriados" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg border-0">
@@ -413,6 +388,7 @@
         </div>
     </div>
 
+    <!-- MODAIS UNIVERSAIS -->
     <div class="modal fade" id="modal-alerta" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
         <div class="modal-dialog modal-dialog-centered modal-sm">
             <div class="modal-content shadow-lg border-0 text-center">
