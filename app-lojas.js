@@ -33,15 +33,9 @@ window.mostrarConfirmacao = (titulo, mensagem, callbackSim, corBtn = 'btn-succes
     btn.parentNode.replaceChild(novoBtn, btn);
     
     const modalConfirm = new bootstrap.Modal(document.getElementById('modal-confirmacao'));
-    
-    novoBtn.onclick = () => {
-        modalConfirm.hide();
-        callbackSim();
-    };
-    
+    novoBtn.onclick = () => { modalConfirm.hide(); callbackSim(); };
     modalConfirm.show();
 };
-
 
 // ==========================================
 // 1. INICIALIZAÇÃO E BUSCA
@@ -59,30 +53,28 @@ window.iniciarLojas = async () => {
         estado.feriados = [];
         snap.forEach(d => estado.feriados.push({ id: d.id, ...d.data() }));
         buscarEscalaNoBanco(); 
-        
         if (document.getElementById('modal-feriados')?.classList.contains('show')) {
             renderizarListaFeriadosModal();
         }
     });
 
     onSnapshot(collection(db, "corretores"), (snap) => {
-    estado.corretores = [];
-    snap.forEach(d => {
-        let dados = d.data();
-        // SÓ MOSTRA SE FOR ATIVO (na equipe) E PARTICIPAR DE PLANTÃO
-        if (dados.ativo !== false && dados.participa_plantao !== false) {
-            estado.corretores.push({ 
-                id: d.id, 
-                nome: dados.nome, 
-                pme: parseFloat(dados.producao_pme) || 0, 
-                pf: parseFloat(dados.producao_pf) || 0, 
-                faltas: parseInt(dados.faltas) || 0,
-                reposicoes: parseInt(dados.reposicoes) || 0
-            });
-        }
+        estado.corretores = [];
+        snap.forEach(d => {
+            let dados = d.data();
+            if (dados.ativo !== false && dados.participa_plantao !== false) {
+                estado.corretores.push({ 
+                    id: d.id, 
+                    nome: dados.nome, 
+                    pme: parseFloat(dados.producao_pme) || 0, 
+                    pf: parseFloat(dados.producao_pf) || 0, 
+                    faltas: parseInt(dados.faltas) || 0,
+                    reposicoes: parseInt(dados.reposicoes) || 0
+                });
+            }
+        });
+        estado.corretores.sort((a, b) => a.nome.localeCompare(b.nome));
     });
-    estado.corretores.sort((a, b) => a.nome.localeCompare(b.nome));
-});
     buscarEscalaNoBanco();
 };
 
@@ -94,7 +86,6 @@ async function buscarEscalaNoBanco() {
     const prev = new Date(ano, mesIndex - 1, 1);
     const next = new Date(ano, mesIndex + 1, 1);
     const formataMes = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    
     const meses = [formataMes(prev), filtroMes.value, formataMes(next)];
 
     try {
@@ -108,7 +99,6 @@ async function buscarEscalaNoBanco() {
             let docT = await getDoc(doc(db, "escala_lojas", `tijuca_${m}`));
             if (docT.exists() && docT.data().escala) Object.assign(estado.escala.tijuca, docT.data().escala);
         }
-
         atualizarVisualizacao();
     } catch (error) { console.error("Erro ao buscar escala:", error); }
 }
@@ -129,12 +119,11 @@ async function salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo) {
             loja: lojaAlvo, mes: mesKey, escala: lotesPorMes[mesKey], atualizadoEm: new Date().toISOString()
         }, { merge: true }); 
     });
-
     await Promise.all(promessas);
 }
 
 // ==========================================
-// 2. RENDERIZAR TABELAS
+// 2. RENDERIZAR TABELAS E TRAVAS (CADEADO)
 // ==========================================
 function atualizarVisualizacao() {
     const [anoStr, mesStr] = filtroMes.value.split('-');
@@ -158,6 +147,30 @@ function atualizarVisualizacao() {
     const valSemana = filtroSemana.value;
     let diasDaVisao = (valSemana === "all") ? estado.semanas.flat() : (estado.semanas[parseInt(valSemana)] || []);
 
+    const atualizarBotoesTrava = (lojaId) => {
+        const btn = document.getElementById(`btn-lock-${lojaId}`);
+        if (!btn) return;
+        if (valSemana === "all") {
+            btn.style.display = 'none'; 
+        } else {
+            btn.style.display = 'inline-block';
+            let travadosCount = 0;
+            const diasDestaSemana = estado.semanas[parseInt(valSemana)] || [];
+            diasDestaSemana.forEach(d => {
+                if (estado.escala[lojaId][d.iso] && estado.escala[lojaId][d.iso].travado) travadosCount++;
+            });
+            if (travadosCount > 0 && travadosCount >= (diasDestaSemana.length / 2)) {
+                btn.innerHTML = '🔒 Destravar Semana';
+                btn.className = 'btn btn-sm btn-secondary fw-bold shadow-sm';
+            } else {
+                btn.innerHTML = '🔓 Travar Semana';
+                btn.className = 'btn btn-sm btn-warning text-dark fw-bold shadow-sm';
+            }
+        }
+    };
+    atualizarBotoesTrava('flamengo');
+    atualizarBotoesTrava('tijuca');
+
     if (diasDaVisao.length === 0) {
         let msg = '<tr><td colspan="5" class="text-center py-4 text-muted">Não há dias úteis.</td></tr>';
         tabelaFlamengo.innerHTML = msg;
@@ -174,16 +187,19 @@ function atualizarVisualizacao() {
             let classHoje = (dia.iso === hojeISO) ? "bg-warning" : "bg-white";
             let textoHoje = (dia.iso === hojeISO) ? '<br><span class="badge bg-danger mt-1">HOJE</span>' : '';
             let classFeriadoTd = dia.isFeriado ? "bg-danger text-white bg-opacity-75 border-danger" : classHoje;
-            
             let classeMesDiferente = (dia.iso.substring(0,7) !== filtroMes.value) ? "fst-italic opacity-75" : "";
             let estiloBordaSexta = dia.diaSemana === 'Sexta' ? "border-bottom: 3px solid #343a40;" : "";
+            
+            // Renderiza o Cadeadinho se o dia estiver travado
+            let travado = escalaDaLoja[dia.iso] && escalaDaLoja[dia.iso].travado;
+            let iconeTrava = travado ? '<br><span title="Semana Travada" style="font-size: 1.1rem; display: block; margin-top: 2px;">🔒</span>' : '';
 
             htmlBody += `<tr class="${classeMesDiferente}" style="${estiloBordaSexta}">`;
             htmlBody += `
                 <td class="${classFeriadoTd} border-end border-3 border-dark fw-bold text-center" style="vertical-align: middle;">
                     <div class="fs-5">${dia.diaSemana}</div>
                     <div class="${dia.isFeriado ? 'text-white' : 'text-muted'} small">${dia.fmt}</div>
-                    ${textoHoje}
+                    ${textoHoje}${iconeTrava}
                 </td>
             `;
 
@@ -207,7 +223,6 @@ function atualizarVisualizacao() {
                         let partesNome = corretor.nome.split(' ');
                         let primeiroNome = partesNome[0];
                         let sobrenome = '';
-                        
                         if (partesNome.length > 1) {
                             if (partesNome[1].toLowerCase().match(/^(da|de|do|dos|das)$/) && partesNome.length > 2) {
                                 sobrenome = partesNome[1] + ' ' + partesNome[2];
@@ -245,8 +260,40 @@ function atualizarVisualizacao() {
     tabelaTijuca.innerHTML = desenharTabela('tijuca');
 }
 
+// LÓGICA DE TRAVAR/DESTRAVAR SEMANA
+window.toggleTravarSemana = async (lojaAlvo) => {
+    const valSemana = filtroSemana.value;
+    if (valSemana === "all") return; // Failsafe
+    
+    const dias = estado.semanas[parseInt(valSemana)] || [];
+    if (dias.length === 0) return;
+
+    let travadosCount = 0;
+    dias.forEach(d => {
+        if (estado.escala[lojaAlvo][d.iso] && estado.escala[lojaAlvo][d.iso].travado) travadosCount++;
+    });
+    
+    // Se a maioria tiver travada, a ação é destravar. Senão, é travar.
+    const vaiTravar = travadosCount < (dias.length / 2);
+
+    dias.forEach(dia => {
+        if (!estado.escala[lojaAlvo][dia.iso]) {
+            estado.escala[lojaAlvo][dia.iso] = { manha: [null, null], tarde: [null, null] };
+        }
+        estado.escala[lojaAlvo][dia.iso].travado = vaiTravar;
+    });
+
+    try {
+        await salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo);
+        atualizarVisualizacao();
+    } catch (error) {
+        console.error(error);
+        mostrarAlerta("Erro", "Falha ao travar/destravar a semana no banco de dados.");
+    }
+};
+
 // ==========================================
-// 3. GERENCIAMENTO E SALVAMENTO DE FALTAS/REPOSIÇÕES
+// 3. GERENCIAMENTO E SALVAMENTO
 // ==========================================
 window.abrirDetalhesPlantao = (loja, iso, turno, index, dataFmt) => {
     window.editandoPlantao = { loja, iso, turno, index, dataFmt };
@@ -266,7 +313,7 @@ window.abrirDetalhesPlantao = (loja, iso, turno, index, dataFmt) => {
     document.getElementById('input-atendimentos').value = corretorAtual && corretorAtual.atendimentos ? corretorAtual.atendimentos : 0;
     
     document.getElementById('check-falta').checked = corretorAtual && corretorAtual.falta === true;
-    document.getElementById('check-reposicao').checked = corretorAtual && corretorAtual.reposicao === true; // NOVO: Mapeia o botão de reposição
+    document.getElementById('check-reposicao').checked = corretorAtual && corretorAtual.reposicao === true; 
 
     const divTroca = document.getElementById('info-troca-container');
     const textoTroca = document.getElementById('texto-info-troca');
@@ -289,17 +336,20 @@ window.salvarDetalhesPlantao = async () => {
     const idSelecionado = select.value;
     const { loja, iso, turno, index } = window.editandoPlantao;
     
-    if(!estado.escala[loja][iso]) estado.escala[loja][iso] = { manha: [null, null], tarde: [null, null] };
+    if(!estado.escala[loja][iso]) estado.escala[loja][iso] = { manha: [null, null], tarde: [null, null], travado: false };
+    
+    // Mantém o estado da trava
+    let mantemTravado = estado.escala[loja][iso].travado || false;
 
     let corretorOriginal = estado.escala[loja][iso][turno][index];
     let infoTrocaExistente = corretorOriginal ? corretorOriginal.trocaInfo : null;
     let idAntigo = corretorOriginal ? corretorOriginal.id : null;
     
     let faltaAntiga = corretorOriginal ? (corretorOriginal.falta === true) : false;
-    let reposicaoAntiga = corretorOriginal ? (corretorOriginal.reposicao === true) : false; // Lê antiga
+    let reposicaoAntiga = corretorOriginal ? (corretorOriginal.reposicao === true) : false; 
 
     const faltaNova = document.getElementById('check-falta').checked;
-    const reposicaoNova = document.getElementById('check-reposicao').checked; // Lê nova
+    const reposicaoNova = document.getElementById('check-reposicao').checked; 
 
     try {
         if (idSelecionado) {
@@ -332,13 +382,13 @@ window.salvarDetalhesPlantao = async () => {
         if (idSelecionado) {
             const nomeSelecionado = select.options[select.selectedIndex].getAttribute('data-nome');
             const atendimentos = parseInt(document.getElementById('input-atendimentos').value) || 0;
-            // NOVO: Adiciona a flag de reposicao ao banco
             estado.escala[loja][iso][turno][index] = { id: idSelecionado, nome: nomeSelecionado, atendimentos: atendimentos, falta: faltaNova, reposicao: reposicaoNova };
             if (infoTrocaExistente && idSelecionado === idAntigo) estado.escala[loja][iso][turno][index].trocaInfo = infoTrocaExistente;
         } else {
             estado.escala[loja][iso][turno][index] = null;
         }
-
+        
+        estado.escala[loja][iso].travado = mantemTravado; // Garante que não apaga a trava ao editar
         await salvarEscalaNoBancoBaseadoNasDatas(loja);
         bootstrap.Modal.getInstance(document.getElementById('modal-detalhes-plantao')).hide();
         atualizarVisualizacao(); 
@@ -414,7 +464,6 @@ window.efetuarTroca = async () => {
 filtroMes.addEventListener('change', buscarEscalaNoBanco);
 filtroSemana.addEventListener('change', atualizarVisualizacao);
 
-
 // ==========================================
 // 6. MODAL E SORTEIO INTELIGENTE
 // ==========================================
@@ -441,7 +490,7 @@ window.abrirModalSorteio = (loja) => {
         let isSuspenso = c.isSuspenso === true;
         let pme = isSuspenso ? 0 : (c.pme || 0);
         let pf = isSuspenso ? 0 : (c.pf || 0);
-        let reposicoes = c.reposicoes || 0; // Pega o saldo de reposições do BD
+        let reposicoes = c.reposicoes || 0; 
         
         let corBorda = 'border-danger'; 
         let dataCor = 'vermelho';
@@ -462,7 +511,6 @@ window.abrirModalSorteio = (loja) => {
         totalSolo = Math.min(2, totalSolo); 
         totalSolo = Math.min(totalSolo, totalPlantoes); 
 
-        // NOVO: Design da etiqueta combinando Vagas Normais + Reposições
         let infoDireito = '';
         if (isSuspenso) {
             infoDireito = `<span class="badge bg-dark text-white" style="font-size: 0.65rem;" title="Corretor Suspenso">⛔ SUSPENSO</span>`;
@@ -472,8 +520,6 @@ window.abrirModalSorteio = (loja) => {
             } else {
                 infoDireito = `<span class="badge bg-secondary" style="font-size: 0.7rem;" title="Sem produção no mês">🚫 0 Vagas</span>`;
             }
-            
-            // O botão secreto que zera o contador!
             if (reposicoes > 0) {
                 infoDireito += ` <span class="badge bg-success shadow-sm" style="font-size: 0.7rem; cursor: pointer;" title="Clique para zerar esse bônus após gerado!" onclick="event.preventDefault(); event.stopPropagation(); zerarReposicoes('${c.id}', '${c.nome}')">✨ +${reposicoes} Rep</span>`;
             }
@@ -539,7 +585,7 @@ window.sortearESalvar = async () => {
     const diasDaVisao = (valSemana === "all") ? estado.semanas.flat() : (estado.semanas[parseInt(valSemana)] || []);
     let textoEscopo = (valSemana === "all") ? "o <b>MÊS COMPLETO</b>" : `a <b>SEMANA ${parseInt(valSemana) + 1}</b>`;
 
-    let msgConfirma = `Deseja gerar o sorteio da Loja <b>${lojaAlvo.toUpperCase()}</b> para ${textoEscopo}?<br><br><small class='text-muted'>O sistema aplicará a meritocracia, preencherá as vagas restantes (Xepa) e evitará repetições na mesma semana.</small>`;
+    let msgConfirma = `Deseja gerar o sorteio da Loja <b>${lojaAlvo.toUpperCase()}</b> para ${textoEscopo}?<br><br><small class='text-muted'>O sistema aplicará a meritocracia, pulará as semanas travadas (🔒) e evitará repetições no mesmo dia.</small>`;
 
     mostrarConfirmacao("🎲 Gerar Sorteio Automático", msgConfirma, async () => {
         
@@ -562,13 +608,11 @@ window.sortearESalvar = async () => {
             let isSuspenso = cData ? cData.isSuspenso : false;
             let pme = (cData && !isSuspenso) ? cData.pme : 0;
             let pf = (cData && !isSuspenso) ? cData.pf : 0;
-            let reposicoes = (cData && !isSuspenso) ? cData.reposicoes : 0; // Lê reposições
+            let reposicoes = (cData && !isSuspenso) ? cData.reposicoes : 0; 
             let pontos = (pme * 2) + pf;
 
             let total = pontos > 0 ? 1 + Math.floor(pontos / 5000) : 0;
-            total = Math.min(4, total); // Trava máxima natural
-            
-            // NOVO: Bônus de Reposição burla a trava máxima! (Ex: Se tem 4 + 1 Rep, ganha 5)
+            total = Math.min(4, total); 
             total += reposicoes; 
 
             let solo = Math.floor(pme / 5000);
@@ -584,7 +628,12 @@ window.sortearESalvar = async () => {
             alocadosPorSemana[c.id] = {}; 
         });
 
-        let diasParaIgnorar = diasDaVisao.map(d => d.iso);
+        // 🟢 REGRA DA TRAVA DE SEGURANÇA 🟢
+        let diasParaIgnorar = diasDaVisao.filter(d => {
+            let travado = estado.escala[lojaAlvo][d.iso] && estado.escala[lojaAlvo][d.iso].travado;
+            return !travado; 
+        }).map(d => d.iso);
+
         for (let iso in estado.escala[lojaAlvo]) {
             let sIdx = semanaDoDia[iso];
             let diaEscala = estado.escala[lojaAlvo][iso];
@@ -625,6 +674,11 @@ window.sortearESalvar = async () => {
         let turnosParaPreencher = [];
         diasDaVisao.forEach(dia => {
             if (dia.isFeriado) return;
+            
+            // 🟢 PULA OS DIAS TRAVADOS 🟢
+            let travado = estado.escala[lojaAlvo][dia.iso] && estado.escala[lojaAlvo][dia.iso].travado;
+            if (travado) return; 
+
             turnosParaPreencher.push({ iso: dia.iso, turno: 'manha', vagas: [null, null] });
             turnosParaPreencher.push({ iso: dia.iso, turno: 'tarde', vagas: [null, null] });
         });
@@ -743,13 +797,19 @@ window.sortearESalvar = async () => {
 
         diasDaVisao.forEach(dia => {
             if (dia.isFeriado) return;
+            
+            // 🟢 PRESERVA OS DIAS TRAVADOS 🟢
+            let travado = estado.escala[lojaAlvo][dia.iso] && estado.escala[lojaAlvo][dia.iso].travado;
+            if (travado) return; 
+
             let turnosDoDia = turnosParaPreencher.filter(t => t.iso === dia.iso);
             let manha = turnosDoDia.find(t => t.turno === 'manha');
             let tarde = turnosDoDia.find(t => t.turno === 'tarde');
 
             estado.escala[lojaAlvo][dia.iso] = {
                 manha: manha ? manha.vagas : [null, null],
-                tarde: tarde ? tarde.vagas : [null, null]
+                tarde: tarde ? tarde.vagas : [null, null],
+                travado: false
             };
         });
 
@@ -773,7 +833,7 @@ window.zerarEscalaSemana = async (lojaAlvo) => {
 
     if (diasDaVisao.length === 0) return mostrarAlerta("Atenção", "Não há dias úteis visíveis para zerar.");
 
-    let msgConfirma = `⚠️ Tem certeza que deseja <b>ZERAR</b> toda a escala para ${textoEscopo} na Loja <b>${lojaAlvo.toUpperCase()}</b>?<br><br>Essa ação não pode ser desfeita.`;
+    let msgConfirma = `⚠️ Tem certeza que deseja <b>ZERAR</b> toda a escala para ${textoEscopo} na Loja <b>${lojaAlvo.toUpperCase()}</b>?<br><br>Semanas travadas serão preservadas.`;
 
     mostrarConfirmacao("Zerar Escala", msgConfirma, async () => {
         try {
@@ -781,13 +841,16 @@ window.zerarEscalaSemana = async (lojaAlvo) => {
 
             for (let dia of diasDaVisao) {
                 let iso = dia.iso;
+                
+                // 🟢 PULA OS DIAS TRAVADOS NA HORA DE EXCLUIR 🟢
+                let travado = estado.escala[lojaAlvo][iso] && estado.escala[lojaAlvo][iso].travado;
+                if (travado) continue; 
+
                 if (estado.escala[lojaAlvo][iso]) {
                     let turnos = ['manha', 'tarde'];
                     for (let t of turnos) {
                         for (let i = 0; i < 2; i++) {
                             let c = estado.escala[lojaAlvo][iso][t] ? estado.escala[lojaAlvo][iso][t][i] : null;
-                            
-                            // Remove as faltas e reposições do BD se você zerar a escala
                             let updates = {};
                             if (c && c.id) {
                                 if (c.falta) updates.faltas = increment(-1);
@@ -797,11 +860,11 @@ window.zerarEscalaSemana = async (lojaAlvo) => {
                         }
                     }
                 }
-                estado.escala[lojaAlvo][iso] = { manha: [null, null], tarde: [null, null] };
+                estado.escala[lojaAlvo][iso] = { manha: [null, null], tarde: [null, null], travado: false };
             }
 
             await salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo);
-            mostrarAlerta("Escala Zerada 🗑️", "A escala foi limpa com sucesso!");
+            mostrarAlerta("Escala Zerada 🗑️", "A escala destravada foi limpa com sucesso!");
             atualizarVisualizacao();
 
         } catch (error) { 
@@ -811,25 +874,28 @@ window.zerarEscalaSemana = async (lojaAlvo) => {
     }, 'btn-danger', '🗑️ Sim, Zerar!');
 };
 
-// Adicione esta lógica no final do seu arquivo app-lojas.js
-
 window.abrirModalRelatorio = async (nomeLoja) => {
     document.getElementById('nome-loja-relatorio').innerText = nomeLoja;
-    
-    // Busca dados filtrados
     const registros = await buscarDadosAtendimentos(nomeLoja); 
     
-    // Calcula Totais
     const totalMes = registros.reduce((acc, curr) => acc + (curr.qtd || 0), 0);
     document.getElementById('total-mes').innerText = totalMes;
 
-    // Agrupa por corretor
+    const valSemana = filtroSemana.value;
+    let totalSemana = 0;
+    if (valSemana !== "all") {
+        const diasDaSemana = estado.semanas[parseInt(valSemana)].map(d => d.iso);
+        totalSemana = registros.filter(r => diasDaSemana.includes(r.iso)).reduce((acc, curr) => acc + (curr.qtd || 0), 0);
+    } else {
+        totalSemana = totalMes;
+    }
+    document.getElementById('total-semana').innerText = totalSemana;
+
     const ranking = {};
     registros.forEach(r => {
         ranking[r.corretor] = (ranking[r.corretor] || 0) + (r.qtd || 0);
     });
 
-    // Renderiza a lista no modal
     const tbody = document.getElementById('lista-corretores-atendimentos');
     tbody.innerHTML = Object.entries(ranking)
         .sort((a, b) => b[1] - a[1])
@@ -844,20 +910,23 @@ async function buscarDadosAtendimentos(nomeLoja) {
     const escala = estado.escala[lojaId];
     const listaAtendimentos = [];
 
-    // Percorre todos os dias da escala carregada
+    if (!escala) return listaAtendimentos;
+
     for (let iso in escala) {
-        // Filtra apenas pelo mês selecionado no filtro
         if (iso.startsWith(filtroMes.value)) {
             const turnos = escala[iso];
             ['manha', 'tarde'].forEach(turno => {
-                turnos[turno].forEach(corretor => {
-                    if (corretor && corretor.atendimentos > 0) {
-                        listaAtendimentos.push({
-                            corretor: corretor.nome,
-                            qtd: corretor.atendimentos
-                        });
-                    }
-                });
+                if (turnos[turno]) {
+                    turnos[turno].forEach(corretor => {
+                        if (corretor && corretor.atendimentos > 0) {
+                            listaAtendimentos.push({
+                                iso: iso,
+                                corretor: corretor.nome,
+                                qtd: parseInt(corretor.atendimentos) || 0
+                            });
+                        }
+                    });
+                }
             });
         }
     }
