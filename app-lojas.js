@@ -155,11 +155,10 @@ function atualizarVisualizacao() {
         } else {
             btn.style.display = 'inline-block';
             let travadosCount = 0;
-            const diasDestaSemana = estado.semanas[parseInt(valSemana)] || [];
-            diasDestaSemana.forEach(d => {
+            diasDaVisao.forEach(d => {
                 if (estado.escala[lojaId][d.iso] && estado.escala[lojaId][d.iso].travado) travadosCount++;
             });
-            if (travadosCount > 0 && travadosCount >= (diasDestaSemana.length / 2)) {
+            if (travadosCount > 0 && travadosCount >= (diasDaVisao.length / 2)) {
                 btn.innerHTML = '🔒 Destravar Semana';
                 btn.className = 'btn btn-sm btn-secondary fw-bold shadow-sm';
             } else {
@@ -629,9 +628,10 @@ window.sortearESalvar = async () => {
         });
 
         // 🟢 REGRA DA TRAVA DE SEGURANÇA 🟢
+        // Se o dia estiver travado, ele NÃO será ignorado na contagem (os plantões já salvos vão contar no direito do corretor), mas ele não receberá novos plantões e nem será limpo!
         let diasParaIgnorar = diasDaVisao.filter(d => {
             let travado = estado.escala[lojaAlvo][d.iso] && estado.escala[lojaAlvo][d.iso].travado;
-            return !travado; 
+            return !travado; // Retorna true apenas para os dias que NÃO ESTÃO travados
         }).map(d => d.iso);
 
         for (let iso in estado.escala[lojaAlvo]) {
