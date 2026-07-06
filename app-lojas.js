@@ -123,7 +123,7 @@ async function salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo) {
 }
 
 // ==========================================
-// 2. RENDERIZAR TABELAS E TRAVAS (CADEADO)
+// 2. RENDERIZAR TABELAS E TRAVAS (CADEADO) E QUEBRA PÁGINA
 // ==========================================
 function atualizarVisualizacao() {
     const [anoStr, mesStr] = filtroMes.value.split('-');
@@ -182,7 +182,7 @@ function atualizarVisualizacao() {
         let htmlBody = '';
         const escalaDaLoja = estado.escala[lojaId];
 
-        diasDaVisao.forEach(dia => {
+        diasDaVisao.forEach((dia, index) => {
             let hojeISO = new Date().toISOString().split('T')[0];
             let classHoje = (dia.iso === hojeISO) ? "bg-warning" : "bg-white";
             let textoHoje = (dia.iso === hojeISO) ? '<br><span class="badge bg-danger mt-1">HOJE</span>' : '';
@@ -190,11 +190,16 @@ function atualizarVisualizacao() {
             let classeMesDiferente = (dia.iso.substring(0,7) !== filtroMes.value) ? "fst-italic opacity-75" : "";
             let estiloBordaSexta = dia.diaSemana === 'Sexta' ? "border-bottom: 3px solid #343a40;" : "";
             
+            // LÓGICA DE QUEBRA DE PÁGINA (SÓ PARA IMPRESSÃO DE MÊS COMPLETO)
+            let ehSexta = dia.diaSemana === 'Sexta';
+            let ehUltimoDia = index === diasDaVisao.length - 1;
+            let classeQuebra = (ehSexta && !ehUltimoDia && valSemana === "all") ? "quebra-semana" : "";
+
             // Renderiza o Cadeadinho se o dia estiver travado
             let travado = escalaDaLoja[dia.iso] && escalaDaLoja[dia.iso].travado;
             let iconeTrava = travado ? '<br><span title="Semana Travada" style="font-size: 1.1rem; display: block; margin-top: 2px;">🔒</span>' : '';
 
-            htmlBody += `<tr class="${classeMesDiferente}" style="${estiloBordaSexta}">`;
+            htmlBody += `<tr class="${classeMesDiferente} ${classeQuebra}" style="${estiloBordaSexta}">`;
             htmlBody += `
                 <td class="${classFeriadoTd} border-end border-3 border-dark fw-bold text-center" style="vertical-align: middle;">
                     <div class="fs-5">${dia.diaSemana}</div>
@@ -208,7 +213,7 @@ function atualizarVisualizacao() {
             } else {
                 let escaladosHoje = escalaDaLoja[dia.iso] || { manha: [null, null], tarde: [null, null] };
 
-                const desenharCadeira = (corretor, iso, turno, index, dataFmt) => {
+                const desenharCadeira = (corretor, iso, turno, cadeiraIndex, dataFmt) => {
                     let conteudo = '';
                     let classesCard = 'card-vaga shadow-sm border-2'; 
                     let classesTexto = 'nome-corretor text-center w-100';
@@ -233,13 +238,13 @@ function atualizarVisualizacao() {
                         let nomeExibicao = primeiroNome + (sobrenome ? '<br>' + sobrenome : '');
 
                         conteudo = `
-                            <div class="${classesCard}" onclick="abrirDetalhesPlantao('${lojaId}', '${iso}', '${turno}', ${index}, '${dataFmt}')">
+                            <div class="${classesCard}" onclick="abrirDetalhesPlantao('${lojaId}', '${iso}', '${turno}', ${cadeiraIndex}, '${dataFmt}')">
                                 ${badgeAtendimentos}
                                 <div class="${classesTexto}" title="${corretor.nome}">${iconeTroca}${nomeExibicao}</div>
                             </div>`;
                     } else {
                         conteudo = `
-                            <div class="card-vaga border-2" style="border-style: dotted;" onclick="abrirDetalhesPlantao('${lojaId}', '${iso}', '${turno}', ${index}, '${dataFmt}')">
+                            <div class="card-vaga border-2" style="border-style: dotted;" onclick="abrirDetalhesPlantao('${lojaId}', '${iso}', '${turno}', ${cadeiraIndex}, '${dataFmt}')">
                                 <div class="text-muted fst-italic text-center w-100"><small>Vaga Livre</small></div>
                             </div>`;
                     }
