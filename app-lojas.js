@@ -268,7 +268,7 @@ function atualizarVisualizacao() {
 // LÓGICA DE TRAVAR/DESTRAVAR SEMANA
 window.toggleTravarSemana = async (lojaAlvo) => {
     const valSemana = filtroSemana.value;
-    if (valSemana === "all") return; // Failsafe
+    if (valSemana === "all") return; 
     
     const dias = estado.semanas[parseInt(valSemana)] || [];
     if (dias.length === 0) return;
@@ -278,7 +278,6 @@ window.toggleTravarSemana = async (lojaAlvo) => {
         if (estado.escala[lojaAlvo][d.iso] && estado.escala[lojaAlvo][d.iso].travado) travadosCount++;
     });
     
-    // Se a maioria tiver travada, a ação é destravar. Senão, é travar.
     const vaiTravar = travadosCount < (dias.length / 2);
 
     dias.forEach(dia => {
@@ -343,7 +342,6 @@ window.salvarDetalhesPlantao = async () => {
     
     if(!estado.escala[loja][iso]) estado.escala[loja][iso] = { manha: [null, null], tarde: [null, null], travado: false };
     
-    // Mantém o estado da trava
     let mantemTravado = estado.escala[loja][iso].travado || false;
 
     let corretorOriginal = estado.escala[loja][iso][turno][index];
@@ -393,7 +391,7 @@ window.salvarDetalhesPlantao = async () => {
             estado.escala[loja][iso][turno][index] = null;
         }
         
-        estado.escala[loja][iso].travado = mantemTravado; // Garante que não apaga a trava ao editar
+        estado.escala[loja][iso].travado = mantemTravado;
         await salvarEscalaNoBancoBaseadoNasDatas(loja);
         bootstrap.Modal.getInstance(document.getElementById('modal-detalhes-plantao')).hide();
         atualizarVisualizacao(); 
@@ -689,13 +687,12 @@ window.sortearESalvar = async () => {
         });
         turnosParaPreencher.sort(() => Math.random() - 0.5); 
 
-        const isCorretorOcupadoNaOutraLoja = (corretorId, iso, turno) => {
+        // NOVA FUNÇÃO: Verifica se o corretor está no DIA (manhã ou tarde) na outra loja
+        const isCorretorOcupadoNaOutraLoja = (corretorId, iso) => {
             if (!escalaOutraLoja[iso]) return false;
             let eOutra = escalaOutraLoja[iso];
-            if (eOutra[turno]) {
-                if (eOutra[turno][0] && eOutra[turno][0].id === corretorId) return true;
-                if (eOutra[turno][1] && eOutra[turno][1].id === corretorId) return true;
-            }
+            if (eOutra.manha && (eOutra.manha[0]?.id === corretorId || eOutra.manha[1]?.id === corretorId)) return true;
+            if (eOutra.tarde && (eOutra.tarde[0]?.id === corretorId || eOutra.tarde[1]?.id === corretorId)) return true;
             return false;
         };
 
@@ -711,7 +708,7 @@ window.sortearESalvar = async () => {
             while (cMeta.alocadosSolo < cMeta.totalSolo && cMeta.alocadosGeral < cMeta.totalGeral) {
                 let turnoIndex = turnosParaPreencher.findIndex(t => 
                     t.vagas[0] === null && t.vagas[1] === null && 
-                    !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) &&
+                    !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso) &&
                     !isCorretorOcupadoNoDiaNaMesmaLoja(cMeta.id, t.iso) &&
                     (alocadosPorSemana[cMeta.id][semanaDoDia[t.iso]] || 0) === 0 
                 );
@@ -719,7 +716,7 @@ window.sortearESalvar = async () => {
                 if (turnoIndex === -1) {
                     turnoIndex = turnosParaPreencher.findIndex(t => 
                         t.vagas[0] === null && t.vagas[1] === null && 
-                        !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) &&
+                        !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso) &&
                         !isCorretorOcupadoNoDiaNaMesmaLoja(cMeta.id, t.iso)
                     );
                 }
@@ -743,7 +740,7 @@ window.sortearESalvar = async () => {
                 let elegiveis = Object.values(corretoresMetas).filter(cMeta => 
                     cMeta.alocadosGeral < cMeta.totalGeral && 
                     t.vagas[0]?.id !== cMeta.id && 
-                    !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) && 
+                    !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso) && 
                     !isCorretorOcupadoNoDiaNaMesmaLoja(cMeta.id, t.iso) 
                 );
 
@@ -787,7 +784,7 @@ window.sortearESalvar = async () => {
                 for (let cMeta of elegiveisXepa) {
                     if (cMeta.alocadosGeral < 4 && 
                         t.vagas[0]?.id !== cMeta.id && 
-                        !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso, t.turno) &&
+                        !isCorretorOcupadoNaOutraLoja(cMeta.id, t.iso) &&
                         !isCorretorOcupadoNoDiaNaMesmaLoja(cMeta.id, t.iso)) {
                         
                         t.vagas[i] = { id: cMeta.id, nome: cMeta.nome, atendimentos: 0, falta: false };
