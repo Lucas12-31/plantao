@@ -23,18 +23,36 @@
         .legenda-box { font-size: 0.85rem; background: #ffffff; border: 1px solid #dee2e6; border-radius: 8px; padding: 10px 15px; }
         .legenda-item { display: inline-block; margin-right: 15px; margin-bottom: 0px; }
 
-        /* CSS PARA IMPRESSÃO / PDF */
+        /* =========================================
+           CSS PARA IMPRESSÃO / PDF
+           ========================================= */
         @media print {
             @page { size: A4 landscape; margin: 10mm; }
             nav, button, .modal, .d-flex.flex-wrap.gap-3 { display: none !important; }
-            .row { display: flex !important; flex-wrap: nowrap !important; flex-direction: row !important; width: 100% !important; }
+            
+            .row { 
+                display: flex !important; 
+                flex-wrap: nowrap !important; 
+                flex-direction: row !important; 
+                align-items: flex-start !important; /* Permite quebrar a página nas colunas */
+                width: 100% !important; 
+            }
+            
             .col-xl-6 { width: 50% !important; flex: 0 0 50% !important; max-width: 50% !important; padding: 0 10px !important; margin-bottom: 0 !important; }
             body { background-color: white !important; margin: 0 !important; padding: 0 !important; }
             .card { border: none !important; box-shadow: none !important; }
             .card-header { background-color: transparent !important; color: black !important; border-bottom: 2px solid #000 !important; padding-left: 0 !important; }
             .card-header * { color: black !important; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+            
             tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+            
+            /* QUEBRA A PÁGINA A CADA SEMANA */
+            tr.quebra-semana {
+                page-break-after: always !important;
+                break-after: page !important;
+            }
+
             .table-escala th, .table-escala td { padding: 0.15rem !important; font-size: 0.75rem !important; }
             .card-vaga { min-height: 40px !important; padding: 2px !important; }
             .nome-corretor { font-size: 0.7rem !important; }
