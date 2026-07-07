@@ -13,24 +13,24 @@ window.lojaSorteioAtual = null;
 window.editandoPlantao = { loja: null, iso: null, turno: null, index: null, dataFmt: null };
 
 // ==========================================
-// PALETA DE CORES SUAVES PARA OS CORRETORES
+// PALETA DE CORES PARA OS CORRETORES (MAIS FORTES E VIBRANTES)
 // ==========================================
 const coresPastel = [
-    '#e6f7ff', // Azul clarinho
-    '#fff0e6', // Pêssego
-    '#e6ffe6', // Verde menta
-    '#f9e6ff', // Lilás
-    '#ffffe6', // Amarelinho
-    '#ffe6f2', // Rosa claro
-    '#e6ffff', // Ciano suave
-    '#f0ffe6', // Verde lima clarinho
-    '#e6e6ff', // Azul lavanda
-    '#ffe6e6', // Salmão clarinho
-    '#f2f2f2', // Cinza muito claro
-    '#e6fffa', // Verde água
-    '#fff9e6', // Creme
-    '#ece6ff', // Roxo pastel
-    '#ffebe6'  // Damasco
+    '#b3e0ff', // Azul
+    '#ffd6b3', // Pêssego
+    '#b3ffb3', // Verde menta
+    '#eeb3ff', // Lilás
+    '#ffff99', // Amarelo
+    '#ffb3d9', // Rosa
+    '#b3ffff', // Ciano
+    '#d9ffb3', // Verde lima
+    '#b3b3ff', // Azul lavanda
+    '#ffb3b3', // Salmão
+    '#d9d9d9', // Cinza
+    '#b3ffee', // Verde água
+    '#ffe699', // Creme escuro
+    '#d1b3ff', // Roxo
+    '#ffcbb3'  // Damasco
 ];
 
 // Função que gera sempre a mesma cor para o mesmo corretor baseado no ID dele
