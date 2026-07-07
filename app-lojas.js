@@ -13,6 +13,37 @@ window.lojaSorteioAtual = null;
 window.editandoPlantao = { loja: null, iso: null, turno: null, index: null, dataFmt: null };
 
 // ==========================================
+// PALETA DE CORES SUAVES PARA OS CORRETORES
+// ==========================================
+const coresPastel = [
+    '#e6f7ff', // Azul clarinho
+    '#fff0e6', // Pêssego
+    '#e6ffe6', // Verde menta
+    '#f9e6ff', // Lilás
+    '#ffffe6', // Amarelinho
+    '#ffe6f2', // Rosa claro
+    '#e6ffff', // Ciano suave
+    '#f0ffe6', // Verde lima clarinho
+    '#e6e6ff', // Azul lavanda
+    '#ffe6e6', // Salmão clarinho
+    '#f2f2f2', // Cinza muito claro
+    '#e6fffa', // Verde água
+    '#fff9e6', // Creme
+    '#ece6ff', // Roxo pastel
+    '#ffebe6'  // Damasco
+];
+
+// Função que gera sempre a mesma cor para o mesmo corretor baseado no ID dele
+function getCorCorretor(id) {
+    if (!id) return '';
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+        hash = id.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return coresPastel[Math.abs(hash) % coresPastel.length];
+}
+
+// ==========================================
 // FUNÇÕES UNIVERSAIS DE ALERTAS BONITOS
 // ==========================================
 window.mostrarAlerta = (titulo, mensagem) => {
@@ -219,9 +250,17 @@ function atualizarVisualizacao() {
                     let classesTexto = 'nome-corretor text-center w-100';
                     let badgeAtendimentos = '';
                     let iconeTroca = '';
+                    let corFundo = ''; // Nova variável para a cor do corretor
 
                     if (corretor) {
-                        if (corretor.falta) { classesCard += ' falta-bg'; classesTexto += ' falta-text'; }
+                        if (corretor.falta) { 
+                            classesCard += ' falta-bg'; 
+                            classesTexto += ' falta-text'; 
+                        } else {
+                            // Aplica a cor suave gerada para o corretor se ele não faltou
+                            corFundo = `background-color: ${getCorCorretor(corretor.id)};`;
+                        }
+                        
                         if (corretor.atendimentos > 0) badgeAtendimentos = `<span class="badge bg-success position-absolute top-0 start-100 translate-middle rounded-pill shadow" style="font-size: 0.8rem; z-index: 2;">${corretor.atendimentos}</span>`;
                         if (corretor.trocaInfo) { classesCard += ' border-warning border-2'; iconeTroca = '<span title="Plantão Trocado" class="me-1">🔄</span>'; }
 
@@ -238,7 +277,7 @@ function atualizarVisualizacao() {
                         let nomeExibicao = primeiroNome + (sobrenome ? '<br>' + sobrenome : '');
 
                         conteudo = `
-                            <div class="${classesCard}" onclick="abrirDetalhesPlantao('${lojaId}', '${iso}', '${turno}', ${cadeiraIndex}, '${dataFmt}')">
+                            <div class="${classesCard}" style="${corFundo}" onclick="abrirDetalhesPlantao('${lojaId}', '${iso}', '${turno}', ${cadeiraIndex}, '${dataFmt}')">
                                 ${badgeAtendimentos}
                                 <div class="${classesTexto}" title="${corretor.nome}">${iconeTroca}${nomeExibicao}</div>
                             </div>`;
@@ -687,7 +726,6 @@ window.sortearESalvar = async () => {
         });
         turnosParaPreencher.sort(() => Math.random() - 0.5); 
 
-        // NOVA FUNÇÃO: Verifica se o corretor está no DIA (manhã ou tarde) na outra loja
         const isCorretorOcupadoNaOutraLoja = (corretorId, iso) => {
             if (!escalaOutraLoja[iso]) return false;
             let eOutra = escalaOutraLoja[iso];
