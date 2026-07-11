@@ -13,7 +13,7 @@ window.lojaSorteioAtual = null;
 window.editandoPlantao = { loja: null, iso: null, turno: null, index: null, dataFmt: null };
 
 // ==========================================
-// PALETA DE CORES PARA OS CORRETORES (MAIS FORTES E VIBRANTES)
+// PALETA DE CORES PARA OS CORRETORES (MAIS FORTES)
 // ==========================================
 const coresPastel = [
     '#b3e0ff', // Azul
@@ -33,7 +33,7 @@ const coresPastel = [
     '#ffcbb3'  // Damasco
 ];
 
-// Função que gera sempre a mesma cor para o mesmo corretor baseado no ID dele
+// Função que gera sempre a mesma cor para o mesmo corretor baseado no ID
 function getCorCorretor(id) {
     if (!id) return '';
     let hash = 0;
@@ -96,7 +96,7 @@ window.iniciarLojas = async () => {
             if (dados.ativo !== false && dados.participa_plantao !== false) {
                 estado.corretores.push({ 
                     id: d.id, 
-                    nome: dados.nome, 
+                    nome: dados.nome || "Desconhecido", 
                     pme: parseFloat(dados.producao_pme) || 0, 
                     pf: parseFloat(dados.producao_pf) || 0, 
                     faltas: parseInt(dados.faltas) || 0,
@@ -154,154 +154,161 @@ async function salvarEscalaNoBancoBaseadoNasDatas(lojaAlvo) {
 }
 
 // ==========================================
-// 2. RENDERIZAR TABELAS E TRAVAS (CADEADO) E QUEBRA PÁGINA
+// 2. RENDERIZAR TABELAS E TRAVAS
 // ==========================================
 function atualizarVisualizacao() {
-    const [anoStr, mesStr] = filtroMes.value.split('-');
-    estado.semanas = getSemanasFluidas(parseInt(anoStr), parseInt(mesStr) - 1, estado.feriados);
+    try {
+        const [anoStr, mesStr] = filtroMes.value.split('-');
+        estado.semanas = getSemanasFluidas(parseInt(anoStr), parseInt(mesStr) - 1, estado.feriados);
 
-    const valorAntigoSemana = filtroSemana.value;
-    filtroSemana.innerHTML = '<option value="all" class="fw-bold text-primary">📅 Exibir Mês Completo</option>';
-    estado.semanas.forEach((sem, index) => {
-        let dataInicio = sem[0].fmt;
-        let dataFim = sem[sem.length - 1].fmt;
-        filtroSemana.innerHTML += `<option value="${index}">Semana ${index + 1} (${dataInicio} a ${dataFim})</option>`;
-    });
-
-    if (carregamentoInicial) {
-        filtroSemana.value = "all"; 
-        carregamentoInicial = false;
-    } else if (valorAntigoSemana) {
-        filtroSemana.value = valorAntigoSemana;
-    }
-
-    const valSemana = filtroSemana.value;
-    let diasDaVisao = (valSemana === "all") ? estado.semanas.flat() : (estado.semanas[parseInt(valSemana)] || []);
-
-    const atualizarBotoesTrava = (lojaId) => {
-        const btn = document.getElementById(`btn-lock-${lojaId}`);
-        if (!btn) return;
-        if (valSemana === "all") {
-            btn.style.display = 'none'; 
-        } else {
-            btn.style.display = 'inline-block';
-            let travadosCount = 0;
-            const diasDestaSemana = estado.semanas[parseInt(valSemana)] || [];
-            diasDestaSemana.forEach(d => {
-                if (estado.escala[lojaId][d.iso] && estado.escala[lojaId][d.iso].travado) travadosCount++;
-            });
-            if (travadosCount > 0 && travadosCount >= (diasDestaSemana.length / 2)) {
-                btn.innerHTML = '🔒 Destravar Semana';
-                btn.className = 'btn btn-sm btn-secondary fw-bold shadow-sm';
-            } else {
-                btn.innerHTML = '🔓 Travar Semana';
-                btn.className = 'btn btn-sm btn-warning text-dark fw-bold shadow-sm';
-            }
-        }
-    };
-    atualizarBotoesTrava('flamengo');
-    atualizarBotoesTrava('tijuca');
-
-    if (diasDaVisao.length === 0) {
-        let msg = '<tr><td colspan="5" class="text-center py-4 text-muted">Não há dias úteis.</td></tr>';
-        tabelaFlamengo.innerHTML = msg;
-        tabelaTijuca.innerHTML = msg;
-        return;
-    }
-
-    const desenharTabela = (lojaId) => {
-        let htmlBody = '';
-        const escalaDaLoja = estado.escala[lojaId];
-
-        diasDaVisao.forEach((dia, index) => {
-            let hojeISO = new Date().toISOString().split('T')[0];
-            let classHoje = (dia.iso === hojeISO) ? "bg-warning" : "bg-white";
-            let textoHoje = (dia.iso === hojeISO) ? '<br><span class="badge bg-danger mt-1">HOJE</span>' : '';
-            let classFeriadoTd = dia.isFeriado ? "bg-danger text-white bg-opacity-75 border-danger" : classHoje;
-            let classeMesDiferente = (dia.iso.substring(0,7) !== filtroMes.value) ? "fst-italic opacity-75" : "";
-            let estiloBordaSexta = dia.diaSemana === 'Sexta' ? "border-bottom: 3px solid #343a40;" : "";
-            
-            // LÓGICA DE QUEBRA DE PÁGINA (SÓ PARA IMPRESSÃO DE MÊS COMPLETO)
-            let ehSexta = dia.diaSemana === 'Sexta';
-            let ehUltimoDia = index === diasDaVisao.length - 1;
-            let classeQuebra = (ehSexta && !ehUltimoDia && valSemana === "all") ? "quebra-semana" : "";
-
-            // Renderiza o Cadeadinho se o dia estiver travado
-            let travado = escalaDaLoja[dia.iso] && escalaDaLoja[dia.iso].travado;
-            let iconeTrava = travado ? '<br><span title="Semana Travada" style="font-size: 1.1rem; display: block; margin-top: 2px;">🔒</span>' : '';
-
-            htmlBody += `<tr class="${classeMesDiferente} ${classeQuebra}" style="${estiloBordaSexta}">`;
-            htmlBody += `
-                <td class="${classFeriadoTd} border-end border-3 border-dark fw-bold text-center" style="vertical-align: middle;">
-                    <div class="fs-5">${dia.diaSemana}</div>
-                    <div class="${dia.isFeriado ? 'text-white' : 'text-muted'} small">${dia.fmt}</div>
-                    ${textoHoje}${iconeTrava}
-                </td>
-            `;
-
-            if (dia.isFeriado) {
-                htmlBody += `<td colspan="4" class="bg-light align-middle text-center"><div class="alert alert-secondary mb-0 d-inline-block shadow-sm fw-bold px-3 py-1">🏖️ Folga: <span class="text-danger">${dia.descricaoFeriado}</span></div></td>`;
-            } else {
-                let escaladosHoje = escalaDaLoja[dia.iso] || { manha: [null, null], tarde: [null, null] };
-
-                const desenharCadeira = (corretor, iso, turno, cadeiraIndex, dataFmt) => {
-                    let conteudo = '';
-                    let classesCard = 'card-vaga shadow-sm border-2'; 
-                    let classesTexto = 'nome-corretor text-center w-100';
-                    let badgeAtendimentos = '';
-                    let iconeTroca = '';
-                    let corFundo = ''; // Nova variável para a cor do corretor
-
-                    if (corretor) {
-                        if (corretor.falta) { 
-                            classesCard += ' falta-bg'; 
-                            classesTexto += ' falta-text'; 
-                        } else {
-                            // Aplica a cor suave gerada para o corretor se ele não faltou
-                            corFundo = `background-color: ${getCorCorretor(corretor.id)};`;
-                        }
-                        
-                        if (corretor.atendimentos > 0) badgeAtendimentos = `<span class="badge bg-success position-absolute top-0 start-100 translate-middle rounded-pill shadow" style="font-size: 0.8rem; z-index: 2;">${corretor.atendimentos}</span>`;
-                        if (corretor.trocaInfo) { classesCard += ' border-warning border-2'; iconeTroca = '<span title="Plantão Trocado" class="me-1">🔄</span>'; }
-
-                        let partesNome = corretor.nome.split(' ');
-                        let primeiroNome = partesNome[0];
-                        let sobrenome = '';
-                        if (partesNome.length > 1) {
-                            if (partesNome[1].toLowerCase().match(/^(da|de|do|dos|das)$/) && partesNome.length > 2) {
-                                sobrenome = partesNome[1] + ' ' + partesNome[2];
-                            } else {
-                                sobrenome = partesNome[1];
-                            }
-                        }
-                        let nomeExibicao = primeiroNome + (sobrenome ? '<br>' + sobrenome : '');
-
-                        conteudo = `
-                            <div class="${classesCard}" style="${corFundo}" onclick="abrirDetalhesPlantao('${lojaId}', '${iso}', '${turno}', ${cadeiraIndex}, '${dataFmt}')">
-                                ${badgeAtendimentos}
-                                <div class="${classesTexto}" title="${corretor.nome}">${iconeTroca}${nomeExibicao}</div>
-                            </div>`;
-                    } else {
-                        conteudo = `
-                            <div class="card-vaga border-2" style="border-style: dotted;" onclick="abrirDetalhesPlantao('${lojaId}', '${iso}', '${turno}', ${cadeiraIndex}, '${dataFmt}')">
-                                <div class="text-muted fst-italic text-center w-100"><small>Vaga Livre</small></div>
-                            </div>`;
-                    }
-                    return `<td class="align-middle p-2" style="width: 21%;">${conteudo}</td>`;
-                };
-
-                htmlBody += desenharCadeira(escaladosHoje.manha[0], dia.iso, 'manha', 0, dia.fmt); 
-                htmlBody += desenharCadeira(escaladosHoje.manha[1], dia.iso, 'manha', 1, dia.fmt); 
-                htmlBody += desenharCadeira(escaladosHoje.tarde[0], dia.iso, 'tarde', 0, dia.fmt); 
-                htmlBody += desenharCadeira(escaladosHoje.tarde[1], dia.iso, 'tarde', 1, dia.fmt); 
-            }
-            htmlBody += `</tr>`;
+        const valorAntigoSemana = filtroSemana.value;
+        filtroSemana.innerHTML = '<option value="all" class="fw-bold text-primary">📅 Exibir Mês Completo</option>';
+        estado.semanas.forEach((sem, index) => {
+            let dataInicio = sem[0].fmt;
+            let dataFim = sem[sem.length - 1].fmt;
+            filtroSemana.innerHTML += `<option value="${index}">Semana ${index + 1} (${dataInicio} a ${dataFim})</option>`;
         });
-        return htmlBody;
-    };
 
-    tabelaFlamengo.innerHTML = desenharTabela('flamengo');
-    tabelaTijuca.innerHTML = desenharTabela('tijuca');
+        if (carregamentoInicial) {
+            filtroSemana.value = "all"; 
+            carregamentoInicial = false;
+        } else if (valorAntigoSemana) {
+            filtroSemana.value = valorAntigoSemana;
+        }
+
+        const valSemana = filtroSemana.value;
+        let diasDaVisao = (valSemana === "all") ? estado.semanas.flat() : (estado.semanas[parseInt(valSemana)] || []);
+
+        const atualizarBotoesTrava = (lojaId) => {
+            const btn = document.getElementById(`btn-lock-${lojaId}`);
+            if (!btn) return;
+            if (valSemana === "all") {
+                btn.style.display = 'none'; 
+            } else {
+                btn.style.display = 'inline-block';
+                let travadosCount = 0;
+                const diasDestaSemana = estado.semanas[parseInt(valSemana)] || [];
+                diasDestaSemana.forEach(d => {
+                    if (estado.escala[lojaId][d.iso] && estado.escala[lojaId][d.iso].travado) travadosCount++;
+                });
+                if (travadosCount > 0 && travadosCount >= (diasDestaSemana.length / 2)) {
+                    btn.innerHTML = '🔒 Destravar Semana';
+                    btn.className = 'btn btn-sm btn-secondary fw-bold shadow-sm';
+                } else {
+                    btn.innerHTML = '🔓 Travar Semana';
+                    btn.className = 'btn btn-sm btn-warning text-dark fw-bold shadow-sm';
+                }
+            }
+        };
+        atualizarBotoesTrava('flamengo');
+        atualizarBotoesTrava('tijuca');
+
+        if (diasDaVisao.length === 0) {
+            let msg = '<tr><td colspan="5" class="text-center py-4 text-muted">Não há dias úteis.</td></tr>';
+            tabelaFlamengo.innerHTML = msg;
+            tabelaTijuca.innerHTML = msg;
+            return;
+        }
+
+        const desenharTabela = (lojaId) => {
+            let htmlBody = '';
+            const escalaDaLoja = estado.escala[lojaId] || {};
+
+            diasDaVisao.forEach((dia, index) => {
+                let hojeISO = new Date().toISOString().split('T')[0];
+                let classHoje = (dia.iso === hojeISO) ? "bg-warning" : "bg-white";
+                let textoHoje = (dia.iso === hojeISO) ? '<br><span class="badge bg-danger mt-1">HOJE</span>' : '';
+                let classFeriadoTd = dia.isFeriado ? "bg-danger text-white bg-opacity-75 border-danger" : classHoje;
+                let classeMesDiferente = (dia.iso.substring(0,7) !== filtroMes.value) ? "fst-italic opacity-75" : "";
+                let estiloBordaSexta = dia.diaSemana === 'Sexta' ? "border-bottom: 3px solid #343a40;" : "";
+                
+                let ehSexta = dia.diaSemana === 'Sexta';
+                let ehUltimoDia = index === diasDaVisao.length - 1;
+                let classeQuebra = (ehSexta && !ehUltimoDia && valSemana === "all") ? "quebra-semana" : "";
+
+                let travado = escalaDaLoja[dia.iso] && escalaDaLoja[dia.iso].travado;
+                let iconeTrava = travado ? '<br><span title="Semana Travada" style="font-size: 1.1rem; display: block; margin-top: 2px;">🔒</span>' : '';
+
+                htmlBody += `<tr class="${classeMesDiferente} ${classeQuebra}" style="${estiloBordaSexta}">`;
+                htmlBody += `
+                    <td class="${classFeriadoTd} border-end border-3 border-dark fw-bold text-center" style="vertical-align: middle;">
+                        <div class="fs-5">${dia.diaSemana}</div>
+                        <div class="${dia.isFeriado ? 'text-white' : 'text-muted'} small">${dia.fmt}</div>
+                        ${textoHoje}${iconeTrava}
+                    </td>
+                `;
+
+                if (dia.isFeriado) {
+                    htmlBody += `<td colspan="4" class="bg-light align-middle text-center"><div class="alert alert-secondary mb-0 d-inline-block shadow-sm fw-bold px-3 py-1">🏖️ Folga: <span class="text-danger">${dia.descricaoFeriado}</span></div></td>`;
+                } else {
+                    // CÓDIGO À PROVA DE FALHAS (Evita que o sistema trave ao ler dados antigos do banco)
+                    let escaladosHoje = escalaDaLoja[dia.iso] || {};
+                    let arrManha = escaladosHoje.manha || [null, null];
+                    let arrTarde = escaladosHoje.tarde || [null, null];
+
+                    const desenharCadeira = (corretor, iso, turno, cadeiraIndex, dataFmt) => {
+                        let conteudo = '';
+                        let classesCard = 'card-vaga shadow-sm border-2'; 
+                        let classesTexto = 'nome-corretor text-center w-100';
+                        let badgeAtendimentos = '';
+                        let iconeTroca = '';
+                        let corFundo = ''; 
+
+                        if (corretor) {
+                            let nomeSeguro = corretor.nome || "Corretor";
+                            let idSeguro = corretor.id || "";
+                            
+                            if (corretor.falta) { 
+                                classesCard += ' falta-bg'; 
+                                classesTexto += ' falta-text'; 
+                            } else {
+                                corFundo = `background-color: ${getCorCorretor(idSeguro)};`;
+                            }
+                            
+                            if (corretor.atendimentos > 0) badgeAtendimentos = `<span class="badge bg-success position-absolute top-0 start-100 translate-middle rounded-pill shadow" style="font-size: 0.8rem; z-index: 2;">${corretor.atendimentos}</span>`;
+                            if (corretor.trocaInfo) { classesCard += ' border-warning border-2'; iconeTroca = '<span title="Plantão Trocado" class="me-1">🔄</span>'; }
+
+                            let partesNome = nomeSeguro.split(' ');
+                            let primeiroNome = partesNome[0] || "";
+                            let sobrenome = '';
+                            if (partesNome.length > 1) {
+                                if (partesNome[1].toLowerCase().match(/^(da|de|do|dos|das)$/) && partesNome.length > 2) {
+                                    sobrenome = partesNome[1] + ' ' + partesNome[2];
+                                } else {
+                                    sobrenome = partesNome[1];
+                                }
+                            }
+                            let nomeExibicao = primeiroNome + (sobrenome ? '<br>' + sobrenome : '');
+
+                            conteudo = `
+                                <div class="${classesCard}" style="${corFundo}" onclick="abrirDetalhesPlantao('${lojaId}', '${iso}', '${turno}', ${cadeiraIndex}, '${dataFmt}')">
+                                    ${badgeAtendimentos}
+                                    <div class="${classesTexto}" title="${nomeSeguro}">${iconeTroca}${nomeExibicao}</div>
+                                </div>`;
+                        } else {
+                            conteudo = `
+                                <div class="card-vaga border-2" style="border-style: dotted;" onclick="abrirDetalhesPlantao('${lojaId}', '${iso}', '${turno}', ${cadeiraIndex}, '${dataFmt}')">
+                                    <div class="text-muted fst-italic text-center w-100"><small>Vaga Livre</small></div>
+                                </div>`;
+                        }
+                        return `<td class="align-middle p-2" style="width: 21%;">${conteudo}</td>`;
+                    };
+
+                    htmlBody += desenharCadeira(arrManha[0], dia.iso, 'manha', 0, dia.fmt); 
+                    htmlBody += desenharCadeira(arrManha[1], dia.iso, 'manha', 1, dia.fmt); 
+                    htmlBody += desenharCadeira(arrTarde[0], dia.iso, 'tarde', 0, dia.fmt); 
+                    htmlBody += desenharCadeira(arrTarde[1], dia.iso, 'tarde', 1, dia.fmt); 
+                }
+                htmlBody += `</tr>`;
+            });
+            return htmlBody;
+        };
+
+        tabelaFlamengo.innerHTML = desenharTabela('flamengo');
+        tabelaTijuca.innerHTML = desenharTabela('tijuca');
+    } catch (err) {
+        console.error("Erro Crítico ao Atualizar Visualização:", err);
+    }
 }
 
 // LÓGICA DE TRAVAR/DESTRAVAR SEMANA
@@ -343,7 +350,7 @@ window.abrirDetalhesPlantao = (loja, iso, turno, index, dataFmt) => {
     let corretorAtual = null;
     if(estado.escala[loja][iso] && estado.escala[loja][iso][turno]) corretorAtual = estado.escala[loja][iso][turno][index];
 
-    let nomeExibicao = corretorAtual ? corretorAtual.nome.split(' ')[0] : 'Vaga Livre';
+    let nomeExibicao = corretorAtual ? (corretorAtual.nome || "Corretor").split(' ')[0] : 'Vaga Livre';
     let turnoExibicao = turno === 'manha' ? 'Manhã' : 'Tarde';
     document.getElementById('modal-detalhes-titulo').innerText = `${nomeExibicao} - ${dataFmt} (${turnoExibicao})`;
 
@@ -380,6 +387,7 @@ window.salvarDetalhesPlantao = async () => {
     const { loja, iso, turno, index } = window.editandoPlantao;
     
     if(!estado.escala[loja][iso]) estado.escala[loja][iso] = { manha: [null, null], tarde: [null, null], travado: false };
+    if(!estado.escala[loja][iso][turno]) estado.escala[loja][iso][turno] = [null, null]; // Extra safety
     
     let mantemTravado = estado.escala[loja][iso].travado || false;
 
@@ -472,11 +480,11 @@ window.efetuarTroca = async () => {
     if (d1 === d2 && t1 === t2 && c1 === c2) return mostrarAlerta("Atenção", "Por favor, selecione cadeiras diferentes para trocar.");
     if (!estado.escala[lojaAlvo][d1] || !estado.escala[lojaAlvo][d2]) return mostrarAlerta("Erro", "Você não pode trocar cadeiras em dias sem escala gerada nesta loja.");
 
-    let obj1 = estado.escala[lojaAlvo][d1][t1][c1];
-    let obj2 = estado.escala[lojaAlvo][d2][t2][c2];
+    let obj1 = estado.escala[lojaAlvo][d1][t1] ? estado.escala[lojaAlvo][d1][t1][c1] : null;
+    let obj2 = estado.escala[lojaAlvo][d2][t2] ? estado.escala[lojaAlvo][d2][t2][c2] : null;
 
-    let nome1 = obj1 ? obj1.nome.split(' ')[0] : "Vaga Livre";
-    let nome2 = obj2 ? obj2.nome.split(' ')[0] : "Vaga Livre";
+    let nome1 = obj1 ? (obj1.nome || "Corretor").split(' ')[0] : "Vaga Livre";
+    let nome2 = obj2 ? (obj2.nome || "Corretor").split(' ')[0] : "Vaga Livre";
 
     const data1Fmt = d1.split('-').reverse().slice(0,2).join('/');
     const data2Fmt = d2.split('-').reverse().slice(0,2).join('/');
@@ -488,6 +496,9 @@ window.efetuarTroca = async () => {
 
     if (novoObj1) novoObj1.trocaInfo = `🔄 Trocou com <b>${nome1}</b><br><small>(Original: ${data1Fmt} - ${labelT1})</small>`;
     if (novoObj2) novoObj2.trocaInfo = `🔄 Trocou com <b>${nome2}</b><br><small>(Original: ${data2Fmt} - ${labelT2})</small>`;
+
+    if(!estado.escala[lojaAlvo][d1][t1]) estado.escala[lojaAlvo][d1][t1] = [null, null];
+    if(!estado.escala[lojaAlvo][d2][t2]) estado.escala[lojaAlvo][d2][t2] = [null, null];
 
     estado.escala[lojaAlvo][d1][t1][c1] = novoObj1;
     estado.escala[lojaAlvo][d2][t2][c2] = novoObj2;
@@ -678,7 +689,7 @@ window.sortearESalvar = async () => {
 
         for (let iso in estado.escala[lojaAlvo]) {
             let sIdx = semanaDoDia[iso];
-            let diaEscala = estado.escala[lojaAlvo][iso];
+            let diaEscala = estado.escala[lojaAlvo][iso] || {};
 
             ['manha', 'tarde'].forEach(turno => {
                 if(!diaEscala[turno]) return;
